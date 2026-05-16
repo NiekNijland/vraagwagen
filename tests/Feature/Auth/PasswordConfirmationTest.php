@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
@@ -11,9 +13,9 @@ class PasswordConfirmationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_confirm_password_screen_can_be_rendered()
+    public function test_confirm_password_screen_can_be_rendered(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->createOne();
 
         $response = $this->actingAs($user)->get(route('password.confirm'));
 
@@ -24,7 +26,7 @@ class PasswordConfirmationTest extends TestCase
         );
     }
 
-    public function test_password_confirmation_requires_authentication()
+    public function test_password_confirmation_requires_authentication(): void
     {
         $response = $this->get(route('password.confirm'));
 

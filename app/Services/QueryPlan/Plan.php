@@ -11,11 +11,11 @@ namespace App\Services\QueryPlan;
 final readonly class Plan
 {
     /**
-     * @param list<WhereClause>     $where
-     * @param list<string>          $select      English field names from RegisteredVehicleField
-     * @param list<string>          $groupBy
+     * @param list<WhereClause> $where
+     * @param list<string> $select English field names from RegisteredVehicleField
+     * @param list<string> $groupBy
      * @param list<AggregateClause> $aggregates
-     * @param list<OrderClause>     $orderBy
+     * @param list<OrderClause> $orderBy
      */
     public function __construct(
         public array $where,
@@ -26,5 +26,6 @@ final readonly class Plan
         public ?int $limit,
         public DisplayHint $display,
         public string $explanation,
-    ) {}
+    ) {
+    }
 }

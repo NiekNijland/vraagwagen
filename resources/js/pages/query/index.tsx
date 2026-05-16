@@ -1,4 +1,5 @@
 import { Head } from '@inertiajs/react';
+import { ChevronDown, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import {
     Bar,
@@ -17,14 +18,13 @@ import {
     CardContent,
     CardDescription,
     CardHeader,
-    CardTitle,
 } from '@/components/ui/card';
 import {
-    type ChartConfig,
     ChartContainer,
     ChartTooltip,
     ChartTooltipContent,
 } from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 import {
     Collapsible,
     CollapsibleContent,
@@ -40,7 +40,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { ChevronDown, Sparkles } from 'lucide-react';
 
 type WhereClause = { field: string; op: string; value: string };
 type AggregateClause = { fn: string; field: string | null; alias: string };
@@ -75,14 +74,18 @@ export default function QueryPage({ examples }: Props) {
 
     const submit = async (overridePrompt?: string) => {
         const value = (overridePrompt ?? prompt).trim();
-        if (value.length < 3) return;
+
+        if (value.length < 3) {
+            return;
+        }
 
         setLoading(true);
         setResult(null);
+
         try {
-            const csrf = document
-                .querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
-                ?.content;
+            const csrf = document.querySelector<HTMLMetaElement>(
+                'meta[name="csrf-token"]',
+            )?.content;
             const response = await fetch('/api/query', {
                 method: 'POST',
                 headers: {
@@ -93,10 +96,13 @@ export default function QueryPage({ examples }: Props) {
                 body: JSON.stringify({ prompt: value }),
             });
             const data = await response.json();
+
             if (!response.ok) {
                 toast.error(data.error ?? 'Query failed');
+
                 return;
             }
+
             setResult(data as QueryResult);
         } catch (e) {
             toast.error(e instanceof Error ? e.message : 'Network error');
@@ -148,7 +154,9 @@ export default function QueryPage({ examples }: Props) {
                                 </span>
                                 <Button
                                     onClick={() => void submit()}
-                                    disabled={loading || prompt.trim().length < 3}
+                                    disabled={
+                                        loading || prompt.trim().length < 3
+                                    }
                                 >
                                     {loading ? 'Thinking…' : 'Ask'}
                                 </Button>
@@ -250,6 +258,7 @@ function ResultBody({ result }: { result: QueryResult }) {
     if (displayHint === 'count') {
         const alias = plan.aggregates[0]?.alias ?? 'count';
         const value = rows[0]?.[alias] ?? Object.values(rows[0] ?? {})[0];
+
         return (
             <div className="flex flex-col items-center py-6">
                 <div className="text-5xl font-semibold tabular-nums">
@@ -279,8 +288,9 @@ function BarsView({
     const groupKey =
         plan.groupBy[0] != null
             ? rdwKeyFor(plan.groupBy[0])
-            : Object.keys(rows[0]).find((k) => typeof rows[0][k] === 'string') ??
-              Object.keys(rows[0])[0];
+            : (Object.keys(rows[0]).find(
+                  (k) => typeof rows[0][k] === 'string',
+              ) ?? Object.keys(rows[0])[0]);
     const valueKey = plan.aggregates[0]?.alias ?? findNumericKey(rows[0]);
 
     const data = rows
@@ -293,7 +303,10 @@ function BarsView({
         .slice(0, 25);
 
     const config = {
-        value: { label: plan.aggregates[0]?.alias ?? 'count', color: 'var(--chart-1)' },
+        value: {
+            label: plan.aggregates[0]?.alias ?? 'count',
+            color: 'var(--chart-1)',
+        },
     } satisfies ChartConfig;
 
     return (
@@ -332,6 +345,7 @@ function BarsView({
 
 function TableView({ rows }: { rows: Array<Record<string, unknown>> }) {
     const columns = Object.keys(rows[0]);
+
     return (
         <div className="overflow-x-auto">
             <Table>
@@ -362,10 +376,14 @@ function TableView({ rows }: { rows: Array<Record<string, unknown>> }) {
 
 function findNumericKey(row: Record<string, unknown>): string {
     for (const [k, v] of Object.entries(row)) {
-        if (typeof v === 'number' || (typeof v === 'string' && !isNaN(Number(v)))) {
+        if (
+            typeof v === 'number' ||
+            (typeof v === 'string' && !isNaN(Number(v)))
+        ) {
             return k;
         }
     }
+
     return Object.keys(row)[0];
 }
 
@@ -390,11 +408,18 @@ function rdwKeyFor(englishName: string): string {
 
 function formatNumber(v: unknown): string {
     const n = typeof v === 'number' ? v : Number(v);
+
     return Number.isFinite(n) ? n.toLocaleString('nl-NL') : String(v ?? '');
 }
 
 function formatCell(v: unknown): string {
-    if (v === null || v === undefined) return '—';
-    if (typeof v === 'boolean') return v ? 'Ja' : 'Nee';
+    if (v === null || v === undefined) {
+        return '—';
+    }
+
+    if (typeof v === 'boolean') {
+        return v ? 'Ja' : 'Nee';
+    }
+
     return String(v);
 }

@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
+use InvalidArgumentException;
 use NiekNijland\RDW\Exceptions\RateLimitException;
 use NiekNijland\RDW\Exceptions\RdwException;
 use Throwable;
@@ -37,7 +38,7 @@ final class QueryController extends Controller
             $result = $action->execute($request->string('prompt')->toString());
         } catch (RateLimitException $e) {
             return response()->json([
-                'error' => 'RDW rate limit reached. Try again in '.$e->retryAfterSeconds.'s.',
+                'error' => 'RDW rate limit reached. Try again in ' . $e->retryAfterSeconds . 's.',
             ], 429);
         } catch (QueryExecutionException $e) {
             Log::warning('RDW query failed', [
@@ -46,10 +47,10 @@ final class QueryController extends Controller
             ]);
 
             return response()->json([
-                'error' => 'The generated query was rejected by RDW: '.$e->getMessage(),
+                'error' => 'The generated query was rejected by RDW: ' . $e->getMessage(),
                 'plan' => $this->serializePlan($e->plan),
             ], 422);
-        } catch (RdwException|\InvalidArgumentException $e) {
+        } catch (RdwException|InvalidArgumentException $e) {
             return response()->json([
                 'error' => $e->getMessage(),
             ], 422);

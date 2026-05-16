@@ -11,6 +11,7 @@ use App\Services\QueryPlan\PlanSchema;
 use App\Services\QueryPlan\PromptBuilder;
 use Prism\Prism\Enums\Provider;
 use Prism\Prism\Facades\Prism;
+use Throwable;
 
 final readonly class RunNaturalLanguageQuery
 {
@@ -18,7 +19,8 @@ final readonly class RunNaturalLanguageQuery
         private PromptBuilder $promptBuilder,
         private PlanFactory $planFactory,
         private PlanRunner $planRunner,
-    ) {}
+    ) {
+    }
 
     /**
      * @return array{plan: Plan, rows: list<array<string, mixed>>, soql: array<string, string>}
@@ -38,7 +40,7 @@ final readonly class RunNaturalLanguageQuery
 
         try {
             $result = $this->planRunner->run($plan);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             throw new QueryExecutionException($plan, $e);
         }
 

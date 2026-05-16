@@ -9,7 +9,9 @@ use NiekNijland\RDW\Schema\SchemaRegistry;
 
 final readonly class PromptBuilder
 {
-    public function __construct(private SchemaRegistry $schemas) {}
+    public function __construct(private SchemaRegistry $schemas)
+    {
+    }
 
     public function systemPrompt(): string
     {

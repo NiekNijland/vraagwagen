@@ -20,7 +20,9 @@ use Throwable;
  */
 final readonly class PlanRunner
 {
-    public function __construct(private Rdw $rdw) {}
+    public function __construct(private Rdw $rdw)
+    {
+    }
 
     /**
      * @return array{rows: list<array<string, mixed>>, soql: array<string, string>}
@@ -46,7 +48,7 @@ final readonly class PlanRunner
 
     /**
      * @param QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle> $builder
-     * @param list<WhereClause>                                        $clauses
+     * @param list<WhereClause> $clauses
      * @return QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle>
      */
     private function applyWhere(QueryBuilder $builder, array $clauses): QueryBuilder
@@ -72,7 +74,7 @@ final readonly class PlanRunner
 
     /**
      * @param QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle> $builder
-     * @param list<string>                                             $fields
+     * @param list<string> $fields
      * @return QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle>
      */
     private function applySelect(QueryBuilder $builder, array $fields): QueryBuilder
@@ -86,7 +88,7 @@ final readonly class PlanRunner
 
     /**
      * @param QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle> $builder
-     * @param list<string>                                             $fields
+     * @param list<string> $fields
      * @return QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle>
      */
     private function applyGroupBy(QueryBuilder $builder, array $fields): QueryBuilder
@@ -100,7 +102,7 @@ final readonly class PlanRunner
 
     /**
      * @param QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle> $builder
-     * @param list<AggregateClause>                                    $aggregates
+     * @param list<AggregateClause> $aggregates
      * @return QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle>
      */
     private function applyAggregates(QueryBuilder $builder, array $aggregates): QueryBuilder
@@ -122,7 +124,7 @@ final readonly class PlanRunner
 
     /**
      * @param QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle> $builder
-     * @param list<OrderClause>                                        $orderBy
+     * @param list<OrderClause> $orderBy
      * @return QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle>
      */
     private function applyOrderBy(QueryBuilder $builder, array $orderBy): QueryBuilder

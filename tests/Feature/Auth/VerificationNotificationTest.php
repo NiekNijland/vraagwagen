@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
@@ -24,7 +26,7 @@ class VerificationNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $user = User::factory()->unverified()->create();
+        $user = User::factory()->unverified()->createOne();
 
         $this->actingAs($user)
             ->post(route('verification.send'))
@@ -37,7 +39,7 @@ class VerificationNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $user = User::factory()->create();
+        $user = User::factory()->createOne();
 
         $this->actingAs($user)
             ->post(route('verification.send'))

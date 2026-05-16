@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
@@ -33,7 +35,7 @@ class TwoFactorChallengeTest extends TestCase
             'confirmPassword' => true,
         ]);
 
-        $user = User::factory()->create();
+        $user = User::factory()->createOne();
 
         $user->forceFill([
             'two_factor_secret' => encrypt('test-secret'),

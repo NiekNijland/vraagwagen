@@ -7,3 +7,9 @@ parameters:
     level: 8
 
     editorUrl: 'phpstorm://open?file=%%file%%&line=%%line%%'
+
+    ignoreErrors:
+        # Macros registered by inertiajs/inertia-laravel are not statically visible.
+        -
+            message: '#Call to an undefined method Illuminate\\Testing\\TestResponse::(assertInertia|assertInertiaFlash|assertInertiaFlashMissing|inertiaPage|inertiaProps)\(\)#'
+            path: tests/*

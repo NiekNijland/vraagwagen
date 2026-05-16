@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
@@ -50,7 +52,7 @@ class SecurityController extends Controller implements HasMiddleware
     public function update(PasswordUpdateRequest $request): RedirectResponse
     {
         $request->user()->update([
-            'password' => $request->password,
+            'password' => $request->input('password'),
         ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Password updated.')]);
