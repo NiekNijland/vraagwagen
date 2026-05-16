@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\QueryPlan;
 
+use BackedEnum;
 use InvalidArgumentException;
 use NiekNijland\RDW\Fields\RegisteredVehicleField;
 
@@ -12,23 +13,32 @@ use NiekNijland\RDW\Fields\RegisteredVehicleField;
  *
  * Prism + OpenAI strict schema validates the shape, but we still re-validate
  * enum values and resolve PascalCase field names to {@see RegisteredVehicleField}
- * cases so the runner can rely on typed inputs.
+ * cases so the runner can rely on typed inputs. All enum lookups are done with
+ * {@see \BackedEnum::tryFrom()} so an out-of-band value surfaces as a typed
+ * {@see InvalidArgumentException} (mapped to 422 by the controller) instead of
+ * a raw {@see \ValueError} (which would surface as a 500).
  */
 final class PlanFactory
 {
+    private const int LIMIT_MIN = 1;
+
+    private const int LIMIT_MAX = 1000;
+
+    private const string ALIAS_PATTERN = '/^[A-Za-z_][A-Za-z0-9_]*$/';
+
     /**
      * @param array<string, mixed> $data
      */
     public function fromArray(array $data): Plan
     {
         return new Plan(
-            where: array_values(array_map($this->parseWhere(...), $data['where'] ?? [])),
-            select: $this->parseFieldList($data['select'] ?? []),
-            groupBy: $this->parseFieldList($data['groupBy'] ?? []),
-            aggregates: array_values(array_map($this->parseAggregate(...), $data['aggregates'] ?? [])),
-            orderBy: array_values(array_map($this->parseOrder(...), $data['orderBy'] ?? [])),
-            limit: isset($data['limit']) ? max(1, min(1000, (int) $data['limit'])) : null,
-            display: DisplayHint::from((string) ($data['display'] ?? 'table')),
+            where: array_values(array_map($this->parseWhere(...), $this->arrayOrEmpty($data, 'where'))),
+            select: $this->parseFieldList(array_values($this->arrayOrEmpty($data, 'select'))),
+            groupBy: $this->parseFieldList(array_values($this->arrayOrEmpty($data, 'groupBy'))),
+            aggregates: array_values(array_map($this->parseAggregate(...), $this->arrayOrEmpty($data, 'aggregates'))),
+            orderBy: array_values(array_map($this->parseOrder(...), $this->arrayOrEmpty($data, 'orderBy'))),
+            limit: isset($data['limit']) ? max(self::LIMIT_MIN, min(self::LIMIT_MAX, (int) $data['limit'])) : null,
+            display: $this->parseDisplay($data['display'] ?? null),
             explanation: (string) ($data['explanation'] ?? ''),
         );
     }
@@ -43,7 +53,7 @@ final class PlanFactory
 
         return new WhereClause(
             field: $field,
-            op: WhereOp::from((string) ($clause['op'] ?? '')),
+            op: $this->parseEnum(WhereOp::class, (string) ($clause['op'] ?? ''), 'where.op'),
             value: (string) ($clause['value'] ?? ''),
         );
     }
@@ -53,16 +63,26 @@ final class PlanFactory
      */
     private function parseAggregate(array $clause): AggregateClause
     {
-        $field = isset($clause['field']) ? (string) $clause['field'] : null;
-        if ($field !== null && $field !== '*' && $field !== '') {
+        $rawField = isset($clause['field']) ? (string) $clause['field'] : null;
+        $field = ($rawField === null || $rawField === '' || $rawField === '*') ? null : $rawField;
+
+        if ($field !== null) {
             $this->assertFieldExists($field);
         }
-        $field = ($field === '' || $field === '*') ? null : $field;
+
+        $rawAlias = (string) ($clause['alias'] ?? '');
+        if (preg_match(self::ALIAS_PATTERN, $rawAlias) !== 1) {
+            throw new InvalidArgumentException(sprintf(
+                'Invalid aggregate alias "%s". Aliases must match %s.',
+                $rawAlias,
+                self::ALIAS_PATTERN,
+            ));
+        }
 
         return new AggregateClause(
-            fn: AggregateFn::from((string) ($clause['fn'] ?? '')),
+            fn: $this->parseEnum(AggregateFn::class, (string) ($clause['fn'] ?? ''), 'aggregates.fn'),
             field: $field,
-            alias: $this->sanitiseAlias((string) ($clause['alias'] ?? 'value')),
+            alias: $rawAlias,
         );
     }
 
@@ -73,7 +93,7 @@ final class PlanFactory
     {
         return new OrderClause(
             expr: (string) ($clause['expr'] ?? ''),
-            direction: OrderDirection::from((string) ($clause['direction'] ?? 'asc')),
+            direction: $this->parseEnum(OrderDirection::class, (string) ($clause['direction'] ?? 'asc'), 'orderBy.direction'),
         );
     }
 
@@ -93,18 +113,42 @@ final class PlanFactory
         return $out;
     }
 
-    private function assertFieldExists(string $name): void
+    private function parseDisplay(mixed $raw): DisplayHint
     {
-        foreach (RegisteredVehicleField::cases() as $case) {
-            if ($case->name === $name) {
-                return;
-            }
-        }
-        throw new InvalidArgumentException(sprintf('Unknown RegisteredVehicleField "%s".', $name));
+        return $this->parseEnum(DisplayHint::class, (string) ($raw ?? 'table'), 'display');
     }
 
-    private function sanitiseAlias(string $alias): string
+    private function assertFieldExists(string $name): void
     {
-        return preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $alias) === 1 ? $alias : 'value';
+        if (RegisteredVehicleFieldLookup::tryGet($name) === null) {
+            throw new InvalidArgumentException(sprintf('Unknown RegisteredVehicleField "%s".', $name));
+        }
+    }
+
+    /**
+     * @template T of \BackedEnum
+     *
+     * @param class-string<T> $enumClass
+     * @return T
+     */
+    private function parseEnum(string $enumClass, string $value, string $field): BackedEnum
+    {
+        $case = $enumClass::tryFrom($value);
+        if ($case === null) {
+            throw new InvalidArgumentException(sprintf('Invalid value "%s" for %s.', $value, $field));
+        }
+
+        return $case;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<int, mixed>
+     */
+    private function arrayOrEmpty(array $data, string $key): array
+    {
+        $value = $data[$key] ?? [];
+
+        return is_array($value) ? $value : [];
     }
 }

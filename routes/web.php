@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [QueryController::class, 'index'])->name('home');
 Route::post('/api/query', [QueryController::class, 'run'])
-    ->middleware('throttle:10,1')
+    ->middleware('throttle:rdw-query')
     ->name('rdw.query.run');
 
 Route::middleware(['auth', 'verified'])->group(function () {

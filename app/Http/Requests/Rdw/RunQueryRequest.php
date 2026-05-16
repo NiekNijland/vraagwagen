@@ -8,11 +8,6 @@ use Illuminate\Foundation\Http\FormRequest;
 
 final class RunQueryRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     /**
      * @return array<string, mixed>
      */

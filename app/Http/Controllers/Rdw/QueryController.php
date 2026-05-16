@@ -22,13 +22,11 @@ final class QueryController extends Controller
 {
     public function index(): InertiaResponse
     {
+        /** @var list<string> $examples */
+        $examples = (array) config('rdwai.examples', []);
+
         return Inertia::render('query/index', [
-            'examples' => [
-                'How many white Volkswagen Ups from February 2017 are registered and insured?',
-                'What colors of Toyota Aygo are registered, and how many per color?',
-                'Show me 10 red BMWs with their license plate, model and registration date',
-                'How many electric Tesla Model 3 are insured in the Netherlands?',
-            ],
+            'examples' => $examples,
         ]);
     }
 
@@ -41,18 +39,30 @@ final class QueryController extends Controller
                 'error' => 'RDW rate limit reached. Try again in ' . $e->retryAfterSeconds . 's.',
             ], 429);
         } catch (QueryExecutionException $e) {
+            $serialisedPlan = $this->serializePlan($e->plan);
             Log::warning('RDW query failed', [
                 'message' => $e->getMessage(),
-                'plan' => $this->serializePlan($e->plan),
+                'plan' => $serialisedPlan,
             ]);
 
             return response()->json([
-                'error' => 'The generated query was rejected by RDW: ' . $e->getMessage(),
-                'plan' => $this->serializePlan($e->plan),
+                'error' => 'The generated query was rejected by RDW. Try rephrasing your question.',
+                'plan' => $serialisedPlan,
             ], 422);
-        } catch (RdwException|InvalidArgumentException $e) {
+        } catch (InvalidArgumentException $e) {
+            // Field-name / alias / enum validation failures from PlanFactory or
+            // PlanRunner. The messages reference internal field names; safe but
+            // noisy, so return them under a generic envelope.
+            Log::info('RDW plan invalid', ['message' => $e->getMessage()]);
+
             return response()->json([
-                'error' => $e->getMessage(),
+                'error' => 'The generated query was malformed. Try rephrasing your question.',
+            ], 422);
+        } catch (RdwException $e) {
+            Log::warning('RDW package error', ['message' => $e->getMessage()]);
+
+            return response()->json([
+                'error' => 'The RDW open-data service rejected the query.',
             ], 422);
         } catch (Throwable $e) {
             report($e);

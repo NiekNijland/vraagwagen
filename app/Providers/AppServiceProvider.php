@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use NiekNijland\RDW\Http\Configuration as RdwConfiguration;
@@ -32,6 +35,20 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configureRateLimiting();
+    }
+
+    /**
+     * Configure rate limiters for the public RDW query endpoint. The route
+     * is open to anonymous visitors, so we layer a per-IP burst limit under
+     * a global daily cap to protect the OpenAI spend.
+     */
+    protected function configureRateLimiting(): void
+    {
+        RateLimiter::for('rdw-query', fn (Request $request): array => [
+            Limit::perMinute((int) config('rdwai.rate_limit.per_minute'))->by((string) $request->ip()),
+            Limit::perDay((int) config('rdwai.rate_limit.per_day_global'))->by('rdw-query:global'),
+        ]);
     }
 
     /**

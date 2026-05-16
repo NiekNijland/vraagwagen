@@ -6,17 +6,26 @@ namespace App\Services\QueryPlan;
 
 use Carbon\CarbonImmutable;
 use InvalidArgumentException;
+use NiekNijland\RDW\Datasets\DatasetId;
 use NiekNijland\RDW\Fields\RegisteredVehicleField;
 use NiekNijland\RDW\Query\QueryBuilder;
 use NiekNijland\RDW\Query\SortDirection;
 use NiekNijland\RDW\Rdw;
 use NiekNijland\RDW\Schema\CastType;
-use Throwable;
+use NiekNijland\RDW\Schema\DatasetSchema;
 
 /**
  * Translates a validated {@see Plan} into a typed RDW {@see QueryBuilder},
  * picks the right terminal call, and returns rows + the SoQL params we sent
  * (for the debug pane).
+ *
+ * The returned rows are always keyed by the public PascalCase enum case name
+ * (e.g. "LicensePlate"), regardless of whether they came from the row path
+ * ({@see QueryBuilder::get()}, which returns hydrated record objects whose
+ * properties are camelCase) or the aggregate/groupBy path
+ * ({@see QueryBuilder::getProjection()}, which returns rows keyed by the
+ * Dutch snake_case rdwKey). Aggregate aliases are passed through verbatim so
+ * orderBy/expr references remain valid client-side.
  */
 final readonly class PlanRunner
 {
@@ -34,7 +43,7 @@ final readonly class PlanRunner
         $builder = $this->applySelect($builder, [...$plan->select, ...$plan->groupBy]);
         $builder = $this->applyGroupBy($builder, $plan->groupBy);
         $builder = $this->applyAggregates($builder, $plan->aggregates);
-        $builder = $this->applyOrderBy($builder, $plan->orderBy);
+        $builder = $this->applyOrderBy($builder, $plan->orderBy, $plan->aggregates);
 
         if ($plan->limit !== null) {
             $builder = $builder->limit($plan->limit);
@@ -55,15 +64,14 @@ final readonly class PlanRunner
     {
         foreach ($clauses as $clause) {
             $field = $this->resolveField($clause->field);
-            $value = $this->castValue($field, $clause->value);
 
             $builder = match ($clause->op) {
-                WhereOp::Equals => $builder->where($field, $value, '='),
-                WhereOp::NotEquals => $builder->where($field, $value, '!='),
-                WhereOp::GreaterThan => $builder->where($field, $value, '>'),
-                WhereOp::GreaterThanOrEqual => $builder->where($field, $value, '>='),
-                WhereOp::LessThan => $builder->where($field, $value, '<'),
-                WhereOp::LessThanOrEqual => $builder->where($field, $value, '<='),
+                WhereOp::Equals => $builder->where($field, $this->castValue($field, $clause->value), '='),
+                WhereOp::NotEquals => $builder->where($field, $this->castValue($field, $clause->value), '!='),
+                WhereOp::GreaterThan => $builder->where($field, $this->castValue($field, $clause->value), '>'),
+                WhereOp::GreaterThanOrEqual => $builder->where($field, $this->castValue($field, $clause->value), '>='),
+                WhereOp::LessThan => $builder->where($field, $this->castValue($field, $clause->value), '<'),
+                WhereOp::LessThanOrEqual => $builder->where($field, $this->castValue($field, $clause->value), '<='),
                 WhereOp::Contains => $builder->whereContains($field, $clause->value),
                 WhereOp::StartsWith => $builder->whereStartsWith($field, $clause->value),
             };
@@ -112,10 +120,10 @@ final readonly class PlanRunner
 
             $builder = match ($agg->fn) {
                 AggregateFn::Count => $builder->count($field, $agg->alias),
-                AggregateFn::Sum => $builder->sum($field ?? throw new InvalidArgumentException('sum requires a field.'), $agg->alias),
-                AggregateFn::Avg => $builder->avg($field ?? throw new InvalidArgumentException('avg requires a field.'), $agg->alias),
-                AggregateFn::Min => $builder->min($field ?? throw new InvalidArgumentException('min requires a field.'), $agg->alias),
-                AggregateFn::Max => $builder->max($field ?? throw new InvalidArgumentException('max requires a field.'), $agg->alias),
+                AggregateFn::Sum => $builder->sum($this->requireField($field, AggregateFn::Sum), $agg->alias),
+                AggregateFn::Avg => $builder->avg($this->requireField($field, AggregateFn::Avg), $agg->alias),
+                AggregateFn::Min => $builder->min($this->requireField($field, AggregateFn::Min), $agg->alias),
+                AggregateFn::Max => $builder->max($this->requireField($field, AggregateFn::Max), $agg->alias),
             };
         }
 
@@ -125,10 +133,16 @@ final readonly class PlanRunner
     /**
      * @param QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle> $builder
      * @param list<OrderClause> $orderBy
+     * @param list<AggregateClause> $aggregates
      * @return QueryBuilder<\NiekNijland\RDW\Records\RegisteredVehicle>
      */
-    private function applyOrderBy(QueryBuilder $builder, array $orderBy): QueryBuilder
+    private function applyOrderBy(QueryBuilder $builder, array $orderBy, array $aggregates): QueryBuilder
     {
+        $aliasSet = [];
+        foreach ($aggregates as $agg) {
+            $aliasSet[$agg->alias] = true;
+        }
+
         foreach ($orderBy as $clause) {
             $direction = $clause->direction === OrderDirection::Desc ? SortDirection::Desc : SortDirection::Asc;
 
@@ -138,9 +152,13 @@ final readonly class PlanRunner
                 continue;
             }
 
-            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $clause->expr) !== 1) {
-                throw new InvalidArgumentException(sprintf('Invalid orderBy expression "%s".', $clause->expr));
+            if (! isset($aliasSet[$clause->expr])) {
+                throw new InvalidArgumentException(sprintf(
+                    'orderBy expression "%s" is neither a known field nor a declared aggregate alias.',
+                    $clause->expr,
+                ));
             }
+
             $builder = $builder->orderByRaw($clause->expr . ' ' . $direction->value);
         }
 
@@ -153,61 +171,101 @@ final readonly class PlanRunner
      */
     private function execute(QueryBuilder $builder, Plan $plan): array
     {
-        try {
-            if ($plan->aggregates !== [] || $plan->groupBy !== []) {
-                return $builder->getProjection();
-            }
+        if ($plan->aggregates !== [] || $plan->groupBy !== []) {
+            $rows = $builder->getProjection();
 
-            $records = $builder->get();
-            $properties = $this->selectedPropertyNames($plan->select);
-
-            return array_map(static fn (object $r): array => self::recordToArray($r, $properties), $records);
-        } catch (Throwable $e) {
-            throw $e;
+            return $this->normaliseProjectionRows($rows, $plan->aggregates);
         }
+
+        $records = $builder->get();
+
+        return array_map(fn (object $r): array => $this->recordToArray($r, $plan->select), $records);
     }
 
     /**
-     * @param list<string> $keepProperties When empty, every record property is kept.
-     * @return array<string, mixed>
-     */
-    private static function recordToArray(object $record, array $keepProperties): array
-    {
-        $out = [];
-        foreach (get_object_vars($record) as $key => $value) {
-            if ($keepProperties !== [] && ! in_array($key, $keepProperties, true)) {
-                continue;
-            }
-            $out[$key] = $value instanceof CarbonImmutable ? $value->toDateString() : $value;
-        }
-
-        return $out;
-    }
-
-    /**
-     * Maps the plan's PascalCase enum names to the camelCase property names
-     * the hydrated record exposes (e.g. LicensePlate → licensePlate). Falls
-     * back to "keep everything" when the plan didn't constrain selects.
+     * Build an output row for a hydrated record in the order requested by
+     * `$plan->select` (PascalCase enum case names). When no select was given
+     * we fall through to every property the record exposes.
      *
      * @param list<string> $select
-     * @return list<string>
+     * @return array<string, mixed>
      */
-    private function selectedPropertyNames(array $select): array
+    private function recordToArray(object $record, array $select): array
     {
+        $vars = get_object_vars($record);
+        $schema = $this->schema();
+
         if ($select === []) {
-            return [];
+            $out = [];
+            foreach ($vars as $key => $value) {
+                $enumCase = $this->propertyToEnumCase($schema, $key) ?? $key;
+                $out[$enumCase] = $this->normaliseValue($value);
+            }
+
+            return $out;
         }
 
-        $schema = $this->rdw->schemas()->get(\NiekNijland\RDW\Datasets\DatasetId::RegisteredVehicles);
         $out = [];
-        foreach ($select as $name) {
-            $descriptor = $schema->byEnumCase[$name] ?? null;
-            if ($descriptor !== null) {
-                $out[] = $descriptor->propertyName;
+        foreach ($select as $enumCase) {
+            $descriptor = $schema->byEnumCase[$enumCase] ?? null;
+            if ($descriptor === null) {
+                continue;
             }
+            if (! array_key_exists($descriptor->propertyName, $vars)) {
+                continue;
+            }
+            $out[$enumCase] = $this->normaliseValue($vars[$descriptor->propertyName]);
         }
 
         return $out;
+    }
+
+    /**
+     * Aggregate/groupBy rows arrive keyed by the Dutch snake_case rdwKey.
+     * Rewrite known keys to their public PascalCase enum case so the frontend
+     * never needs its own translation table.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @param list<AggregateClause> $aggregates
+     * @return list<array<string, mixed>>
+     */
+    private function normaliseProjectionRows(array $rows, array $aggregates): array
+    {
+        $schema = $this->schema();
+        $aliasSet = [];
+        foreach ($aggregates as $agg) {
+            $aliasSet[$agg->alias] = true;
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            $normalised = [];
+            foreach ($row as $key => $value) {
+                $renamed = isset($aliasSet[$key])
+                    ? $key
+                    : ($schema->byRdwKey[$key]->enumCase ?? $key);
+                $normalised[$renamed] = $this->normaliseValue($value);
+            }
+            $out[] = $normalised;
+        }
+
+        return $out;
+    }
+
+    private function normaliseValue(mixed $value): mixed
+    {
+        return $value instanceof CarbonImmutable ? $value->toDateString() : $value;
+    }
+
+    private function propertyToEnumCase(DatasetSchema $schema, string $propertyName): ?string
+    {
+        foreach ($schema->byEnumCase as $enumCase => $descriptor) {
+            if ($descriptor->propertyName === $propertyName) {
+                return $enumCase;
+            }
+        }
+
+        return null;
     }
 
     private function resolveField(string $name): RegisteredVehicleField
@@ -222,20 +280,21 @@ final readonly class PlanRunner
 
     private function tryResolveField(string $name): ?RegisteredVehicleField
     {
-        foreach (RegisteredVehicleField::cases() as $case) {
-            if ($case->name === $name) {
-                return $case;
-            }
+        return RegisteredVehicleFieldLookup::tryGet($name);
+    }
+
+    private function requireField(?RegisteredVehicleField $field, AggregateFn $fn): RegisteredVehicleField
+    {
+        if ($field === null) {
+            throw new InvalidArgumentException(sprintf('Aggregate %s requires a field.', $fn->value));
         }
 
-        return null;
+        return $field;
     }
 
     private function castValue(RegisteredVehicleField $field, string $raw): mixed
     {
-        $descriptor = $this->rdw->schemas()->get(\NiekNijland\RDW\Datasets\DatasetId::RegisteredVehicles)
-            ->byEnumCase[$field->name] ?? null;
-
+        $descriptor = $this->schema()->byEnumCase[$field->name] ?? null;
         if ($descriptor === null) {
             return $raw;
         }
@@ -243,9 +302,14 @@ final readonly class PlanRunner
         return match ($descriptor->cast) {
             CastType::Boolean => in_array(strtolower($raw), ['true', '1', 'ja', 'yes'], true),
             CastType::Integer => (int) $raw,
-            CastType::Decimal => $raw, // package keeps decimals as string to avoid precision loss
+            CastType::Decimal => $raw,
             CastType::CalendarDate, CastType::NumericDate => CarbonImmutable::parse($raw, 'UTC'),
             default => $raw,
         };
+    }
+
+    private function schema(): DatasetSchema
+    {
+        return $this->rdw->schemas()->get(DatasetId::RegisteredVehicles);
     }
 }

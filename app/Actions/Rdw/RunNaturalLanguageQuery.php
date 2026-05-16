@@ -9,16 +9,17 @@ use App\Services\QueryPlan\PlanFactory;
 use App\Services\QueryPlan\PlanRunner;
 use App\Services\QueryPlan\PlanSchema;
 use App\Services\QueryPlan\PromptBuilder;
+use NiekNijland\RDW\Exceptions\RateLimitException;
 use Prism\Prism\Enums\Provider;
 use Prism\Prism\Facades\Prism;
 use Throwable;
 
-final readonly class RunNaturalLanguageQuery
+class RunNaturalLanguageQuery
 {
     public function __construct(
-        private PromptBuilder $promptBuilder,
-        private PlanFactory $planFactory,
-        private PlanRunner $planRunner,
+        private readonly PromptBuilder $promptBuilder,
+        private readonly PlanFactory $planFactory,
+        private readonly PlanRunner $planRunner,
     ) {
     }
 
@@ -40,6 +41,11 @@ final readonly class RunNaturalLanguageQuery
 
         try {
             $result = $this->planRunner->run($plan);
+        } catch (RateLimitException $e) {
+            // Rate-limit responses carry retry-after metadata the controller
+            // surfaces verbatim; wrapping them would hide that signal behind
+            // a generic 422 envelope.
+            throw $e;
         } catch (Throwable $e) {
             throw new QueryExecutionException($plan, $e);
         }

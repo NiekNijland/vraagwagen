@@ -17,6 +17,6 @@ final class QueryExecutionException extends RuntimeException
 {
     public function __construct(public readonly Plan $plan, Throwable $previous)
     {
-        parent::__construct($previous->getMessage(), 0, $previous);
+        parent::__construct($previous->getMessage(), $previous->getCode(), $previous);
     }
 }

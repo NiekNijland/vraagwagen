@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { ChevronDown, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     Bar,
     BarChart,
@@ -44,6 +44,7 @@ import { Textarea } from '@/components/ui/textarea';
 type WhereClause = { field: string; op: string; value: string };
 type AggregateClause = { fn: string; field: string | null; alias: string };
 type OrderClause = { expr: string; direction: 'asc' | 'desc' };
+type DisplayHint = 'count' | 'bars' | 'table' | 'record';
 
 type Plan = {
     where: WhereClause[];
@@ -52,32 +53,52 @@ type Plan = {
     aggregates: AggregateClause[];
     orderBy: OrderClause[];
     limit: number | null;
-    display: 'count' | 'bars' | 'table' | 'record';
+    display: DisplayHint;
     explanation: string;
 };
+
+type QueryRow = Record<string, unknown>;
 
 type QueryResult = {
     plan: Plan;
     soql: Record<string, string>;
-    rows: Array<Record<string, unknown>>;
-    displayHint: Plan['display'];
+    rows: QueryRow[];
+    displayHint: DisplayHint;
+};
+
+type ErrorResponse = {
+    error?: string;
 };
 
 type Props = {
     examples: string[];
 };
 
+const MIN_PROMPT_LENGTH = 3;
+
 export default function QueryPage({ examples }: Props) {
     const [prompt, setPrompt] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<QueryResult | null>(null);
+    const abortRef = useRef<AbortController | null>(null);
+
+    useEffect(
+        () => () => {
+            abortRef.current?.abort();
+        },
+        [],
+    );
 
     const submit = async (overridePrompt?: string) => {
         const value = (overridePrompt ?? prompt).trim();
 
-        if (value.length < 3) {
+        if (value.length < MIN_PROMPT_LENGTH) {
             return;
         }
+
+        abortRef.current?.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
 
         setLoading(true);
         setResult(null);
@@ -94,20 +115,34 @@ export default function QueryPage({ examples }: Props) {
                     ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
                 },
                 body: JSON.stringify({ prompt: value }),
+                signal: controller.signal,
             });
-            const data = await response.json();
+
+            const data = await parseJson(response);
 
             if (!response.ok) {
-                toast.error(data.error ?? 'Query failed');
+                const errorMessage =
+                    data && typeof data === 'object' && 'error' in data
+                        ? ((data as ErrorResponse).error ??
+                          fallbackErrorForStatus(response.status))
+                        : fallbackErrorForStatus(response.status);
+                toast.error(errorMessage);
 
                 return;
             }
 
             setResult(data as QueryResult);
         } catch (e) {
+            if (e instanceof DOMException && e.name === 'AbortError') {
+                return;
+            }
+
             toast.error(e instanceof Error ? e.message : 'Network error');
         } finally {
-            setLoading(false);
+            if (abortRef.current === controller) {
+                abortRef.current = null;
+                setLoading(false);
+            }
         }
     };
 
@@ -155,7 +190,8 @@ export default function QueryPage({ examples }: Props) {
                                 <Button
                                     onClick={() => void submit()}
                                     disabled={
-                                        loading || prompt.trim().length < 3
+                                        loading ||
+                                        prompt.trim().length < MIN_PROMPT_LENGTH
                                     }
                                 >
                                     {loading ? 'Thinking…' : 'Ask'}
@@ -257,7 +293,8 @@ function ResultBody({ result }: { result: QueryResult }) {
 
     if (displayHint === 'count') {
         const alias = plan.aggregates[0]?.alias ?? 'count';
-        const value = rows[0]?.[alias] ?? Object.values(rows[0] ?? {})[0];
+        const firstRow = rows[0] ?? {};
+        const value = firstRow[alias] ?? Object.values(firstRow)[0];
 
         return (
             <div className="flex flex-col items-center py-6">
@@ -278,20 +315,17 @@ function ResultBody({ result }: { result: QueryResult }) {
     return <TableView rows={rows} />;
 }
 
-function BarsView({
-    rows,
-    plan,
-}: {
-    rows: Array<Record<string, unknown>>;
-    plan: Plan;
-}) {
+function BarsView({ rows, plan }: { rows: QueryRow[]; plan: Plan }) {
+    const firstRow = rows[0] ?? {};
     const groupKey =
-        plan.groupBy[0] != null
-            ? rdwKeyFor(plan.groupBy[0])
-            : (Object.keys(rows[0]).find(
-                  (k) => typeof rows[0][k] === 'string',
-              ) ?? Object.keys(rows[0])[0]);
-    const valueKey = plan.aggregates[0]?.alias ?? findNumericKey(rows[0]);
+        plan.groupBy[0] ??
+        Object.keys(firstRow).find((k) => typeof firstRow[k] === 'string') ??
+        Object.keys(firstRow)[0];
+    const valueKey = plan.aggregates[0]?.alias ?? findNumericKey(firstRow);
+
+    if (groupKey === undefined || valueKey === undefined) {
+        return <TableView rows={rows} />;
+    }
 
     const data = rows
         .map((r) => ({
@@ -343,8 +377,8 @@ function BarsView({
     );
 }
 
-function TableView({ rows }: { rows: Array<Record<string, unknown>> }) {
-    const columns = Object.keys(rows[0]);
+function TableView({ rows }: { rows: QueryRow[] }) {
+    const columns = Object.keys(rows[0] ?? {});
 
     return (
         <div className="overflow-x-auto">
@@ -374,11 +408,11 @@ function TableView({ rows }: { rows: Array<Record<string, unknown>> }) {
     );
 }
 
-function findNumericKey(row: Record<string, unknown>): string {
+function findNumericKey(row: QueryRow): string | undefined {
     for (const [k, v] of Object.entries(row)) {
         if (
             typeof v === 'number' ||
-            (typeof v === 'string' && !isNaN(Number(v)))
+            (typeof v === 'string' && v !== '' && !Number.isNaN(Number(v)))
         ) {
             return k;
         }
@@ -387,23 +421,38 @@ function findNumericKey(row: Record<string, unknown>): string {
     return Object.keys(row)[0];
 }
 
-// The RDW package's getProjection() returns rows keyed by the Dutch RDW
-// snake_case key (e.g. "eerste_kleur"), not the English enum name. This map
-// covers the common groupable fields surfaced by the model. Unknown names
-// fall through unchanged.
-const ENGLISH_TO_RDW_KEY: Record<string, string> = {
-    Brand: 'merk',
-    CommercialName: 'handelsbenaming',
-    PrimaryColor: 'eerste_kleur',
-    SecondaryColor: 'tweede_kleur',
-    VehicleType: 'voertuigsoort',
-    NetherlandsSubcategory: 'subcategorie_nederland',
-    BodyType: 'inrichting',
-    Configuration: 'inrichting',
-};
+async function parseJson(response: Response): Promise<unknown> {
+    const contentType = response.headers.get('content-type') ?? '';
 
-function rdwKeyFor(englishName: string): string {
-    return ENGLISH_TO_RDW_KEY[englishName] ?? englishName;
+    if (!contentType.includes('application/json')) {
+        return null;
+    }
+
+    try {
+        return await response.json();
+    } catch {
+        return null;
+    }
+}
+
+function fallbackErrorForStatus(status: number): string {
+    if (status === 429) {
+        return 'You are sending requests too quickly. Try again in a moment.';
+    }
+
+    if (status === 422) {
+        return 'The request was rejected. Try rephrasing your question.';
+    }
+
+    if (status === 419) {
+        return 'Your session expired. Please refresh the page.';
+    }
+
+    if (status >= 500) {
+        return 'The server encountered an error. Try again.';
+    }
+
+    return 'Query failed.';
 }
 
 function formatNumber(v: unknown): string {
@@ -419,6 +468,10 @@ function formatCell(v: unknown): string {
 
     if (typeof v === 'boolean') {
         return v ? 'Ja' : 'Nee';
+    }
+
+    if (typeof v === 'number') {
+        return formatNumber(v);
     }
 
     return String(v);
