@@ -14,14 +14,6 @@ import {
     useState,
     useSyncExternalStore,
 } from 'react';
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    LabelList,
-    XAxis,
-    YAxis,
-} from 'recharts';
 import { toast } from 'sonner';
 
 import { LanguageSwitcher } from '@/components/language-switcher';
@@ -34,97 +26,25 @@ import {
     CardHeader,
 } from '@/components/ui/card';
 import {
-    ChartContainer,
-    ChartTooltip,
-    ChartTooltipContent,
-} from '@/components/ui/chart';
-import type { ChartConfig } from '@/components/ui/chart';
-import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useTranslation } from '@/hooks/use-translation';
 import { downloadRows } from '@/lib/export-rows';
 
-type WhereClause = { field: string; op: string; value: string };
-type AggregateClause = { fn: string; field: string | null; alias: string };
-type OrderClause = { expr: string; direction: 'asc' | 'desc' };
-type DisplayHint = 'count' | 'bars' | 'table' | 'record';
-type Rating = 'up' | 'down';
-
-type Plan = {
-    where: WhereClause[];
-    select: string[];
-    groupBy: string[];
-    aggregates: AggregateClause[];
-    orderBy: OrderClause[];
-    limit: number | null;
-    display: DisplayHint;
-    explanation: string;
-};
-
-type QueryRow = Record<string, unknown>;
-
-type QueryResult = {
-    slug?: string;
-    prompt: string;
-    plan: Plan;
-    soql: Record<string, string>;
-    url: string;
-    rows: QueryRow[];
-    displayHint: DisplayHint;
-    rating: Rating | null;
-    comment: string | null;
-};
-
-type SharedRun = {
-    slug: string;
-    prompt: string;
-    locale: string;
-    plan: Plan;
-    soql: Record<string, string>;
-    url: string;
-    rows: QueryRow[];
-    displayHint: DisplayHint;
-    rating: Rating | null;
-    comment: string | null;
-};
-
-type RunResponse = {
-    slug: string;
-    plan: Plan;
-    soql: Record<string, string>;
-    url: string;
-    rows: QueryRow[];
-    displayHint: DisplayHint;
-};
-
-type ErrorResponse = {
-    error?: string;
-    plan?: Plan;
-    soql?: Record<string, string>;
-    url?: string;
-    responseBody?: string | null;
-};
-
-type QueryError = {
-    message: string;
-    soql?: Record<string, string>;
-    url?: string;
-    responseBody?: string | null;
-};
+import type {
+    ErrorResponse,
+    QueryError,
+    QueryResult,
+    Rating,
+    RunResponse,
+    SharedRun,
+} from './types';
+import { ResultBody } from './views/result-body';
 
 type PageProps = { sharedRun: SharedRun | null };
 
@@ -850,163 +770,6 @@ function FeedbackPanel({
     );
 }
 
-function ResultBody({
-    result,
-    locale,
-}: {
-    result: QueryResult;
-    locale: string;
-}) {
-    const { t } = useTranslation();
-    const { rows, displayHint, plan } = result;
-
-    if (rows.length === 0) {
-        return (
-            <p className="text-sm text-neutral-500">
-                {t('pages.query.noRows')}
-            </p>
-        );
-    }
-
-    if (displayHint === 'count') {
-        const alias = plan.aggregates[0]?.alias ?? 'count';
-        const firstRow = rows[0] ?? {};
-        const value = firstRow[alias] ?? Object.values(firstRow)[0];
-
-        return (
-            <div className="flex flex-col items-center py-6">
-                <div className="text-5xl font-semibold tabular-nums">
-                    {formatNumber(value, locale)}
-                </div>
-                <div className="mt-1 text-sm text-neutral-500">
-                    {t('pages.query.matchingVehicles')}
-                </div>
-            </div>
-        );
-    }
-
-    if (displayHint === 'bars') {
-        return <BarsView rows={rows} plan={plan} locale={locale} />;
-    }
-
-    return <TableView rows={rows} locale={locale} />;
-}
-
-function BarsView({
-    rows,
-    plan,
-    locale,
-}: {
-    rows: QueryRow[];
-    plan: Plan;
-    locale: string;
-}) {
-    const firstRow = rows[0] ?? {};
-    const groupKey =
-        plan.groupBy[0] ??
-        Object.keys(firstRow).find((k) => typeof firstRow[k] === 'string') ??
-        Object.keys(firstRow)[0];
-    const valueKey = plan.aggregates[0]?.alias ?? findNumericKey(firstRow);
-
-    if (groupKey === undefined || valueKey === undefined) {
-        return <TableView rows={rows} locale={locale} />;
-    }
-
-    const data = rows
-        .map((r) => ({
-            label: String(r[groupKey] ?? '—'),
-            value: Number(r[valueKey] ?? 0),
-        }))
-        .filter((d) => Number.isFinite(d.value))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 25);
-
-    const config = {
-        value: {
-            label: plan.aggregates[0]?.alias ?? 'count',
-            color: 'var(--chart-1)',
-        },
-    } satisfies ChartConfig;
-
-    return (
-        <ChartContainer config={config} className="h-[360px] w-full">
-            <BarChart
-                data={data}
-                layout="vertical"
-                margin={{ left: 80, right: 32 }}
-            >
-                <CartesianGrid horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis
-                    dataKey="label"
-                    type="category"
-                    tickLine={false}
-                    axisLine={false}
-                    width={120}
-                    tick={{ fontSize: 12 }}
-                />
-                <ChartTooltip
-                    cursor={false}
-                    content={<ChartTooltipContent indicator="line" />}
-                />
-                <Bar dataKey="value" fill="var(--chart-1)" radius={4}>
-                    <LabelList
-                        dataKey="value"
-                        position="right"
-                        className="fill-foreground text-xs"
-                        formatter={(v) => formatNumber(v, locale)}
-                    />
-                </Bar>
-            </BarChart>
-        </ChartContainer>
-    );
-}
-
-function TableView({ rows, locale }: { rows: QueryRow[]; locale: string }) {
-    const { t } = useTranslation();
-    const columns = Object.keys(rows[0] ?? {});
-
-    return (
-        <div className="overflow-x-auto">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        {columns.map((c) => (
-                            <TableHead key={c} className="text-xs">
-                                {c}
-                            </TableHead>
-                        ))}
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {rows.map((row, i) => (
-                        <TableRow key={i}>
-                            {columns.map((c) => (
-                                <TableCell key={c} className="text-xs">
-                                    {formatCell(row[c], locale, t)}
-                                </TableCell>
-                            ))}
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
-    );
-}
-
-function findNumericKey(row: QueryRow): string | undefined {
-    for (const [k, v] of Object.entries(row)) {
-        if (
-            typeof v === 'number' ||
-            (typeof v === 'string' && v !== '' && !Number.isNaN(Number(v)))
-        ) {
-            return k;
-        }
-    }
-
-    return Object.keys(row)[0];
-}
-
 async function parseJson(response: Response): Promise<unknown> {
     const contentType = response.headers.get('content-type') ?? '';
 
@@ -1019,18 +782,6 @@ async function parseJson(response: Response): Promise<unknown> {
     } catch {
         return null;
     }
-}
-
-function localeTag(locale: string): string {
-    return locale === 'nl' ? 'nl-NL' : 'en-US';
-}
-
-function formatNumber(v: unknown, locale: string): string {
-    const n = typeof v === 'number' ? v : Number(v);
-
-    return Number.isFinite(n)
-        ? n.toLocaleString(localeTag(locale))
-        : String(v ?? '');
 }
 
 // Module-level cache so useSyncExternalStore sees a stable reference when
@@ -1139,24 +890,4 @@ function pushRecentQuery(query: string): void {
     }
 
     notifyRecentChanged(next);
-}
-
-function formatCell(
-    v: unknown,
-    locale: string,
-    t: (key: string) => string,
-): string {
-    if (v === null || v === undefined) {
-        return '—';
-    }
-
-    if (typeof v === 'boolean') {
-        return v ? t('pages.query.boolean.yes') : t('pages.query.boolean.no');
-    }
-
-    if (typeof v === 'number') {
-        return formatNumber(v, locale);
-    }
-
-    return String(v);
 }

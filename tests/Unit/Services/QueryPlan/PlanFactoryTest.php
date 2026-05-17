@@ -177,9 +177,19 @@ final class PlanFactoryTest extends TestCase
         $factory = new PlanFactory();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid value "pie" for display');
+        $this->expectExceptionMessage('Invalid value "treemap" for display');
 
-        $factory->fromArray(['display' => 'pie']);
+        $factory->fromArray(['display' => 'treemap']);
+    }
+
+    public function test_accepts_each_supported_display_hint(): void
+    {
+        $factory = new PlanFactory();
+
+        foreach (DisplayHint::cases() as $hint) {
+            $plan = $factory->fromArray(['display' => $hint->value]);
+            self::assertSame($hint, $plan->display);
+        }
     }
 
     public function test_rejects_invalid_aggregate_alias_instead_of_silently_rewriting(): void

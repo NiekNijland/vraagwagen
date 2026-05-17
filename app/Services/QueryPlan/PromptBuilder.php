@@ -53,24 +53,29 @@ Values are stored in UPPERCASE Dutch. Use these exact strings:
 
 ## Choosing the operator for model names
 
-CommercialName and other free-text model fields store specific variants ("AYGO", "AYGO X", "UP", "UP CROSS", "GOLF", "GOLF PLUS"). Users rarely mean one exact stored value — they mean the family.
+CommercialName (handelsbenaming) stores specific variants ("AYGO", "AYGO X", "UP", "UP CROSS", "GOLF", "GOLF PLUS"). Users rarely mean one exact stored value — they mean the family, and stored values can also have surrounding noise.
 
-**Default to `startsWith` for model names**, especially in counting and breakdown questions:
+**ALWAYS use `contains` for CommercialName. Never `eq`, never `startsWith`** — even when the user spells out a fully-qualified variant or quotes an exact name:
 
-- "how many Toyota Aygos" → `CommercialName startsWith AYGO` (matches "AYGO", "AYGO X").
-- "Volkswagen Ups" → `startsWith UP` (matches "UP", "UP!", "UP CROSS").
-- "Golfs" → `startsWith GOLF` (matches "GOLF", "GOLF PLUS", "GOLF VARIANT").
+- "how many Toyota Aygos" → `CommercialName contains AYGO`.
+- "Volkswagen Ups" → `CommercialName contains UP`.
+- "Golf GTI" → `CommercialName contains GOLF GTI`.
 
-Use `eq` on a model only when the user spells out a fully-qualified variant (e.g. "Golf GTI", or an explicitly quoted exact name). Use `contains` only when the user is clearly searching loosely.
-
-Brand is usually exact: "Toyota" → `Brand eq TOYOTA`. The family rule applies to the model side.
+Brand is usually exact: "Toyota" → `Brand eq TOYOTA`. The contains rule applies to the model side.
 
 # Display hints
 
+Pick the *least busy* hint that still answers the question. When in doubt between two hints, pick the one earlier in this list.
+
 - `count` — a single number ("how many X?"). One count aggregate, empty `groupBy`.
-- `bars` — a grouped breakdown ("X per Y", "colors of …", "top N", "most common"). One `groupBy` + one count aggregate, sort `n desc`, `limit` 25 (or 1 for "most common").
+- `stats` — several headline numbers about the same filter ("count, average age and average mass of Toyotas"). Two or more aggregates, empty `groupBy`, no `select`. Aggregate `alias`es become the tile labels — make them human-readable lower_snake_case ("total", "avg_mass", "avg_age").
+- `bars` — a grouped breakdown ("X per Y", "colors of …", "top N", "most common"). Exactly one `groupBy` key + one count aggregate, sort `n desc`, `limit` 25 (or 1 for "most common").
+- `stacked_bars` — a two-dimensional breakdown ("X by Y per Z", "fuel type per year"). Exactly two `groupBy` keys + one count aggregate. The *first* key is the outer category (x-axis), the *second* is the stack. Sort `n desc`, `limit` 100.
+- `pie` — share-of-total when the breakdown has ≤ 6 categories ("what share of X is Y?"). Same shape as `bars`. Use this only when the user clearly asks about share or proportions, or when you expect ≤ 6 groups (e.g. fuel type, body type).
+- `histogram` — distribution of a single value across ordered buckets ("how is X distributed", "ages of Y"). Same shape as `bars` but the `groupBy` field is a year/numeric/ordered field and the natural reading order is by the bucket, not by frequency. Sort by the bucket field ascending. Pick this *only* when the buckets have a natural order; otherwise use `bars`.
+- `timeseries` — a value over time ("X per year", "registrations per month over 2020-2024"). One date `groupBy` field + one count aggregate, sort the date ascending. Use this when the x-axis is a date/year.
 - `table` — a list of rows ("show me 10 …"). `select` with a few fields, no aggregates.
-- `record` — a single vehicle (e.g. license-plate lookup).
+- `record` — a single vehicle (e.g. license-plate lookup). `select` empty (the frontend renders every available field), `where` includes a unique key.
 
 # Mixing fields with aggregates
 
@@ -88,19 +93,19 @@ Plates are stored without separators ("1ZTZ08"); users will type dashes or space
 
 User: How many Toyota Aygos are registered?
 Plan:
-  where: Brand eq TOYOTA, CommercialName startsWith AYGO
+  where: Brand eq TOYOTA, CommercialName contains AYGO
   aggregates: count(*) as n
   display: count
 
 User: How many {$colorA} {$brandA} {$modelA}s from February 2017 are registered and insured?
 Plan:
-  where: Brand eq {$brandA}, CommercialName startsWith {$modelA}, PrimaryColor eq {$colorA}, IsWamInsured eq true, FirstAdmissionDate gte 2017-02-01, FirstAdmissionDate lt 2017-03-01
+  where: Brand eq {$brandA}, CommercialName contains {$modelA}, PrimaryColor eq {$colorA}, IsWamInsured eq true, FirstAdmissionDate gte 2017-02-01, FirstAdmissionDate lt 2017-03-01
   aggregates: count(*) as n
   display: count
 
 User: What colors of {$brandB} {$modelB} are registered, and how many per color?
 Plan:
-  where: Brand eq {$brandB}, CommercialName startsWith {$modelB}
+  where: Brand eq {$brandB}, CommercialName contains {$modelB}
   groupBy: PrimaryColor
   aggregates: count(*) as n
   orderBy: n desc
@@ -123,6 +128,54 @@ Plan:
   orderBy: n desc
   limit: 1
   display: bars
+
+User: Give me an overview of {$brandA}: count, average empty mass and average catalog price.
+Plan:
+  where: Brand eq {$brandA}
+  aggregates: count(*) as total, avg(EmptyMass) as avg_mass, avg(CatalogPrice) as avg_price
+  display: stats
+
+User: Look up license plate 1-ZTZ-08.
+Plan:
+  where: LicensePlate eq 1ZTZ08
+  limit: 1
+  display: record
+
+User: How many {$brandA}s were first admitted each year since 2015?
+Plan:
+  where: Brand eq {$brandA}, FirstAdmissionDate gte 2015-01-01
+  groupBy: FirstAdmissionDate
+  aggregates: count(*) as n
+  orderBy: FirstAdmissionDate asc
+  limit: 120
+  display: timeseries
+
+User: What's the share of fuel types for {$brandA}?
+Plan:
+  where: Brand eq {$brandA}
+  groupBy: VehicleType
+  aggregates: count(*) as n
+  orderBy: n desc
+  limit: 6
+  display: pie
+
+User: How is the empty mass of {$brandA} distributed?
+Plan:
+  where: Brand eq {$brandA}
+  groupBy: EmptyMass
+  aggregates: count(*) as n
+  orderBy: EmptyMass asc
+  limit: 60
+  display: histogram
+
+User: {$brandA} registrations per year, broken down by primary color.
+Plan:
+  where: Brand eq {$brandA}, FirstAdmissionDate gte 2010-01-01
+  groupBy: FirstAdmissionDate, PrimaryColor
+  aggregates: count(*) as n
+  orderBy: FirstAdmissionDate asc
+  limit: 200
+  display: stacked_bars
 
 # Output rules
 
