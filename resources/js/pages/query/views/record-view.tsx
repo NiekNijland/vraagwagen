@@ -4,8 +4,8 @@ import { cn } from '@/lib/utils';
 import {
     formatBucketLabel,
     formatCell,
-    humanizePascalCase,
     isDateLike,
+    translateColumn,
 } from '../format';
 import type { QueryRow } from '../types';
 
@@ -129,7 +129,7 @@ export function RecordView({
                                         className="flex flex-col gap-0.5"
                                     >
                                         <dt className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                                            {humanizePascalCase(field)}
+                                            {translateColumn(field, t)}
                                         </dt>
                                         <dd className="text-sm tabular-nums">
                                             {isDateLike(value)

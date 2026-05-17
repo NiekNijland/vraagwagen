@@ -12,7 +12,7 @@ import {
     bucketForColumn,
     formatBucketLabel,
     formatCell,
-    humanizePascalCase,
+    translateColumn,
 } from '../format';
 import type { Plan, QueryRow } from '../types';
 
@@ -35,7 +35,7 @@ export function TableView({
                     <TableRow>
                         {columns.map((c) => (
                             <TableHead key={c} className="text-xs">
-                                {humanizePascalCase(c)}
+                                {translateColumn(c, t)}
                             </TableHead>
                         ))}
                     </TableRow>

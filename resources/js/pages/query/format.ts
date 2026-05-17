@@ -72,6 +72,19 @@ export function humanizeSnakeCase(alias: string): string {
     return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
 }
 
+// Look up a localized label for an RDW PascalCase column. Falls back to the
+// humanized form when no translation exists, so unknown / newly added fields
+// still render readably.
+export function translateColumn(
+    column: string,
+    t: (key: string) => string,
+): string {
+    const key = `pages.query.columns.${column}`;
+    const translated = t(key);
+
+    return translated === key ? humanizePascalCase(column) : translated;
+}
+
 export function findNumericKey(row: QueryRow): string | undefined {
     for (const [k, v] of Object.entries(row)) {
         if (
