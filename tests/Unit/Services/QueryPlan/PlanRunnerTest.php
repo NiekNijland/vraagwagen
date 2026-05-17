@@ -243,6 +243,84 @@ final class PlanRunnerTest extends TestCase
         );
     }
 
+    public function test_plain_field_orderby_injects_is_not_null_so_top_n_skips_empty_rows(): void
+    {
+        $runner = $this->runnerReturning([]);
+
+        // "Top 5 zwaarste voertuigen op kenteken" — without IS NOT NULL the
+        // result would lead with rows whose massa_ledig_voertuig is empty.
+        $plan = new Plan(
+            where: [],
+            select: ['LicensePlate', 'EmptyMass'],
+            groupBy: [],
+            aggregates: [],
+            orderBy: [
+                new OrderClause('EmptyMass', OrderDirection::Desc),
+                // Repeating the same field must not add a second IS NOT NULL.
+                new OrderClause('EmptyMass', OrderDirection::Asc),
+            ],
+            limit: 5,
+            display: DisplayHint::Table,
+            explanation: '',
+        );
+
+        $soql = $runner->run($plan)['soql'];
+
+        self::assertArrayHasKey('$where', $soql);
+        self::assertStringContainsString('massa_ledig_voertuig IS NOT NULL', $soql['$where']);
+        self::assertSame(
+            1,
+            substr_count($soql['$where'], 'massa_ledig_voertuig IS NOT NULL'),
+            'IS NOT NULL should be injected once per field, not per orderBy clause.',
+        );
+    }
+
+    public function test_aggregate_alias_orderby_does_not_inject_is_not_null(): void
+    {
+        $runner = $this->runnerReturning([]);
+
+        $plan = new Plan(
+            where: [],
+            select: [],
+            groupBy: [new GroupKey('PrimaryColor', Bucket::None)],
+            aggregates: [new AggregateClause(AggregateFn::Count, null, 'n')],
+            orderBy: [new OrderClause('n', OrderDirection::Desc)],
+            limit: 25,
+            display: DisplayHint::Bars,
+            explanation: '',
+        );
+
+        $soql = $runner->run($plan)['soql'];
+
+        // No orderBy on a plain field → nothing to guard against. The $where
+        // param should be absent (no other clauses) rather than carry a
+        // spurious "n IS NOT NULL" against an aggregate alias.
+        self::assertArrayNotHasKey('$where', $soql);
+    }
+
+    public function test_bucketed_orderby_does_not_inject_is_not_null(): void
+    {
+        $runner = $this->runnerReturning([]);
+
+        $plan = new Plan(
+            where: [],
+            select: [],
+            groupBy: [new GroupKey('FirstAdmissionDate', Bucket::Year)],
+            aggregates: [new AggregateClause(AggregateFn::Count, null, 'n')],
+            orderBy: [new OrderClause('FirstAdmissionDate', OrderDirection::Asc)],
+            limit: 50,
+            display: DisplayHint::Timeseries,
+            explanation: '',
+        );
+
+        $soql = $runner->run($plan)['soql'];
+
+        // Bucketed orderBy goes through orderByRaw against the date_trunc
+        // expression — no IS NOT NULL needed (and we'd have to filter the
+        // underlying field, which is a separate decision).
+        self::assertArrayNotHasKey('$where', $soql);
+    }
+
     public function test_soql_params_reflect_where_select_groupby_orderby_and_limit(): void
     {
         $runner = $this->runnerReturning([]);

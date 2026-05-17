@@ -193,6 +193,12 @@ final readonly class PlanRunner
             $aliasSet[$agg->alias] = true;
         }
 
+        // Socrata sorts NULLs first on DESC, so "top 5 heaviest" or "most
+        // recent transfer" otherwise leads with rows where the sort column
+        // is empty. Guarantee the sort column is populated for any plain
+        // field orderBy; dedupe so the same field isn't filtered twice.
+        $notNullApplied = [];
+
         foreach ($orderBy as $clause) {
             $direction = $clause->direction === OrderDirection::Desc ? SortDirection::Desc : SortDirection::Asc;
 
@@ -204,6 +210,10 @@ final readonly class PlanRunner
 
             $field = $this->tryResolveField($clause->expr);
             if ($field !== null) {
+                if (! isset($notNullApplied[$clause->expr])) {
+                    $builder = $builder->whereNotNull($field);
+                    $notNullApplied[$clause->expr] = true;
+                }
                 $builder = $builder->orderBy($field, $direction);
 
                 continue;
