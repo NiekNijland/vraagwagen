@@ -6,6 +6,7 @@ import {
     Copy,
     Download,
     ExternalLink,
+    Github,
     LineChart,
     Plus,
     Share2,
@@ -1669,6 +1670,17 @@ function StatStrip({ stats, locale }: { stats: SessionStats; locale: string }) {
                 <span className="text-muted-foreground/40">·</span>
                 <LineChart className="h-3 w-3 text-[var(--rdw-orange)]" />
                 <span className="text-muted-foreground">AI</span>
+                <span className="text-muted-foreground/40">·</span>
+                <a
+                    href="https://github.com/NiekNijland/rdwai"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="GitHub"
+                    className="inline-flex items-center gap-1 text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                >
+                    <Github className="h-3 w-3" />
+                    <span>GitHub</span>
+                </a>
             </div>
         </footer>
     );
