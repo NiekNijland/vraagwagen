@@ -55,7 +55,7 @@
     "pages.query.poweredBy": "Aangedreven door AI + RDW Open Data",
     "pages.query.heading": "Vraag het Nederlandse voertuigregister",
     "pages.query.description": "Beschrijf wat je wilt weten over geregistreerde voertuigen in Nederland.",
-    "pages.query.hero": "Praat met {accent} voertuigen.",
+    "pages.query.hero": "Zoek in {accent} voertuigen.",
     "pages.query.heroAccent": "16 miljoen",
     "pages.query.homeAriaLabel": "RDW.AI home",
     "pages.query.viz.kpi": "aantal",
