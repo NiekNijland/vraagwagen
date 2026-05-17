@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\Locale;
 use App\Http\Controllers\Auth\UpdateLocaleController;
+use App\Http\Controllers\ClearOpcacheController;
 use App\Http\Controllers\Rdw\QueryController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -37,6 +38,8 @@ Route::post('/api/query/{slug}/feedback', [QueryController::class, 'feedback'])
     ->name('rdw.query.feedback');
 
 Route::post('locale', UpdateLocaleController::class)->name('locale.update');
+
+Route::get('deploy/clear-opcache', ClearOpcacheController::class)->name('deploy.clear-opcache');
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
