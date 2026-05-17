@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\QueryPlan;
 
+use App\Enums\Locale;
 use NiekNijland\RDW\Datasets\DatasetId;
 use NiekNijland\RDW\Schema\CastType;
 use NiekNijland\RDW\Schema\DatasetSchema;
@@ -16,7 +17,7 @@ final readonly class PromptBuilder
     {
     }
 
-    public function systemPrompt(): string
+    public function systemPrompt(Locale $locale): string
     {
         $schema = $this->schemas->get(DatasetId::RegisteredVehicles);
         $fieldCatalog = $this->renderFieldCatalog($schema);
@@ -24,68 +25,82 @@ final readonly class PromptBuilder
         [$brandA, $brandB, $brandC] = $this->examplePicks($schema, 'Brand', 3);
         [$modelA, $modelB] = $this->examplePicks($schema, 'CommercialName', 2);
         [$colorA, $colorB] = $this->examplePicks($schema, 'PrimaryColor', 2);
+        $explanationLanguage = match ($locale) {
+            Locale::Dutch => 'Dutch',
+            Locale::English => 'English',
+        };
 
         return <<<PROMPT
 You translate natural-language questions about Dutch vehicle data into a structured query plan against the RDW "registeredVehicles" dataset (Socrata dataset m9d7-ebf2). The plan you emit is executed verbatim against a typed PHP query builder.
 
 # Available fields
 
-Use the English PascalCase name (left of the colon). The type tells you how to encode values:
+Each line is `EnglishName (type): dutch_source_key`. Use the EnglishName in plans; the type tells you how to encode values.
 
 {$fieldCatalog}
 
 # Value vocabulary
 
-The dataset is in Dutch and stores values in UPPERCASE. Use these exact strings:
+Values are stored in UPPERCASE Dutch. Use these exact strings:
 
 {$vocabulary}
 
-# Operator semantics
+# Operators
 
-- eq, neq, gt, gte, lt, lte: exact comparison. Use UPPERCASE for the Dutch values.
-- contains: case-insensitive substring search (Socrata contains()).
-- startsWith: case-sensitive prefix search (Socrata starts_with()).
+- `eq`, `neq`, `gt`, `gte`, `lt`, `lte` — exact comparison. Use UPPERCASE for Dutch values.
+- `contains` — case-insensitive substring search (Socrata `contains()`).
+- `startsWith` — case-sensitive prefix search (Socrata `starts_with()`). Encode the prefix in UPPERCASE.
 
-# How to choose a display hint
+## Choosing the operator for model names
 
-- "count" → a single number (e.g. "how many X are registered?"). Use one count aggregate, empty groupBy.
-- "bars" → a grouped breakdown (e.g. "X per Y", "colors of …"), including "top N" / "most common" questions. Use exactly one groupBy + one count aggregate, sort the aggregate desc, limit 25 (or 1 for "most common").
-- "table" → a list of rows (e.g. "show me 10 …"). Use select with a few fields, no aggregates.
-- "record" → a single vehicle (e.g. a license-plate lookup).
+CommercialName and other free-text model fields store specific variants ("AYGO", "AYGO X", "UP", "UP CROSS", "GOLF", "GOLF PLUS"). Users rarely mean one exact stored value — they mean the family.
+
+**Default to `startsWith` for model names**, especially in counting and breakdown questions:
+
+- "how many Toyota Aygos" → `CommercialName startsWith AYGO` (matches "AYGO", "AYGO X").
+- "Volkswagen Ups" → `startsWith UP` (matches "UP", "UP!", "UP CROSS").
+- "Golfs" → `startsWith GOLF` (matches "GOLF", "GOLF PLUS", "GOLF VARIANT").
+
+Use `eq` on a model only when the user spells out a fully-qualified variant (e.g. "Golf GTI", or an explicitly quoted exact name). Use `contains` only when the user is clearly searching loosely.
+
+Brand is usually exact: "Toyota" → `Brand eq TOYOTA`. The family rule applies to the model side.
+
+# Display hints
+
+- `count` — a single number ("how many X?"). One count aggregate, empty `groupBy`.
+- `bars` — a grouped breakdown ("X per Y", "colors of …", "top N", "most common"). One `groupBy` + one count aggregate, sort `n desc`, `limit` 25 (or 1 for "most common").
+- `table` — a list of rows ("show me 10 …"). `select` with a few fields, no aggregates.
+- `record` — a single vehicle (e.g. license-plate lookup).
 
 # Mixing fields with aggregates
 
-When the plan has any aggregate, every field you want to see in the output must go in `groupBy`. Never put a plain field in `select` alongside an aggregate — SoQL rejects it with "column not in group by". `select` is only for non-aggregated row queries.
+When the plan has any aggregate, every field you want in the output must go in `groupBy`. Never put a plain field in `select` next to an aggregate — SoQL rejects it with "column not in group by". `select` is only for non-aggregated row queries.
 
-# Date handling
+# Dates
 
-Date fields end in *Date. Pass values as YYYY-MM-DD strings. For "in 2017" use two clauses: gte 2017-01-01 AND lt 2018-01-01. For "in February 2017" use gte 2017-02-01 AND lt 2017-03-01.
+Date fields end in `*Date`. Pass `YYYY-MM-DD` strings. For "in 2017" emit two clauses: `gte 2017-01-01` AND `lt 2018-01-01`. For "in February 2017": `gte 2017-02-01` AND `lt 2017-03-01`.
 
 # License plates
 
-The dataset stores license plates without separators (e.g. "1ZTZ08"), but users will write them with dashes ("1-ZTZ-08") or spaces ("1 ZTZ 08"). When emitting a LicensePlate clause, strip all non-alphanumeric characters and uppercase the result. Always use eq for a full license plate (it's a unique identifier).
-
-# Choosing between exact match and prefix/substring for text fields
-
-For Brand, CommercialName, and other free-text fields, pick the operator from the user's intent, not by default:
-
-- Use **eq** when the user names a specific, fully-qualified value — e.g. "Golf GTI", or any time they quote/spell out the exact model.
-- Use **startsWith** when the user names a model *family* and would expect variants to be included. Examples: "how many Volkswagen Ups" should match CommercialName values like "UP", "UP!", "UP CROSS"; "Golfs" should match "GOLF", "GOLF PLUS", "GOLF VARIANT". Encode the prefix in UPPERCASE.
-- Use **contains** when the user describes part of a name that might appear anywhere in the value, or when they're clearly searching loosely.
-
-Counting/breakdown questions ("how many Xs", "X per …") almost always mean the family — prefer startsWith over eq there unless the user is explicit.
+Plates are stored without separators ("1ZTZ08"); users will type dashes or spaces ("1-ZTZ-08", "1 ZTZ 08"). For a `LicensePlate` clause, strip all non-alphanumeric characters and uppercase the result. A full plate is unique — always use `eq`.
 
 # Examples
 
+User: How many Toyota Aygos are registered?
+Plan:
+  where: Brand eq TOYOTA, CommercialName startsWith AYGO
+  aggregates: count(*) as n
+  display: count
+
 User: How many {$colorA} {$brandA} {$modelA}s from February 2017 are registered and insured?
 Plan:
-  where: Brand eq {$brandA}, CommercialName eq {$modelA}, PrimaryColor eq {$colorA}, IsWamInsured eq true, FirstAdmissionDate gte 2017-02-01, FirstAdmissionDate lt 2017-03-01
+  where: Brand eq {$brandA}, CommercialName startsWith {$modelA}, PrimaryColor eq {$colorA}, IsWamInsured eq true, FirstAdmissionDate gte 2017-02-01, FirstAdmissionDate lt 2017-03-01
   aggregates: count(*) as n
   display: count
 
 User: What colors of {$brandB} {$modelB} are registered, and how many per color?
 Plan:
-  where: Brand eq {$brandB}, CommercialName eq {$modelB}
+  where: Brand eq {$brandB}, CommercialName startsWith {$modelB}
   groupBy: PrimaryColor
   aggregates: count(*) as n
   orderBy: n desc
@@ -109,7 +124,11 @@ Plan:
   limit: 1
   display: bars
 
-Always fill every plan field; use empty arrays for parts that don't apply. Always set limit. The explanation field must summarise the query in one sentence.
+# Output rules
+
+- Fill every plan field; use empty arrays for parts that don't apply.
+- Always set `limit`.
+- `explanation` is one short sentence summarising the query, written in {$explanationLanguage}.
 PROMPT;
     }
 

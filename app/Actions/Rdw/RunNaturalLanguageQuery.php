@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Rdw;
 
+use App\Enums\Locale;
 use App\Services\QueryPlan\Plan;
 use App\Services\QueryPlan\PlanFactory;
 use App\Services\QueryPlan\PlanRunner;
@@ -24,12 +25,12 @@ class RunNaturalLanguageQuery
     /**
      * @return array{plan: Plan, rows: list<array<string, mixed>>, soql: array<string, string>, url: string}
      */
-    public function execute(string $userPrompt): array
+    public function execute(string $userPrompt, Locale $locale): array
     {
         $response = Prism::structured()
             ->using(Provider::OpenAI, (string) config('rdwai.llm_model', 'gpt-4.1-nano'))
             ->withSchema(PlanSchema::build())
-            ->withSystemPrompt($this->promptBuilder->systemPrompt())
+            ->withSystemPrompt($this->promptBuilder->systemPrompt($locale))
             ->withPrompt($userPrompt)
             ->asStructured();
 

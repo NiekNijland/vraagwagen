@@ -819,7 +819,9 @@ function FeedbackPanel({
                         value={commentDraft}
                         onChange={(e) => setCommentDraft(e.target.value)}
                         placeholder={t(
-                            'pages.query.feedbackCommentPlaceholder',
+                            rating === 'up'
+                                ? 'pages.query.feedbackCommentPlaceholderPositive'
+                                : 'pages.query.feedbackCommentPlaceholderNegative',
                         )}
                         rows={2}
                         className="resize-none text-xs"

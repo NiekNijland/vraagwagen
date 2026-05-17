@@ -81,7 +81,7 @@ final class PlanSchema
                 new ArraySchema('orderBy', 'Ordering applied after grouping. Reference field names or aggregate aliases.', $orderItem),
                 new NumberSchema('limit', 'Maximum rows to return. 1-1000.'),
                 new EnumSchema('display', 'How to render the answer.', array_map(static fn (DisplayHint $d): string => $d->value, DisplayHint::cases())),
-                new StringSchema('explanation', 'One short Dutch or English sentence summarising what this query answers.'),
+                new StringSchema('explanation', 'One short sentence summarising what this query answers, written in the language specified by the system prompt.'),
             ],
             requiredFields: ['where', 'select', 'groupBy', 'aggregates', 'orderBy', 'limit', 'display', 'explanation'],
         );

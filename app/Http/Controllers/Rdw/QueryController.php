@@ -50,9 +50,10 @@ final class QueryController extends Controller
         PersistQueryRun $persist,
     ): JsonResponse {
         $prompt = $request->string('prompt')->toString();
+        $locale = Locale::tryFrom(app()->getLocale()) ?? Locale::English;
 
         try {
-            $result = $action->execute($prompt);
+            $result = $action->execute($prompt, $locale);
         } catch (RateLimitException $e) {
             return response()->json([
                 'error' => __('query.errors.rate_limited', ['seconds' => $e->retryAfterSeconds]),
