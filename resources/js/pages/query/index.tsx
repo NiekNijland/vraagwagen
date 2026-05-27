@@ -99,8 +99,9 @@ const SUGGESTIONS_NL: readonly string[] = [
     'Recente Tesla-overschrijvingen',
     '10 oudste actieve motorfietsen',
     '10 nieuwste Bugatti’s op kenteken',
-    'Toon alles over kenteken 7-RKL-23',
-    'Toon alles over kenteken 1-ZTZ-08',
+    'Toon alles over kenteken GT-486-N',
+    'Toon alles over kenteken 42-JHB-6',
+    'Toon alles over kenteken JD-72-LB',
     'Toyota in cijfers: aantal, gemiddelde massa en gemiddelde catalogusprijs',
     'Statistieken Volkswagen Golf: aantal en gemiddelde massa',
     'BMW stats: aantal, gemiddelde topsnelheid en gemiddelde catalogusprijs',
@@ -142,8 +143,9 @@ const SUGGESTIONS_EN: readonly string[] = [
     'Recent Tesla transfers',
     '10 oldest active motorcycles',
     '10 newest Bugattis in the register',
-    'Show everything about plate 7-RKL-23',
-    'Show everything about plate 1-ZTZ-08',
+    'Show everything about plate GT-486-N',
+    'Show everything about plate 42-JHB-6',
+    'Show everything about plate JD-72-LB',
     'Toyota in numbers: count, average mass and average catalog price',
     'Stats on Volkswagen Golf: count and average mass',
     'BMW stats: count, average top speed and average catalog price',
@@ -285,12 +287,28 @@ const DISCOVER_POOL: Readonly<Record<DiscoverViz, readonly DiscoverEntry[]>> = {
     ],
     plate: [
         {
-            nl: 'Toon alles over kenteken 7-RKL-23',
-            en: 'Show everything about plate 7-RKL-23',
+            nl: 'Toon alles over kenteken GT-486-N',
+            en: 'Show everything about plate GT-486-N',
         },
         {
-            nl: 'Toon alles over kenteken 1-ZTZ-08',
-            en: 'Show everything about plate 1-ZTZ-08',
+            nl: 'Toon alles over kenteken 42-JHB-6',
+            en: 'Show everything about plate 42-JHB-6',
+        },
+        {
+            nl: 'Toon alles over kenteken JD-72-LB',
+            en: 'Show everything about plate JD-72-LB',
+        },
+        {
+            nl: 'Toon alles over kenteken R-915-FK',
+            en: 'Show everything about plate R-915-FK',
+        },
+        {
+            nl: 'Toon alles over kenteken 8-KZD-53',
+            en: 'Show everything about plate 8-KZD-53',
+        },
+        {
+            nl: 'Toon alles over kenteken 56-TV-PL',
+            en: 'Show everything about plate 56-TV-PL',
         },
     ],
 };
@@ -963,7 +981,7 @@ function DiscoverCard({
                     <span className="rdw-plate">
                         <span className="rdw-plate-flag">NL</span>
                         <span className="rdw-plate-text">
-                            {extractPlateFromText(question) ?? '7-RKL-23'}
+                            {extractPlateFromText(question) ?? 'GT-486-N'}
                         </span>
                     </span>
                 )}

@@ -21,9 +21,7 @@ final readonly class PromptBuilder
      */
     private const string USER_QUESTION_TAG_PATTERN = '/<\s*\/?\s*user_question\s*>/i';
 
-    public function __construct(private SchemaRegistry $schemas)
-    {
-    }
+    public function __construct(private SchemaRegistry $schemas) {}
 
     /**
      * Wrap raw user input in tagged delimiters so the LLM treats it as data,
@@ -161,7 +159,7 @@ When the user says "overgeschreven" or just "tenaamstelling" without the "eerste
 
 # License plates
 
-Plates are stored without separators ("1ZTZ08"); users will type dashes or spaces ("1-ZTZ-08", "1 ZTZ 08"). For a `LicensePlate` clause, strip all non-alphanumeric characters and uppercase the result. A full plate is unique — always use `eq`.
+Plates are stored without separators ("GT486N"); users will type dashes or spaces ("GT-486-N", "GT 486 N"). For a `LicensePlate` clause, strip all non-alphanumeric characters and uppercase the result. A full plate is unique — always use `eq`.
 
 # Examples
 
@@ -215,9 +213,9 @@ Plan:
   aggregates: count(*) as total, avg(EmptyMass) as avg_mass, avg(CatalogPrice) as avg_price
   display: stats
 
-User: Look up license plate 1-ZTZ-08.
+User: Look up license plate GT-486-N.
 Plan:
-  where: LicensePlate eq 1ZTZ08
+  where: LicensePlate eq GT486N
   limit: 1
   display: record
 
