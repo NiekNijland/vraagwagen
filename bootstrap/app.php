@@ -24,8 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             prepend: SetLocale::class,
         );
 
-        // Inertia v3 auto-registers HandleInertiaRequests in the priority list.
-        // Explicitly place it after SetLocale so shared props see the resolved locale.
+        // Place after SetLocale so shared props see the resolved locale.
         $middleware->appendToPriorityList(
             after: SetLocale::class,
             append: HandleInertiaRequests::class,

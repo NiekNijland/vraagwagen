@@ -91,9 +91,7 @@ final class CostEstimatorTest extends TestCase
 
     public function test_prefix_match_requires_dash_boundary_so_gpt_4_does_not_shadow_gpt_4o(): void
     {
-        // Only the family-level `gpt-4` key is configured. A future
-        // `gpt-4o-2024-11-20` variant must not silently inherit the gpt-4
-        // family's price.
+        // A `gpt-4o` variant must not inherit the family-level `gpt-4` price.
         $estimator = new CostEstimator([
             'gpt-4' => ['input' => 2.50, 'output' => 10.00],
         ]);

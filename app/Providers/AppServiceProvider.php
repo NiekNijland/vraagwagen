@@ -19,36 +19,24 @@ use NiekNijland\RDW\Schema\SchemaRegistry;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
-        // Unfiltered group-bys over the ~16M-row registered-vehicles dataset
-        // are genuinely slow on a cold Socrata cache; 15s clipped them. Give
-        // the first attempt real headroom — PlanRunner adds one retry on top.
+        // Generous timeout: unfiltered group-bys over the ~16M-row dataset are slow on a cold Socrata cache.
         $this->app->singleton(Rdw::class, static fn (): Rdw => new Rdw(new RdwConfiguration(
             appToken: config('rdwai.rdw_app_token'),
             userAgent: 'rdwai/0.1 (laravel)',
             timeoutSeconds: 25.0,
         )));
 
-        // Share the SchemaRegistry the Rdw client uses with the rest of the
-        // app (e.g. PlanFactory) so schema lookups cannot diverge across
-        // collaborators.
+        // Share the Rdw client's SchemaRegistry so schema lookups can't diverge across collaborators.
         $this->app->singleton(SchemaRegistry::class, static fn ($app): SchemaRegistry => $app->make(Rdw::class)->schemas());
 
-        // Bind (not singleton) so a `config()->set('rdwai.model_prices', …)`
-        // call from a test that runs *after* boot is still honoured the next
-        // time the estimator is resolved.
+        // Bind (not singleton) so a post-boot config()->set('rdwai.model_prices') is honoured.
         $this->app->bind(CostEstimator::class, static fn (): CostEstimator => new CostEstimator(
             (array) config('rdwai.model_prices', []),
         ));
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         $this->configureDefaults();
@@ -56,29 +44,21 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Configure rate limiters for the public RDW query endpoint. The route
-     * is open to anonymous visitors, so we layer a per-IP burst limit under
-     * a global daily cap to protect the OpenAI spend.
+     * Public RDW endpoint: per-IP burst + per-IP daily cap + global daily cap protect the OpenAI budget.
      */
     protected function configureRateLimiting(): void
     {
         RateLimiter::for('rdw-query', fn (Request $request): array => [
             Limit::perMinute((int) config('rdwai.rate_limit.per_minute'))->by((string) $request->ip()),
+            Limit::perDay((int) config('rdwai.rate_limit.per_day_ip'))->by('rdw-query:ip:' . $request->ip()),
             Limit::perDay((int) config('rdwai.rate_limit.per_day_global'))->by('rdw-query:global'),
         ]);
 
         RateLimiter::for('rdw-feedback', fn (Request $request): array => [
             Limit::perMinute((int) config('rdwai.rate_limit.feedback_per_minute'))->by((string) $request->ip()),
         ]);
-
-        RateLimiter::for('rdw-read', fn (Request $request): array => [
-            Limit::perMinute((int) config('rdwai.rate_limit.read_per_minute'))->by((string) $request->ip()),
-        ]);
     }
 
-    /**
-     * Configure default behaviors for production-ready applications.
-     */
     protected function configureDefaults(): void
     {
         Date::use(CarbonImmutable::class);

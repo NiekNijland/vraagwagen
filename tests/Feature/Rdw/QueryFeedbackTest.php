@@ -81,6 +81,46 @@ final class QueryFeedbackTest extends TestCase
         self::assertSame('Changed my mind', $fresh->comment);
     }
 
+    public function test_the_same_client_can_update_its_own_rating(): void
+    {
+        QueryRun::factory()->createOne(['slug' => 'fbslug7777']);
+
+        // Same client token across both requests so this exercises the owner path.
+        $this->withCredentials()->withCookie('rdw_client', 'client-alpha');
+
+        $this->postJson(route('rdw.query.feedback', ['slug' => 'fbslug7777']), ['rating' => 'up'])
+            ->assertOk();
+        $this->postJson(route('rdw.query.feedback', ['slug' => 'fbslug7777']), ['rating' => 'down'])
+            ->assertOk();
+
+        $fresh = QueryRun::query()->where('slug', 'fbslug7777')->first();
+        self::assertInstanceOf(QueryRun::class, $fresh);
+        self::assertSame(Rating::Down, $fresh->rating);
+    }
+
+    public function test_a_different_client_cannot_overwrite_someone_elses_rating(): void
+    {
+        QueryRun::factory()->createOne(['slug' => 'fbslug8888']);
+
+        $this->withCredentials();
+
+        $this->withCookie('rdw_client', 'client-author')
+            ->postJson(route('rdw.query.feedback', ['slug' => 'fbslug8888']), [
+                'rating' => 'up',
+                'comment' => 'Author note',
+            ])
+            ->assertOk();
+
+        $this->withCookie('rdw_client', 'client-stranger')
+            ->postJson(route('rdw.query.feedback', ['slug' => 'fbslug8888']), ['rating' => 'down'])
+            ->assertStatus(403);
+
+        $fresh = QueryRun::query()->where('slug', 'fbslug8888')->first();
+        self::assertInstanceOf(QueryRun::class, $fresh);
+        self::assertSame(Rating::Up, $fresh->rating);
+        self::assertSame('Author note', $fresh->comment);
+    }
+
     public function test_feedback_rejects_comments_longer_than_1000_characters(): void
     {
         QueryRun::factory()->createOne(['slug' => 'fbslug5555']);
@@ -97,6 +137,9 @@ final class QueryFeedbackTest extends TestCase
     {
         QueryRun::factory()->createOne(['slug' => 'fbslug6666']);
         config()->set('rdwai.rate_limit.feedback_per_minute', 2);
+
+        // Stable client token so this asserts the rate limiter, not ownership.
+        $this->withCredentials()->withCookie('rdw_client', 'client-rate-limit');
 
         $payload = ['rating' => 'up'];
 

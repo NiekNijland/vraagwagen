@@ -31,9 +31,10 @@ export function HistogramView({
     const { t } = useTranslation();
     const firstRow = rows[0] ?? {};
     const binKey = plan.groupBy[0]?.field ?? Object.keys(firstRow)[0];
-    const valueKey = plan.aggregates[0]?.alias ?? findNumericKey(firstRow);
+    const valueKey =
+        plan.aggregates[0]?.alias ?? findNumericKey(firstRow, binKey);
 
-    if (binKey === undefined || valueKey === undefined) {
+    if (binKey === undefined || valueKey === undefined || valueKey === binKey) {
         return <>{fallback}</>;
     }
 

@@ -6,17 +6,11 @@ namespace App\Services\QueryPlan;
 
 use InvalidArgumentException;
 
-/**
- * Builds a typed {@see Presentation} from the loose array the model emits, and
- * validates its references against the program's query ids. A bad `resultRef` or
- * `derive` operand throws {@see InvalidArgumentException} (mapped to 422),
- * exactly like {@see PlanFactory} does for a malformed plan.
- */
 final class PresentationFactory
 {
     /**
-     * @param  array<string, mixed>  $data
-     * @param  list<string>  $queryIds  the ids defined in the program
+     * @param array<string, mixed> $data
+     * @param list<string> $queryIds
      */
     public function fromArray(array $data, array $queryIds): Presentation
     {
@@ -50,7 +44,7 @@ final class PresentationFactory
     }
 
     /**
-     * @param  list<string>  $queryIds
+     * @param list<string> $queryIds
      */
     private function parseDerive(mixed $raw, array $queryIds): ?Derive
     {
@@ -87,7 +81,7 @@ final class PresentationFactory
     }
 
     /**
-     * @param  list<string>  $queryIds
+     * @param list<string> $queryIds
      */
     private function requireQueryRef(mixed $raw, string $field, array $queryIds): string
     {

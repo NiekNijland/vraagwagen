@@ -105,6 +105,7 @@
     "pages.query.model": "Model",
     "pages.query.rdwResponse": "RDW response",
     "pages.query.noRows": "No rows matched this query.",
+    "pages.query.tableTruncated": "Showing the first :shown of :total rows.",
     "pages.query.matchingVehicles": "matching vehicles",
     "pages.query.axis.vehicles": "Vehicles",
     "pages.query.axis.fn.sum": "Total",

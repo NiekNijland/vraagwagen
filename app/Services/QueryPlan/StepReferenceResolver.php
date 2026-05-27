@@ -4,16 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\QueryPlan;
 
-/**
- * Substitutes dependent-step references ({@see StepReference}, e.g.
- * `{{q1.Brand}}`) in a {@see Plan}'s `where` values with concrete values from
- * the {@see QueryLedger}, just before the plan runs.
- *
- * This is what keeps value-chaining (look up a plate, then count that model)
- * deterministic and out of the model: the model emits the token, PHP resolves
- * it. A referenced query must be a single-row lookup; anything else is a
- * {@see StepReferenceException}.
- */
 final class StepReferenceResolver
 {
     public function resolve(Plan $plan, QueryLedger $ledger): Plan

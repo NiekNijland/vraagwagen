@@ -6,6 +6,7 @@ import { useClipboard } from '@/hooks/use-clipboard';
 import { useTranslation } from '@/hooks/use-translation';
 import { downloadRows } from '@/lib/export-rows';
 
+import { localeTag } from '../format';
 import { buildShareUrl } from '../share-url';
 import type { QueryError, QueryResult, Rating } from '../types';
 import { ResultBody } from '../views/result-body';
@@ -82,13 +83,13 @@ function UsageLine({
     }
 
     const tokensLabel = t('pages.query.tokensCount', {
-        count: new Intl.NumberFormat(locale).format(total),
+        count: new Intl.NumberFormat(localeTag(locale)).format(total),
     });
     const costLabel =
         result.estimatedCost === null
             ? null
             : t('pages.query.estimatedCost', {
-                  amount: new Intl.NumberFormat(locale, {
+                  amount: new Intl.NumberFormat(localeTag(locale), {
                       style: 'currency',
                       currency: 'USD',
                       minimumFractionDigits: 4,

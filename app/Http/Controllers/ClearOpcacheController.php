@@ -12,9 +12,10 @@ final class ClearOpcacheController extends Controller
     public function __invoke(Request $request): Response
     {
         $expected = (string) config('app.deploy_token');
-        $supplied = $request->query->getString('token', '');
+        // Header, not query string, to keep the token out of access/proxy logs.
+        $supplied = $request->header('X-Deploy-Token');
 
-        if ($expected === '' || ! hash_equals($expected, $supplied)) {
+        if ($expected === '' || ! is_string($supplied) || ! hash_equals($expected, $supplied)) {
             abort(403);
         }
 

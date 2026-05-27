@@ -6,6 +6,7 @@ use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Support\Facades\Route;
 
+// Profile is `auth` only (not `verified`) so users can fix a mistyped signup email.
 Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', '/settings/profile');
 

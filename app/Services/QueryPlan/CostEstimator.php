@@ -6,16 +6,6 @@ namespace App\Services\QueryPlan;
 
 use Laravel\Ai\Responses\Data\Usage;
 
-/**
- * Estimates USD cost for a single LLM call from token usage and the
- * model-pricing map configured in `config/rdwai.php`.
- *
- * Returns null when the model isn't priced. OpenAI sometimes returns a dated
- * variant id (e.g. `gpt-4.1-nano-2025-04-14`) that won't match the bare key in
- * config — we fall back to the longest configured key that the returned id
- * starts with, *up to a `-` boundary*, so dated variants still resolve to
- * their family's price without `gpt-4` accidentally shadowing `gpt-4o`.
- */
 final readonly class CostEstimator
 {
     private const float RATE_DIVISOR = 1_000_000.0;
@@ -38,15 +28,11 @@ final readonly class CostEstimator
         $freshPromptTokens = max(0, $usage->promptTokens - $cacheRead);
 
         $inputRate = (float) ($rates['input'] ?? 0);
-        // Fall back to the regular input rate when the model entry doesn't
-        // declare a cache-read rate. Better to slightly overestimate cost than
-        // to silently drop the cached tokens from the total.
+        // Fall back to the input rate when no cache-read rate is declared.
         $cachedRate = isset($rates['cached_input']) ? (float) $rates['cached_input'] : $inputRate;
         $outputRate = (float) ($rates['output'] ?? 0);
 
-        // OpenAI reasoning models bill reasoning tokens at the output rate;
-        // non-reasoning models report 0 here. Fold them into the output bucket
-        // so adding an `o*` model later doesn't silently undercharge.
+        // Reasoning tokens are billed at the output rate (0 for non-reasoning models).
         $outputTokens = $usage->completionTokens + $usage->reasoningTokens;
 
         $cost = ($freshPromptTokens * $inputRate)
@@ -67,8 +53,7 @@ final readonly class CostEstimator
 
         $bestKey = null;
         foreach (array_keys($this->prices) as $key) {
-            // Require a `-` boundary so `gpt-4` only matches `gpt-4-...`
-            // family members, not `gpt-4o-...` or `gpt-4.1-...`.
+            // Require a `-` boundary so `gpt-4` matches `gpt-4-...` but not `gpt-4o-...`.
             if (! str_starts_with($model, $key . '-')) {
                 continue;
             }

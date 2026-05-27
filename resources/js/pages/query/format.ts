@@ -61,15 +61,30 @@ export function humanizePascalCase(name: string): string {
     return normalized.join(' ');
 }
 
-// "avg_mass" / "total-count" -> "Avg mass" / "Total count"
+// "avg_mass" / "total-count" -> "Avg mass" / "Total count"; acronyms in the
+// shared set stay uppercase ("avg_apk_price" -> "Avg APK price").
 export function humanizeSnakeCase(alias: string): string {
-    const cleaned = alias.replace(/[_-]+/g, ' ').trim();
+    const tokens = alias.split(/[_\s-]+/).filter((token) => token.length > 0);
 
-    if (cleaned.length === 0) {
+    if (tokens.length === 0) {
         return alias;
     }
 
-    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+    return tokens
+        .map((token, index) => {
+            const upper = token.toUpperCase();
+
+            if (ACRONYMS.has(upper)) {
+                return upper;
+            }
+
+            const lower = token.toLowerCase();
+
+            return index === 0
+                ? lower.charAt(0).toUpperCase() + lower.slice(1)
+                : lower;
+        })
+        .join(' ');
 }
 
 // Look up a localized label for an RDW PascalCase column. Falls back to the
@@ -104,17 +119,33 @@ export function valueAxisLabel(plan: Plan, t: (key: string) => string): string {
     return `${fn} ${translateColumn(aggregate.field, t)}`;
 }
 
-export function findNumericKey(row: QueryRow): string | undefined {
+// Find the column that holds the chart's numeric value. `exclude` is the group
+// column, so we never return it as the value key — otherwise a numeric-looking
+// group label (a year "2015", a raw mass) would be plotted against itself.
+// Date-like values are skipped so a date column is never mistaken for a value.
+export function findNumericKey(
+    row: QueryRow,
+    exclude?: string,
+): string | undefined {
     for (const [k, v] of Object.entries(row)) {
+        if (k === exclude || isDateLike(v)) {
+            continue;
+        }
+
         if (
             typeof v === 'number' ||
-            (typeof v === 'string' && v !== '' && !Number.isNaN(Number(v)))
+            (typeof v === 'string' &&
+                v.trim() !== '' &&
+                Number.isFinite(Number(v)))
         ) {
             return k;
         }
     }
 
-    return Object.keys(row)[0];
+    // No numeric column found: fall back to the first column that isn't the
+    // group key, so the caller still gets a distinct key (or undefined when the
+    // group key is the only column, which the views treat as "render a table").
+    return Object.keys(row).find((k) => k !== exclude);
 }
 
 export function isDateLike(value: unknown): boolean {
@@ -154,9 +185,24 @@ export function formatBucketLabel(
         return value.slice(0, 4);
     }
 
-    const date = new Date(value);
+    // Parse the calendar date from its components and build a *local* date, so
+    // a bare "2020-03-15" renders as the 15th everywhere. `new Date("2020-03-15")`
+    // would parse as UTC midnight and shift a day earlier west of UTC.
+    const [year, month, day] = value.slice(0, 10).split('-').map(Number);
 
-    if (Number.isNaN(date.getTime())) {
+    if (![year, month, day].every(Number.isFinite)) {
+        return value;
+    }
+
+    const date = new Date(year, month - 1, day);
+
+    // Reject impossible components (e.g. month 13, day 45) instead of letting
+    // the Date constructor silently roll them over into a different date.
+    if (
+        date.getFullYear() !== year ||
+        date.getMonth() !== month - 1 ||
+        date.getDate() !== day
+    ) {
         return value;
     }
 

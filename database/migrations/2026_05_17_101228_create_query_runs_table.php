@@ -16,7 +16,6 @@ return new class() extends Migration
             $collection->unique('slug');
             $collection->index('user_id');
             $collection->index('created_at');
-            $collection->index(['locale', 'rating', 'created_at']);
         });
     }
 

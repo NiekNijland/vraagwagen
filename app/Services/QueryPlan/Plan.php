@@ -4,15 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services\QueryPlan;
 
-/**
- * Validated, structured query plan produced by the LLM. Lives independent of
- * any HTTP/LLM concern — the runner consumes this and emits a typed RDW query.
- */
 final readonly class Plan
 {
     /**
      * @param list<WhereClause> $where
-     * @param list<string> $select English field names from RegisteredVehicleField
+     * @param list<string> $select
      * @param list<GroupKey> $groupBy
      * @param list<AggregateClause> $aggregates
      * @param list<OrderClause> $orderBy

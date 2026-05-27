@@ -14,21 +14,14 @@ use Symfony\Component\HttpFoundation\Response;
 class SetLocale
 {
     /**
-     * Restore the user's locale preference on each request.
-     *
-     * Priority: route locale -> authenticated user -> session -> cookie -> Accept-Language header -> app default.
-     * Keeps the cookie in sync so the preference survives session expiry. Does
-     * NOT persist to the user row — that happens only via the explicit
-     * UpdateLocale action so a user visiting /en/... doesn't clobber their
-     * stored preference.
+     * Priority: route locale -> user -> session -> cookie -> Accept-Language -> app default.
      */
     public function handle(Request $request, Closure $next): Response
     {
         $routeLocale = $request->route('locale');
         $user = $request->user();
 
-        // Defensive: read the raw column via the enum cast, but tolerate a
-        // stale / legacy DB value by falling back to null instead of throwing.
+        // Tolerate a stale / legacy DB value by falling back to null.
         $userLocale = $user instanceof User
             ? $user->locale?->value
             : null;
@@ -78,12 +71,8 @@ class SetLocale
     }
 
     /**
-     * Only persist the resolved locale when the visitor actually expressed a
-     * preference: they hit a locale-prefixed URL, they're authenticated (which
-     * is how UpdateLocaleController takes effect), or they already have a
-     * stored preference whose value we're refreshing. An anonymous visitor who
-     * just happens to differ from the app default (e.g. via Accept-Language)
-     * is NOT enough to claim consent for a year-long cookie.
+     * Persist only when the visitor expressed a preference (locale URL, auth, or existing stored value);
+     * an anonymous Accept-Language match alone is not consent for a year-long cookie.
      */
     private function shouldPersistLocale(
         ?string $sessionLocale,
@@ -107,11 +96,6 @@ class SetLocale
         return $sessionLocale !== null || $cookieLocale !== null;
     }
 
-    /**
-     * Detect the preferred locale from the browser's Accept-Language header.
-     *
-     * Returns a supported locale string or null if no match is found.
-     */
     private function detectFromAcceptLanguage(Request $request): ?string
     {
         $supported = array_map(

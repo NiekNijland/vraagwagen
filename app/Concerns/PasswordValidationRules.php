@@ -12,8 +12,6 @@ use Stringable;
 trait PasswordValidationRules
 {
     /**
-     * Get the validation rules used to validate passwords.
-     *
      * @return array<int, Rule|Stringable|ValidationRule|array<mixed>|string>
      */
     protected function passwordRules(): array
@@ -22,8 +20,6 @@ trait PasswordValidationRules
     }
 
     /**
-     * Get the validation rules used to validate the current password.
-     *
      * @return array<int, Rule|Stringable|ValidationRule|array<mixed>|string>
      */
     protected function currentPasswordRules(): array

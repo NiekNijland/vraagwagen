@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Rdw;
 
+use App\Enums\Rating;
 use App\Models\QueryRun;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -49,11 +50,47 @@ final class QueryShareTest extends TestCase
             );
     }
 
+    public function test_shared_run_hides_the_feedback_comment_from_other_visitors(): void
+    {
+        QueryRun::factory()->ratedUp()->createOne([
+            'slug' => 'commentab12',
+            'comment' => 'A private note from the author.',
+            'rated_by' => 'client-author',
+        ]);
+
+        // A stranger sees the rating but never the author's free-text comment.
+        $this->withCookie('rdw_client', 'client-stranger')
+            ->get(route('rdw.query.shared', 'commentab12'))
+            ->assertOk()
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->component('query/index')
+                    ->where('sharedRun.rating', Rating::Up->value)
+                    ->where('sharedRun.comment', null),
+            );
+    }
+
+    public function test_shared_run_shows_the_comment_back_to_its_author(): void
+    {
+        QueryRun::factory()->ratedUp()->createOne([
+            'slug' => 'commentcd34',
+            'comment' => 'A private note from the author.',
+            'rated_by' => 'client-author',
+        ]);
+
+        $this->withCookie('rdw_client', 'client-author')
+            ->get(route('rdw.query.shared', 'commentcd34'))
+            ->assertOk()
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->component('query/index')
+                    ->where('sharedRun.comment', 'A private note from the author.'),
+            );
+    }
+
     public function test_shared_run_predating_token_columns_defaults_to_empty_model_and_zero_tokens(): void
     {
-        // Old QueryRun rows (persisted before the cost-tracking PR) have no
-        // model, token, or cost columns. The serialisation contract is
-        // non-nullable on the frontend, so the controller must coalesce.
+        // Legacy rows lack model/token/cost columns; the controller must coalesce.
         QueryRun::factory()->createOne([
             'slug' => 'legacyabc12',
             'prompt' => 'legacy prompt',

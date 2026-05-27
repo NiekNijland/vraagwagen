@@ -80,9 +80,6 @@ final class QueryControllerTest extends TestCase
 
     public function test_run_resolves_a_dependent_step_lookup_end_to_end(): void
     {
-        // "How many of my car's model are on the road? 1-ZTZ-08" — q1 looks up
-        // the plate, q2 counts that exact make+model using {{q1.*}} references
-        // that PHP resolves between the two queries. One LLM call, two RDW calls.
         $this->fakeProgram([
             'queries' => [
                 [
@@ -126,7 +123,6 @@ final class QueryControllerTest extends TestCase
             ->assertJsonPath('presentation.resultRef', 'q2')
             ->assertJsonPath('steps.0.id', 'q1')
             ->assertJsonPath('steps.1.id', 'q2')
-            // q2's where was resolved from q1's result before q2 ran.
             ->assertJsonPath('steps.1.plan.where.0.value', 'VOLKSWAGEN')
             ->assertJsonPath('steps.1.plan.where.1.value', 'UP');
 
@@ -159,8 +155,7 @@ final class QueryControllerTest extends TestCase
             ],
         ];
 
-        // q1 returns no rows, so the {{q1.Brand}} reference cannot resolve and
-        // the query degrades to a graceful unsupported answer (not a 500).
+        // q1 returns no rows, so {{q1.Brand}} cannot resolve and degrades gracefully.
         $emptyRows = fn (): Psr7Response => new Psr7Response(
             200, ['Content-Type' => 'application/json'], json_encode([], JSON_THROW_ON_ERROR),
         );
@@ -184,9 +179,6 @@ final class QueryControllerTest extends TestCase
 
     public function test_run_computes_a_group_share_figure_from_one_grouped_query(): void
     {
-        // "What percentage of cars are yellow?" — one grouped query plus a
-        // groupShare derive. PHP picks the GEEL group and divides by the column
-        // total; the model never types the number.
         $this->fakeProgram([
             'queries' => [[
                 'id' => 'q1',
@@ -219,7 +211,6 @@ final class QueryControllerTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('presentation.resultRef', 'derived')
             ->assertJsonPath('presentation.derived.op', 'groupShare')
-            // The presented view falls back to the grouped source query's display.
             ->assertJsonPath('displayHint', 'bars');
 
         self::assertEqualsWithDelta(320.0, $response->json('presentation.derived.numerator'), 0.001);
@@ -229,9 +220,6 @@ final class QueryControllerTest extends TestCase
 
     public function test_run_computes_a_two_scalar_ratio_across_two_queries(): void
     {
-        // "Average empty mass of VWs vs all cars" — two scalar queries with
-        // different filters, combined with a ratio derive. Two RDW calls, one
-        // LLM call, and PHP does the division.
         $this->fakeProgram([
             'queries' => [
                 [
@@ -349,9 +337,7 @@ final class QueryControllerTest extends TestCase
             'explanation' => 'Color distribution',
         ]);
 
-        // Both attempts time out (cURL 28 → HttpException status 0). The runner
-        // exhausts its retry and the controller maps the transient failure to a
-        // 504 "took too long" message — not the misleading "rejected" copy.
+        // Both attempts time out; the controller maps the exhausted retry to a 504.
         $this->fakeRdwWithQueue([
             new ConnectException('cURL error 28: Operation timed out', new Psr7Request('GET', 'test')),
             new ConnectException('cURL error 28: Operation timed out', new Psr7Request('GET', 'test')),
@@ -400,11 +386,7 @@ final class QueryControllerTest extends TestCase
     }
 
     /**
-     * Fake the agent to return a one-query program that presents the given
-     * plan — the shape most controller tests need. Dependent-step / derive
-     * tests call {@see fakeProgram} with a full program instead.
-     *
-     * @param  array<string, mixed>  $plan
+     * @param array<string, mixed> $plan
      */
     private function fakeQueryPlan(array $plan, ?Usage $usage = null, string $model = 'fake'): void
     {
@@ -420,7 +402,7 @@ final class QueryControllerTest extends TestCase
     }
 
     /**
-     * @param  array<string, mixed>  $program
+     * @param array<string, mixed> $program
      */
     private function fakeProgram(array $program, ?Usage $usage = null, string $model = 'fake'): void
     {
@@ -428,14 +410,14 @@ final class QueryControllerTest extends TestCase
             new StructuredTextResponse(
                 $program,
                 json_encode($program, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage,
+                $usage ?? new Usage(),
                 new Meta('openai', $model),
             ),
         ]);
     }
 
     /**
-     * @param  list<array<string, mixed>>  $rows
+     * @param list<array<string, mixed>> $rows
      */
     private function fakeRdwWithRows(array $rows): void
     {
@@ -449,20 +431,13 @@ final class QueryControllerTest extends TestCase
         $this->fakeRdwWithResponses($response);
     }
 
-    /**
-     * Queue one RDW response per query the program runs, in order.
-     */
     private function fakeRdwWithResponses(Psr7Response ...$responses): void
     {
         $this->fakeRdwWithQueue(array_values($responses));
     }
 
     /**
-     * Queue an arbitrary mix of RDW responses and transport exceptions (e.g.
-     * Guzzle ConnectException for a timeout), and pin a zero-backoff PlanRunner
-     * so retry-driven tests resolve immediately instead of sleeping.
-     *
-     * @param  list<Psr7Response|Throwable>  $queue
+     * @param list<Psr7Response|Throwable> $queue
      */
     private function fakeRdwWithQueue(array $queue): void
     {
@@ -473,7 +448,7 @@ final class QueryControllerTest extends TestCase
             'handler' => $stack,
         ]);
 
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
         $this->app->instance(Rdw::class, $rdw);
         $this->app->instance(PlanRunner::class, new PlanRunner($rdw, maxAttempts: 2, retryBackoffMs: 0));
     }

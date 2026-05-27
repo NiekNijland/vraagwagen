@@ -6,11 +6,6 @@ namespace App\Services\QueryPlan;
 
 use NiekNijland\RDW\Fields\RegisteredVehicleField;
 
-/**
- * O(1) lookup from PascalCase enum case name to {@see RegisteredVehicleField}.
- * The enum has ~50 cases; building the map once removes the per-clause linear
- * scan that PlanRunner used to do.
- */
 final class RegisteredVehicleFieldLookup
 {
     /** @var array<string, RegisteredVehicleField>|null */

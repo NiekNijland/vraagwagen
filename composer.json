@@ -1,11 +1,12 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/react-starter-kit",
+    "name": "nieknijland/rdwai",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Natural-language queries over the Dutch RDW vehicle registry.",
     "keywords": [
         "laravel",
-        "framework"
+        "rdw",
+        "ai"
     ],
     "license": "MIT",
     "require": {

@@ -70,8 +70,7 @@ final class SetLocaleTest extends TestCase
         config()->set('app.locale', 'nl');
 
         $request = $this->makeRequest('/api/query');
-        // Symfony's Request::create defaults Accept-Language to 'en-us,en' —
-        // strip it so we exercise the default-locale tail of the chain.
+        // Strip the Accept-Language default so we exercise the default-locale tail.
         $request->headers->remove('Accept-Language');
 
         $this->runMiddleware($request);

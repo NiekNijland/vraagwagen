@@ -11,6 +11,7 @@ return [
         'malformed' => 'De gegenereerde query was onjuist opgebouwd. Probeer je vraag anders te formuleren.',
         'unexpected' => 'Er ging iets mis bij het opbouwen of uitvoeren van de query.',
         'not_found' => 'Dat queryresultaat is niet gevonden.',
+        'feedback_forbidden' => 'Dit resultaat is al beoordeeld door iemand anders.',
     ],
 
     'unsupported' => 'Deze vraag kon niet worden beantwoord met de beschikbare gegevens.',

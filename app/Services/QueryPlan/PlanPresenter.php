@@ -6,21 +6,12 @@ namespace App\Services\QueryPlan;
 
 use App\Models\QueryRun;
 
-/**
- * Serialises a {@see Plan} into the plain array shape returned to the
- * frontend (and persisted on {@see QueryRun}). Kept separate so
- * the runtime Plan can stay readonly and free of presentation concerns.
- */
 final class PlanPresenter
 {
     /**
-     * Normalises a plan array loaded from persistence so older documents
-     * (pre-Bucket migration) come out in the current {field, bucket} groupBy
-     * shape. The strict LLM/runtime contract still requires the new shape;
-     * this is purely a read-path compatibility shim for QueryRun documents
-     * stored before the groupBy schema gained buckets.
+     * Read-path shim so pre-Bucket QueryRun documents come out in the current {field, bucket} groupBy shape.
      *
-     * @param  array<string, mixed>  $plan
+     * @param array<string, mixed> $plan
      * @return array<string, mixed>
      */
     public static function normalisePersisted(array $plan): array
@@ -38,11 +29,7 @@ final class PlanPresenter
     }
 
     /**
-     * Serialise the executed steps of a program for the debug pane and
-     * persistence. Each step carries its *resolved* plan (references already
-     * substituted), so the SoQL the user sees matches what actually ran.
-     *
-     * @param  list<LedgerEntry>  $steps
+     * @param list<LedgerEntry> $steps
      * @return list<array<string, mixed>>
      */
     public static function stepsToArray(array $steps): array
@@ -57,9 +44,6 @@ final class PlanPresenter
     }
 
     /**
-     * Serialise the resolved presentation (and any computed figure) for the
-     * frontend. Null in single mode, where there is no presentation layer.
-     *
      * @return array<string, mixed>|null
      */
     public static function presentationToArray(?Presentation $presentation, ?Derived $derived): ?array

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Rdw;
 
-use App\Actions\Rdw\FindPopularQueries;
 use App\Actions\Rdw\PersistQueryRun;
 use App\Actions\Rdw\QueryExecutionException;
 use App\Actions\Rdw\RunNaturalLanguageQuery;
@@ -17,7 +16,9 @@ use App\Services\QueryPlan\PlanPresenter;
 use App\Services\QueryPlan\TokenUsage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use InvalidArgumentException;
@@ -27,7 +28,11 @@ use Throwable;
 
 final class QueryController extends Controller
 {
-    public function index(string $locale, ?string $slug = null): InertiaResponse
+    private const string CLIENT_COOKIE = 'rdw_client';
+
+    private const int CLIENT_COOKIE_MINUTES = 525_600;
+
+    public function index(Request $request, string $locale, ?string $slug = null): InertiaResponse
     {
         $sharedRun = null;
 
@@ -35,7 +40,7 @@ final class QueryController extends Controller
             $run = QueryRun::query()->where('slug', $slug)->first();
 
             if ($run instanceof QueryRun) {
-                $sharedRun = $this->serializeRun($run);
+                $sharedRun = $this->serializeRun($run, $this->currentClientToken($request));
             }
         }
 
@@ -69,20 +74,17 @@ final class QueryController extends Controller
                 'responseBody' => $e->responseBody,
             ]);
 
-            // A transient failure (RDW timeout / upstream error) is not the
-            // user's fault — the query is valid, it just took too long. Tell
-            // them to retry (504) rather than to rephrase (422).
+            // Transient upstream failures get a retryable 504, not a rephrase-it 422.
             return response()->json([
                 'error' => __($e->isTransient ? 'query.errors.timeout' : 'query.errors.rejected'),
                 'plan' => $serialisedPlan,
                 'soql' => $e->soql,
                 'url' => $e->url,
-                'responseBody' => $e->responseBody,
+                // Raw upstream body may carry internal detail; only expose in debug.
+                'responseBody' => (bool) config('app.debug') ? $e->responseBody : null,
             ], $e->isTransient ? 504 : 422);
         } catch (InvalidArgumentException $e) {
-            // Field-name / alias / enum validation failures from PlanFactory or
-            // PlanRunner. The message references internal field names, so we
-            // return the localized fallback to the user.
+            // Plan validation errors reference internal field names; return the localized fallback.
             Log::info('RDW plan invalid', ['message' => $e->getMessage()]);
 
             return response()->json([
@@ -144,10 +146,17 @@ final class QueryController extends Controller
             return response()->json(['error' => __('query.errors.not_found')], 404);
         }
 
+        // Feedback belongs to the client that first left it; an unrated run is claimable by anyone.
+        $client = $this->issueClientToken($request);
+        if (is_string($run->rated_by) && $run->rated_by !== '' && $run->rated_by !== $client) {
+            return response()->json(['error' => __('query.errors.feedback_forbidden')], 403);
+        }
+
         $run->fill([
             'rating' => $request->validated('rating'),
             'comment' => $request->validated('comment'),
             'rated_at' => now(),
+            'rated_by' => $client,
         ])->save();
 
         return response()->json([
@@ -156,28 +165,13 @@ final class QueryController extends Controller
         ]);
     }
 
-    public function popular(Request $request, FindPopularQueries $finder): JsonResponse
-    {
-        return response()->json([
-            'prompts' => $finder->execute($this->resolveLocale($request)),
-        ]);
-    }
-
-    private function resolveLocale(Request $request): string
-    {
-        $candidate = $request->query('locale');
-        $allowed = array_map(static fn (Locale $l): string => $l->value, Locale::cases());
-
-        return is_string($candidate) && in_array($candidate, $allowed, true)
-            ? $candidate
-            : app()->getLocale();
-    }
-
     /**
      * @return array<string, mixed>
      */
-    private function serializeRun(QueryRun $run): array
+    private function serializeRun(QueryRun $run, ?string $clientToken): array
     {
+        $isAuthor = $clientToken !== null && $run->rated_by === $clientToken;
+
         return [
             'slug' => $run->slug,
             'prompt' => $run->prompt,
@@ -190,12 +184,37 @@ final class QueryController extends Controller
             'steps' => $run->steps ?? [],
             'presentation' => $run->presentation,
             'rating' => $run->rating,
-            'comment' => $run->comment,
-            // Coalesce nullable model to '' so the TS shape stays non-nullable
-            // and the frontend's `Boolean(s)` filter still hides empty values.
+            // Only the author sees their own free-text comment.
+            'comment' => $isAuthor ? $run->comment : null,
+            // Coalesce to '' so the TS shape stays non-nullable.
             'model' => $run->model ?? '',
             'tokens' => TokenUsage::fromQueryRun($run)->toArray(),
             'estimatedCost' => $run->estimated_cost,
         ];
+    }
+
+    private function currentClientToken(Request $request): ?string
+    {
+        $token = $request->cookie(self::CLIENT_COOKIE);
+
+        return is_string($token) && $token !== '' ? $token : null;
+    }
+
+    private function issueClientToken(Request $request): string
+    {
+        $existing = $this->currentClientToken($request);
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        $token = Str::random(40);
+        Cookie::queue(Cookie::make(
+            name: self::CLIENT_COOKIE,
+            value: $token,
+            minutes: self::CLIENT_COOKIE_MINUTES,
+            httpOnly: true,
+        ));
+
+        return $token;
     }
 }

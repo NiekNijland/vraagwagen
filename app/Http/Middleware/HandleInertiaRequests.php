@@ -10,40 +10,15 @@ use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
-    /**
-     * Cache the locale->label map per active app locale. The labels are
-     * translated, so we can't share across locales, but each label set is
-     * stable for the lifetime of a request (and across requests serving the
-     * same locale within one PHP worker).
-     *
-     * @var array<string, array<string, string>>
-     */
-    private static array $localeLabelCache = [];
-
-    /**
-     * The root template that's loaded on the first page visit.
-     *
-     * @see https://inertiajs.com/server-side-setup#root-template
-     *
-     * @var string
-     */
+    /** @var string */
     protected $rootView = 'app';
 
-    /**
-     * Determines the current asset version.
-     *
-     * @see https://inertiajs.com/asset-versioning
-     */
     public function version(Request $request): ?string
     {
         return parent::version($request);
     }
 
     /**
-     * Define the props that are shared by default.
-     *
-     * @see https://inertiajs.com/shared-data
-     *
      * @return array<string, mixed>
      */
     public function share(Request $request): array
@@ -58,7 +33,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'locale' => $locale,
-            'locales' => $this->localeLabels($locale),
+            'locales' => $this->localeLabels(),
             'fallbackLocale' => config('app.fallback_locale'),
         ];
     }
@@ -66,16 +41,13 @@ class HandleInertiaRequests extends Middleware
     /**
      * @return array<string, string>
      */
-    private function localeLabels(string $locale): array
+    private function localeLabels(): array
     {
-        if (! isset(self::$localeLabelCache[$locale])) {
-            $labels = [];
-            foreach (Locale::cases() as $case) {
-                $labels[$case->value] = $case->label();
-            }
-            self::$localeLabelCache[$locale] = $labels;
+        $labels = [];
+        foreach (Locale::cases() as $case) {
+            $labels[$case->value] = $case->label();
         }
 
-        return self::$localeLabelCache[$locale];
+        return $labels;
     }
 }

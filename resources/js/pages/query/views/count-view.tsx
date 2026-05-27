@@ -17,9 +17,16 @@ export function CountView({
     const alias = plan.aggregates[0]?.alias ?? 'count';
     const firstRow = rows[0] ?? {};
     const raw = firstRow[alias] ?? Object.values(firstRow)[0];
-    const target = typeof raw === 'number' ? raw : Number(raw);
-    const isNumeric = Number.isFinite(target);
-    const animated = useCountUp(isNumeric ? target : 0, 900);
+    // Only treat genuine numbers and numeric strings as a count. `Number([])`
+    // is 0 and `Number([42])` is 42, so without this guard a non-scalar first
+    // cell would render a bogus count instead of falling back to formatNumber.
+    const isNumeric =
+        typeof raw === 'number' ||
+        (typeof raw === 'string' &&
+            raw.trim() !== '' &&
+            Number.isFinite(Number(raw)));
+    const target = isNumeric ? Number(raw) : 0;
+    const animated = useCountUp(target, 900);
 
     const display = isNumeric
         ? Math.round(animated).toLocaleString(localeTag(locale))

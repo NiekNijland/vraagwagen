@@ -11,6 +11,7 @@ return [
         'malformed' => 'The generated query was malformed. Try rephrasing your question.',
         'unexpected' => 'Something went wrong building or running the query.',
         'not_found' => 'That query result was not found.',
+        'feedback_forbidden' => 'This result has already been rated by someone else.',
     ],
 
     'unsupported' => 'This question could not be answered with the available data.',

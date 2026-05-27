@@ -117,11 +117,6 @@ final class PlanFactoryTest extends TestCase
 
     public function test_promotes_date_select_into_groupby_with_month_bucket_for_timeseries(): void
     {
-        // The LLM occasionally puts the date field in `select` instead of
-        // `groupBy` for "per month/year" questions. After promotion the field
-        // would otherwise land at Bucket::None and produce a per-day flatline;
-        // a Month default keeps the chart useful while still surfacing the
-        // mistake in logs.
         $factory = $this->factory();
 
         $plan = $factory->fromArray([
@@ -147,10 +142,6 @@ final class PlanFactoryTest extends TestCase
         ]);
         self::assertEquals([new GroupKey('CommercialName', Bucket::None)], $bars->groupBy);
 
-        // Non-date field promoted under timeseries — bucket stays None, then
-        // the timeseries scrubber rejects the whole plan because no date
-        // field survives. We assert the upstream behaviour by widening to a
-        // mixed plan that keeps the date untouched and the non-date dropped.
         $timeseries = $factory->fromArray([
             'select' => ['PrimaryColor'],
             'groupBy' => [['field' => 'RegistrationDate', 'bucket' => 'month']],
@@ -176,8 +167,7 @@ final class PlanFactoryTest extends TestCase
             'display' => 'timeseries',
         ]);
 
-        // First occurrence wins so a single $group expression survives —
-        // anything else would emit a duplicated date_trunc_* in the SoQL.
+        // First occurrence wins so the SoQL has no duplicated date_trunc_*.
         self::assertEquals([new GroupKey('FirstAdmissionDate', Bucket::Year)], $plan->groupBy);
     }
 
@@ -400,9 +390,7 @@ final class PlanFactoryTest extends TestCase
     {
         $factory = $this->factory();
 
-        // Include one aggregate so an empty count plan isn't downgraded to
-        // unsupported by the bogus-count guard; the assertion here is purely
-        // about display-hint parseability.
+        // Include one aggregate so an empty count plan isn't downgraded to unsupported.
         foreach (DisplayHint::cases() as $hint) {
             $plan = $factory->fromArray([
                 'display' => $hint->value,
@@ -438,8 +426,7 @@ final class PlanFactoryTest extends TestCase
     {
         $factory = $this->factory();
 
-        // Even if the model attaches stray clauses to a refusal plan, the
-        // factory must strip them so PlanRunner has nothing to execute.
+        // Stray clauses on a refusal plan must be stripped so PlanRunner has nothing to run.
         $plan = $factory->fromArray([
             'display' => 'unsupported',
             'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => 'TOYOTA']],

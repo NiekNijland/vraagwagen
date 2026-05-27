@@ -7,12 +7,6 @@ namespace App\Services\QueryPlan;
 use App\Models\QueryRun;
 use Laravel\Ai\Responses\Data\Usage;
 
-/**
- * Token counts for a single LLM call, normalised from the laravel/ai
- * {@see Usage} value object into the fixed four-field shape the frontend and
- * {@see QueryRun} persistence expect. This is the single seam that
- * touches the SDK's usage type; everything downstream consumes this DTO.
- */
 final readonly class TokenUsage
 {
     public function __construct(
@@ -33,10 +27,6 @@ final readonly class TokenUsage
         );
     }
 
-    /**
-     * Rebuild the usage from a persisted run, coalescing the nullable token
-     * columns to 0 so the fixed four-field shape always holds.
-     */
     public static function fromQueryRun(QueryRun $run): self
     {
         return new self(

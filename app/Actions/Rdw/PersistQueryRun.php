@@ -22,10 +22,10 @@ final class PersistQueryRun
     private const int DUPLICATE_KEY_CODE = 11000;
 
     /**
-     * @param  list<array<string, mixed>>  $rows
-     * @param  array<string, string>  $soql
-     * @param  list<array<string, mixed>>  $steps
-     * @param  array<string, mixed>|null  $presentation
+     * @param list<array<string, mixed>> $rows
+     * @param array<string, string> $soql
+     * @param list<array<string, mixed>> $steps
+     * @param array<string, mixed>|null $presentation
      */
     public function execute(
         string $prompt,
@@ -76,7 +76,6 @@ final class PersistQueryRun
             }
         }
 
-        // Unreachable: the loop either returns or throws.
         throw new LogicException('Exhausted slug attempts without resolution');
     }
 

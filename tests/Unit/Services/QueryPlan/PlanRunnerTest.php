@@ -39,8 +39,7 @@ final class PlanRunnerTest extends TestCase
     public function test_row_path_returns_columns_in_select_order_with_pascalcase_keys(): void
     {
         $runner = $this->runnerReturning([
-            // The HTTP layer returns rows keyed by Dutch snake_case. The
-            // package hydrates them; the runner then renames to PascalCase.
+            // Source rows are keyed by Dutch snake_case; the runner renames to PascalCase.
             [
                 'kenteken' => '12-AB-345',
                 'handelsbenaming' => 'GOLF',
@@ -51,7 +50,7 @@ final class PlanRunnerTest extends TestCase
 
         $plan = new Plan(
             where: [new WhereClause('Brand', WhereOp::Equals, 'VOLKSWAGEN')],
-            // Deliberately reverse the source order to prove select-order wins.
+            // Reverse the source order to prove select-order wins.
             select: ['CommercialName', 'LicensePlate', 'RegistrationDate'],
             groupBy: [],
             aggregates: [],
@@ -70,7 +69,6 @@ final class PlanRunnerTest extends TestCase
         );
         self::assertSame('GOLF', $result->rows[0]['CommercialName']);
         self::assertSame('12-AB-345', $result->rows[0]['LicensePlate']);
-        // Dates are normalised to YYYY-MM-DD strings.
         self::assertSame('2024-01-15', $result->rows[0]['RegistrationDate']);
     }
 
@@ -140,9 +138,7 @@ final class PlanRunnerTest extends TestCase
     public function test_month_bucket_emits_date_trunc_ym_and_returns_pascalcase_keys(): void
     {
         $runner = $this->runnerReturning([
-            // Socrata returns the bucket expression aliased back to the field's
-            // PascalCase enum case, so the projection row should already be
-            // keyed by `RegistrationDate` (no Dutch rdwKey to rename).
+            // Bucket expression is aliased back to PascalCase, so rows are already keyed by RegistrationDate.
             ['RegistrationDate' => '2025-01-01T00:00:00.000', 'n' => '12'],
             ['RegistrationDate' => '2025-02-01T00:00:00.000', 'n' => '8'],
         ]);
@@ -201,9 +197,7 @@ final class PlanRunnerTest extends TestCase
 
         $result = $runner->run($plan);
 
-        // $group must list the bucket expression *before* the plain column to
-        // match plan.groupBy ordering — the frontend relies on that ordering
-        // for the outer-vs-inner axis assignment in stacked_bars.
+        // $group must list the bucket expression before the plain column, matching plan.groupBy order.
         self::assertSame(
             'date_trunc_y(datum_eerste_toelating_dt), eerste_kleur',
             $result->soql['$group'],
@@ -218,8 +212,7 @@ final class PlanRunnerTest extends TestCase
             $result->soql['$order'],
         );
 
-        // Bucket alias passes through verbatim; the Dutch rdwKey for the plain
-        // group field is renamed to PascalCase.
+        // Bucket alias passes through verbatim; the plain group field is renamed to PascalCase.
         self::assertSame(
             ['FirstAdmissionDate', 'PrimaryColor', 'n'],
             array_keys($result->rows[0]),
@@ -234,8 +227,7 @@ final class PlanRunnerTest extends TestCase
         $plan = new Plan(
             where: [],
             select: [],
-            // Use a non-timeseries display to confirm the orderBy path works
-            // independent of the timeseries scrubber in PlanFactory.
+            // Non-timeseries display so this is independent of PlanFactory's timeseries scrubber.
             groupBy: [new GroupKey('FirstAdmissionDate', Bucket::Year)],
             aggregates: [new AggregateClause(AggregateFn::Count, null, 'n')],
             orderBy: [new OrderClause('FirstAdmissionDate', OrderDirection::Desc)],
@@ -256,8 +248,7 @@ final class PlanRunnerTest extends TestCase
     {
         $runner = $this->runnerReturning([]);
 
-        // "Top 5 zwaarste voertuigen op kenteken" — without IS NOT NULL the
-        // result would lead with rows whose massa_ledig_voertuig is empty.
+        // Without IS NOT NULL a top-N would lead with rows whose massa_ledig_voertuig is empty.
         $plan = new Plan(
             where: [],
             select: ['LicensePlate', 'EmptyMass'],
@@ -301,9 +292,7 @@ final class PlanRunnerTest extends TestCase
 
         $soql = $runner->run($plan)->soql;
 
-        // No orderBy on a plain field → nothing to guard against. The $where
-        // param should be absent (no other clauses) rather than carry a
-        // spurious "n IS NOT NULL" against an aggregate alias.
+        // No plain-field orderBy → no IS NOT NULL against the aggregate alias.
         self::assertArrayNotHasKey('$where', $soql);
     }
 
@@ -324,9 +313,7 @@ final class PlanRunnerTest extends TestCase
 
         $soql = $runner->run($plan)->soql;
 
-        // Bucketed orderBy goes through orderByRaw against the date_trunc
-        // expression — no IS NOT NULL needed (and we'd have to filter the
-        // underlying field, which is a separate decision).
+        // Bucketed orderBy uses the date_trunc expression directly — no IS NOT NULL injected.
         self::assertArrayNotHasKey('$where', $soql);
     }
 
@@ -352,7 +339,7 @@ final class PlanRunnerTest extends TestCase
 
         self::assertArrayHasKey('$where', $soql);
         self::assertStringContainsString("merk = 'VOLKSWAGEN'", $soql['$where']);
-        self::assertStringContainsString("contains(handelsbenaming, 'GOLF')", $soql['$where']);
+        self::assertStringContainsString("contains(replace(replace(handelsbenaming, ' ', ''), '-', ''), 'GOLF')", $soql['$where']);
         self::assertArrayHasKey('$group', $soql);
         self::assertStringContainsString('eerste_kleur', $soql['$group']);
         self::assertArrayHasKey('$select', $soql);
@@ -362,17 +349,43 @@ final class PlanRunnerTest extends TestCase
         self::assertSame('25', $soql['$limit']);
     }
 
+    public function test_commercial_name_contains_strips_spaces_and_hyphens_on_both_sides(): void
+    {
+        $runner = $this->runnerReturning([]);
+
+        $plan = new Plan(
+            where: [
+                new WhereClause('Brand', WhereOp::Equals, 'SUZUKI'),
+                new WhereClause('CommercialName', WhereOp::Contains, 'GSX-R 750'),
+            ],
+            select: [],
+            groupBy: [new GroupKey('FirstAdmissionDate', Bucket::Year)],
+            aggregates: [new AggregateClause(AggregateFn::Count, null, 'n')],
+            orderBy: [new OrderClause('FirstAdmissionDate', OrderDirection::Asc)],
+            limit: null,
+            display: DisplayHint::Timeseries,
+            explanation: '',
+        );
+
+        $soql = $runner->run($plan)->soql;
+
+        // Both term and column drop spaces and hyphens so spelling variants all match.
+        self::assertStringContainsString(
+            "contains(replace(replace(handelsbenaming, ' ', ''), '-', ''), 'GSXR750')",
+            $soql['$where'],
+        );
+    }
+
     public function test_unsupported_display_short_circuits_without_hitting_rdw(): void
     {
-        // No mock response is queued — if the runner tries to call RDW the
-        // Guzzle MockHandler will throw "queue is empty", failing the test.
-        $mock = new MockHandler;
+        // No response queued: any RDW call would make the MockHandler throw.
+        $mock = new MockHandler();
         $stack = HandlerStack::create($mock);
         $guzzle = new GuzzleClient([
             'base_uri' => 'https://opendata.rdw.nl/',
             'handler' => $stack,
         ]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
         $runner = new PlanRunner($rdw);
 
         $result = $runner->run(new Plan(
@@ -393,9 +406,7 @@ final class PlanRunnerTest extends TestCase
 
     public function test_transient_timeout_is_retried_and_then_succeeds(): void
     {
-        // First attempt times out (Guzzle ConnectException, which the package
-        // surfaces as an HttpException with status 0); the runner retries and
-        // the second attempt returns rows.
+        // First attempt times out, the runner retries, the second returns rows.
         $runner = $this->runnerForQueue([
             new ConnectException('cURL error 28: Operation timed out', new Psr7Request('GET', 'test')),
             new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
@@ -426,8 +437,7 @@ final class PlanRunnerTest extends TestCase
 
     public function test_rdw_server_error_is_treated_as_transient_and_retried(): void
     {
-        // A 5xx is an RDW-side hiccup, not a fault in the generated query, so
-        // the runner retries it (here the second attempt succeeds).
+        // A 5xx is an RDW-side hiccup, not a bad query, so the runner retries it.
         $runner = $this->runnerForQueue([
             new Psr7Response(503, [], 'service unavailable'),
             new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
@@ -442,10 +452,7 @@ final class PlanRunnerTest extends TestCase
 
     public function test_permanent_rejection_is_not_retried(): void
     {
-        // Only one 400 is queued: if the runner retried it would dequeue a
-        // second (absent) item and the MockHandler would throw "queue empty"
-        // instead. A single, non-transient QueryExecutionException proves the
-        // runner did not retry a query RDW rejected on its merits.
+        // Only one 400 is queued, so a retry would hit an empty MockHandler.
         $runner = $this->runnerForQueue([
             new Psr7Response(400, [], 'malformed where clause'),
         ]);
@@ -461,35 +468,30 @@ final class PlanRunnerTest extends TestCase
 
     public function test_identical_soql_is_served_from_cache_without_a_second_rdw_call(): void
     {
-        // Only ONE upstream response is queued. If the second run() re-hit RDW
-        // the MockHandler would throw "queue is empty", so a clean second result
-        // proves the SoQL-keyed cache served it.
+        // Only one response is queued, so a clean second result proves the cache served it.
         $stack = HandlerStack::create(new MockHandler([
             new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
                 ['eerste_kleur' => 'WIT', 'n' => '42'],
             ], JSON_THROW_ON_ERROR)),
         ]));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
 
-        $runner = new PlanRunner($rdw, cache: new Repository(new ArrayStore), retryBackoffMs: 0);
+        $runner = new PlanRunner($rdw, cache: new Repository(new ArrayStore()), retryBackoffMs: 0);
 
         $first = $runner->run($this->colorCountPlan());
         $second = $runner->run($this->colorCountPlan());
 
         self::assertSame('WIT', $first->rows[0]['PrimaryColor']);
         self::assertSame($first->rows, $second->rows);
-        // SoQL/url are recomputed each call (cheap, deterministic), so they
-        // match even though only the rows are cached.
+        // Only rows are cached; SoQL is recomputed each call and still matches.
         self::assertSame($first->soql, $second->soql);
     }
 
     public function test_cache_key_is_scoped_by_dataset_and_day_and_ttl_is_tiered_by_cost(): void
     {
-        // Records the (key, ttl-in-seconds) handed to the store on each miss so
-        // we can assert the key shape and the cost-tiered TTL without reaching
-        // into store internals.
-        $store = new class extends ArrayStore
+        // Capture the (key, ttl) handed to the store on each miss.
+        $store = new class() extends ArrayStore
         {
             /** @var list<array{key: string, ttl: int}> */
             public array $puts = [];
@@ -511,7 +513,7 @@ final class PlanRunnerTest extends TestCase
             ], JSON_THROW_ON_ERROR)),
         ]));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
 
         $runner = new PlanRunner($rdw, cache: new Repository($store), retryBackoffMs: 0);
 
@@ -546,12 +548,9 @@ final class PlanRunnerTest extends TestCase
 
     public function test_projection_path_pages_past_socratas_default_when_no_limit_is_set(): void
     {
-        // A full page (PROJECTION_PAGE_SIZE rows) means "there may be more", so
-        // the runner fetches the next page; a short page ends it. This proves a
-        // limit-less breakdown is assembled beyond Socrata's 1000-row default
-        // instead of being silently truncated at the most recent buckets.
+        // A full page means "there may be more" so the runner fetches the next; a short page ends it.
         $page1 = array_map(
-            static fn (int $i): array => ['eerste_kleur' => 'C'.$i, 'n' => (string) $i],
+            static fn (int $i): array => ['eerste_kleur' => 'C' . $i, 'n' => (string) $i],
             range(1, 1000),
         );
         $page2 = [
@@ -566,8 +565,8 @@ final class PlanRunnerTest extends TestCase
         ]));
         $stack->push(Middleware::history($transactions));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
-        $runner = new PlanRunner($rdw, cache: new Repository(new ArrayStore), retryBackoffMs: 0);
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $runner = new PlanRunner($rdw, cache: new Repository(new ArrayStore()), retryBackoffMs: 0);
 
         $result = $runner->run(new Plan(
             where: [],
@@ -583,9 +582,8 @@ final class PlanRunnerTest extends TestCase
         self::assertCount(1002, $result->rows);
         self::assertSame('WIT', $result->rows[1000]['PrimaryColor']);
 
-        // Two upstream requests: offset 0, then offset 1000, each capped at the
-        // page size. The user-facing SoQL/url stay the clean limit-less form.
-        self::assertCount(2, $transactions);
+        // Two requests (offset 0, then 1000); the user-facing SoQL stays limit-less.
+        self::assertCount(2, (array) $transactions);
         $first = urldecode((string) $transactions[0]['request']->getUri());
         $second = urldecode((string) $transactions[1]['request']->getUri());
         self::assertStringContainsString('$limit=1000', $first);
@@ -597,11 +595,9 @@ final class PlanRunnerTest extends TestCase
 
     public function test_projection_path_does_not_page_when_a_limit_is_set(): void
     {
-        // An explicit limit is an intentional bound (a top-N ranking), so even a
-        // page-sized result is a single request — never a second page. Only one
-        // response is queued: a second fetch would hit an empty MockHandler.
+        // An explicit limit is an intentional bound, so it stays a single request.
         $rows = array_map(
-            static fn (int $i): array => ['eerste_kleur' => 'C'.$i, 'n' => (string) $i],
+            static fn (int $i): array => ['eerste_kleur' => 'C' . $i, 'n' => (string) $i],
             range(1, 1000),
         );
         $runner = $this->runnerForQueue([
@@ -623,6 +619,45 @@ final class PlanRunnerTest extends TestCase
         self::assertSame('1000', $result->soql['$limit']);
     }
 
+    public function test_projection_paging_stops_at_the_max_rows_ceiling(): void
+    {
+        // With the ceiling at 2500 the runner takes three full pages (3000 rows) and stops.
+        $fullPage = static fn (string $tag): string => json_encode(
+            array_map(
+                static fn (int $i): array => ['eerste_kleur' => $tag . $i, 'n' => (string) $i],
+                range(1, 1000),
+            ),
+            JSON_THROW_ON_ERROR,
+        );
+
+        $stack = HandlerStack::create(new MockHandler([
+            new Psr7Response(200, ['Content-Type' => 'application/json'], $fullPage('A')),
+            new Psr7Response(200, ['Content-Type' => 'application/json'], $fullPage('B')),
+            new Psr7Response(200, ['Content-Type' => 'application/json'], $fullPage('C')),
+        ]));
+        $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $runner = new PlanRunner(
+            $rdw,
+            cache: new Repository(new ArrayStore()),
+            retryBackoffMs: 0,
+            maxProjectionRows: 2500,
+        );
+
+        $result = $runner->run(new Plan(
+            where: [],
+            select: [],
+            groupBy: [new GroupKey('CommercialName', Bucket::None)],
+            aggregates: [new AggregateClause(AggregateFn::Count, null, 'n')],
+            orderBy: [new OrderClause('CommercialName', OrderDirection::Asc)],
+            limit: null,
+            display: DisplayHint::Bars,
+            explanation: '',
+        ));
+
+        self::assertCount(3000, $result->rows);
+    }
+
     private function colorCountPlan(): Plan
     {
         return new Plan(
@@ -638,7 +673,7 @@ final class PlanRunnerTest extends TestCase
     }
 
     /**
-     * @param  list<array<string, mixed>>  $rows
+     * @param list<array<string, mixed>> $rows
      */
     private function runnerReturning(array $rows): PlanRunner
     {
@@ -648,10 +683,7 @@ final class PlanRunnerTest extends TestCase
     }
 
     /**
-     * Build a runner over an arbitrary Guzzle queue (responses and/or transport
-     * exceptions), with zero retry backoff so timeout tests never actually sleep.
-     *
-     * @param  list<Psr7Response|Throwable>  $queue
+     * @param list<Psr7Response|Throwable> $queue
      */
     private function runnerForQueue(array $queue): PlanRunner
     {
@@ -661,7 +693,7 @@ final class PlanRunnerTest extends TestCase
             'handler' => $stack,
         ]);
 
-        $socrata = new SocrataClient(new RdwConfiguration, $guzzle);
+        $socrata = new SocrataClient(new RdwConfiguration(), $guzzle);
         $rdw = new Rdw(http: $socrata);
 
         return new PlanRunner($rdw, maxAttempts: 2, retryBackoffMs: 0);

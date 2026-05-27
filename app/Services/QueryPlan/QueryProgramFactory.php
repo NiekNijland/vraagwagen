@@ -6,17 +6,6 @@ namespace App\Services\QueryPlan;
 
 use InvalidArgumentException;
 
-/**
- * Builds a typed {@see QueryProgram} from the loose array the model emits.
- *
- * Each query becomes a {@see Plan} via {@see PlanFactory} (so all of its repair
- * and validation still applies); on top of that this factory enforces the
- * program-level invariants: unique well-formed ids, a query cap, and — the new
- * piece — that every dependent-step {@see StepReference} points *backward* to an
- * already-defined query and names a real field. The {@see Presentation} is
- * validated against the same ids. Every failure is an
- * {@see InvalidArgumentException} (mapped to 422), matching {@see PlanFactory}.
- */
 final class QueryProgramFactory
 {
     private const int MAX_QUERIES = 4;
@@ -26,10 +15,11 @@ final class QueryProgramFactory
     public function __construct(
         private readonly PlanFactory $planFactory,
         private readonly PresentationFactory $presentationFactory,
-    ) {}
+    ) {
+    }
 
     /**
-     * @param  array<string, mixed>  $data
+     * @param array<string, mixed> $data
      */
     public function fromArray(array $data): QueryProgram
     {
@@ -47,7 +37,7 @@ final class QueryProgramFactory
 
         /** @var list<ProgramQuery> $queries */
         $queries = [];
-        /** @var list<string> $seenIds ids defined *before* the current query */
+        /** @var list<string> $seenIds */
         $seenIds = [];
 
         foreach ($rawQueries as $rawQuery) {
@@ -73,7 +63,7 @@ final class QueryProgramFactory
     }
 
     /**
-     * @param  list<string>  $seenIds
+     * @param list<string> $seenIds
      */
     private function parseId(mixed $raw, array $seenIds): string
     {
@@ -89,7 +79,7 @@ final class QueryProgramFactory
     }
 
     /**
-     * @param  list<string>  $earlierIds  ids defined before this query
+     * @param list<string> $earlierIds
      */
     private function assertReferencesPointBackward(Plan $plan, array $earlierIds, string $selfId): void
     {
@@ -120,7 +110,7 @@ final class QueryProgramFactory
     }
 
     /**
-     * @param  array<string, mixed>  $data
+     * @param array<string, mixed> $data
      * @return list<mixed>
      */
     private function arrayOrEmpty(array $data, string $key): array

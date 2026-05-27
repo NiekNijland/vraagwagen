@@ -10,9 +10,6 @@ return new class() extends Migration
 {
     protected $connection = 'mongodb';
 
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('users', function (Blueprint $collection): void {
@@ -24,9 +21,6 @@ return new class() extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('users');

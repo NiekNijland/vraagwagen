@@ -13,15 +13,6 @@ use NiekNijland\RDW\Schema\DatasetSchema;
 use NiekNijland\RDW\Schema\FieldDescriptor;
 use NiekNijland\RDW\Schema\SchemaRegistry;
 
-/**
- * Builds the per-query structured-output schema embedded in
- * {@see QueryProgramSchema} (one entry per program query), expressed with
- * Laravel's {@see JsonSchema} builder.
- *
- * The shape mirrors the typed {@see Plan} that {@see PlanFactory} reconstructs:
- * every property is marked required so the OpenAI strict-schema mode validates
- * the overall shape before {@see PlanFactory} re-validates enum values.
- */
 final class PlanSchema
 {
     /**
@@ -35,11 +26,6 @@ final class PlanSchema
 
         $fieldDescription = 'English field name on the RegisteredVehicle dataset (PascalCase, e.g. Brand, CommercialName, PrimaryColor).';
 
-        // Future optimisation: split the value field into a polymorphic schema
-        // keyed on `field` so each field gets a discriminated enum of its known
-        // values. The JSON schema builder doesn't expose a per-property
-        // discriminator today and the marginal win over a vocabulary-rich
-        // description is small.
         $whereItem = $schema->object([
             'field' => $schema->string()->enum($fieldNames)->description($fieldDescription)->required(),
             'op' => $schema->string()

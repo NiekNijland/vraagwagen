@@ -54,8 +54,7 @@ final class PlanPresenterTest extends TestCase
 
     public function test_normalise_persisted_upgrades_legacy_string_group_by_items(): void
     {
-        // Shape of a QueryRun.plan stored before the Bucket migration:
-        // groupBy was a bare list of PascalCase field names.
+        // Legacy QueryRun.plan: groupBy was a bare list of field names.
         $legacy = [
             'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => 'VW']],
             'select' => [],

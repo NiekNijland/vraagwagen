@@ -13,8 +13,6 @@ use Stringable;
 trait ProfileValidationRules
 {
     /**
-     * Get the validation rules used to validate user profiles.
-     *
      * @return array<string, array<int, RuleContract|Stringable|ValidationRule|array<mixed>|string>>
      */
     protected function profileRules(int|string|null $userId = null): array
@@ -26,8 +24,6 @@ trait ProfileValidationRules
     }
 
     /**
-     * Get the validation rules used to validate user names.
-     *
      * @return array<int, RuleContract|Stringable|ValidationRule|array<mixed>|string>
      */
     protected function nameRules(): array
@@ -36,8 +32,6 @@ trait ProfileValidationRules
     }
 
     /**
-     * Get the validation rules used to validate user emails.
-     *
      * @return array<int, RuleContract|Stringable|ValidationRule|array<mixed>|string>
      */
     protected function emailRules(int|string|null $userId = null): array

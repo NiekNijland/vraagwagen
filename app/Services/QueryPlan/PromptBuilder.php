@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\QueryPlan;
 
-use App\Ai\Agents\QueryProgramAgent;
 use App\Enums\Locale;
 use NiekNijland\RDW\Datasets\DatasetId;
 use NiekNijland\RDW\Schema\CastType;
@@ -14,22 +13,15 @@ use NiekNijland\RDW\Schema\SchemaRegistry;
 
 final readonly class PromptBuilder
 {
-    /**
-     * Matches the `<user_question>` open/close tags in any case, with any
-     * surrounding whitespace, and an optional `/` for the closing form, so a
-     * user can't smuggle a closing tag past the wrapper to break out into
-     * "system" territory.
-     */
+    /** Matches `<user_question>` tags so users can't smuggle a closing tag to break out. */
     private const string USER_QUESTION_TAG_PATTERN = '/<\s*\/?\s*user_question\s*>/i';
 
-    public function __construct(private SchemaRegistry $schemas) {}
+    public function __construct(private SchemaRegistry $schemas)
+    {
+    }
 
     /**
-     * Wrap raw user input in tagged delimiters so the LLM treats it as data,
-     * not instructions. The wrapper format is documented in the system prompts
-     * under "Input policy". The closing tag (and any sloppy variant of it) is
-     * stripped from the user text first so the user can't break out by typing
-     * it themselves.
+     * Wrap user input in tags so the LLM treats it as data, stripping any tags they typed.
      */
     public function userPrompt(string $userPrompt): string
     {
@@ -38,12 +30,6 @@ final readonly class PromptBuilder
         return "<user_question>\n{$sanitised}\n</user_question>";
     }
 
-    /**
-     * The system prompt: the model emits a {@see QueryProgram} (a list of
-     * sub-queries plus a presentation) in one completion. Used by
-     * {@see QueryProgramAgent}. A simple question is a one-query
-     * program; ratios use a derive; lookups use a dependent step.
-     */
     public function systemPrompt(Locale $locale): string
     {
         $schema = $this->schemas->get(DatasetId::RegisteredVehicles);
@@ -155,12 +141,6 @@ Program:
 PROMPT;
     }
 
-    /**
-     * The shared per-query reference: fields, value vocabulary, operators,
-     * display hints, aggregates, group keys, dates and plates. Identical for
-     * the single-plan and program prompts because a query plan is built the
-     * same way in both.
-     */
     private function referenceManual(DatasetSchema $schema): string
     {
         $fieldCatalog = $this->renderFieldCatalog($schema);
@@ -184,12 +164,12 @@ For any string field **not** listed above, you do not know the stored casing —
 # Operators
 
 - `eq`, `neq`, `gt`, `gte`, `lt`, `lte` — exact, case-sensitive comparison. For string values, copy the casing exactly as shown in the vocabulary above.
-- `contains` — case-insensitive substring search (Socrata `contains()`). Safe when you are unsure of the stored casing.
+- `contains` — substring search that ignores letter casing **and** spaces and hyphens on both sides, so `GSX-R 750` also matches the stored `GSX-R750`, `GSXR 750` and `GSX R-750`. Safe when you are unsure of the stored casing, spacing, or punctuation.
 - `startsWith` — case-sensitive prefix search (Socrata `starts_with()`). Match the casing of the stored values.
 
 ## Choosing the operator for model names
 
-CommercialName (handelsbenaming) stores specific variants ("AYGO", "AYGO X", "UP", "UP CROSS", "GOLF", "GOLF PLUS"). Users rarely mean one exact stored value — they mean the family, and stored values can also have surrounding noise.
+CommercialName (handelsbenaming) stores specific variants ("AYGO", "AYGO X", "UP", "UP CROSS", "GOLF", "GOLF PLUS"). Users rarely mean one exact stored value — they mean the family, and stored values can also have surrounding noise. The same model is also entered with inconsistent spaces and hyphens ("GSX-R750" vs "GSX-R 750" vs "GSXR 750"); `contains` already strips spaces and hyphens on both sides, so just pass the model name the way the user wrote it — do not try to guess the exact stored spelling.
 
 **ALWAYS use `contains` for CommercialName. Never `eq`, never `startsWith`** — even when the user spells out a fully-qualified variant or quotes an exact name:
 
@@ -279,10 +259,6 @@ MANUAL;
     }
 
     /**
-     * Pick the first $count values from a field's vocabulary, padding with the
-     * first value when the vocabulary is shorter than requested. Returns a
-     * fixed-length list so destructuring at the call site stays total.
-     *
      * @return list<string>
      */
     private function examplePicks(DatasetSchema $schema, string $enumCase, int $count): array

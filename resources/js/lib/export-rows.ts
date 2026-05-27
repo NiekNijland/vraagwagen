@@ -25,7 +25,9 @@ export function downloadRows(
 
     const blob =
         format === 'csv'
-            ? new Blob([rowsToCsv(rows)], {
+            ? // Prepend a UTF-8 BOM so Excel reads é/ï in Dutch brand and colour
+              // values as UTF-8 rather than mangling them as Latin-1.
+              new Blob(['\uFEFF', rowsToCsv(rows)], {
                   type: 'text/csv;charset=utf-8',
               })
             : new Blob([JSON.stringify(rows, null, 2)], {

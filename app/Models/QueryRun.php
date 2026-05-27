@@ -12,9 +12,6 @@ use Illuminate\Support\Carbon;
 use MongoDB\Laravel\Eloquent\Model;
 
 /**
- * A single natural-language query the user ran. Stored so results can be
- * shared via a stable slug, rated, and aggregated into "popular" suggestions.
- *
  * @property string $id
  * @property string $slug
  * @property string $prompt
@@ -29,6 +26,7 @@ use MongoDB\Laravel\Eloquent\Model;
  * @property string|null $user_id
  * @property Rating|null $rating
  * @property string|null $comment
+ * @property string|null $rated_by
  * @property Carbon|null $rated_at
  * @property string|null $model
  * @property int|null $prompt_tokens
@@ -56,6 +54,7 @@ use MongoDB\Laravel\Eloquent\Model;
     'user_id',
     'rating',
     'comment',
+    'rated_by',
     'rated_at',
     'model',
     'prompt_tokens',

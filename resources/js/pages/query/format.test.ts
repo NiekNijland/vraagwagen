@@ -104,6 +104,10 @@ describe('humanizeSnakeCase', () => {
         expect(humanizeSnakeCase('total-count')).toBe('Total count');
     });
 
+    it('keeps known acronyms uppercase', () => {
+        expect(humanizeSnakeCase('avg_apk_price')).toBe('Avg APK price');
+    });
+
     it('returns the alias when it has no content', () => {
         expect(humanizeSnakeCase('__')).toBe('__');
     });
@@ -187,6 +191,25 @@ describe('findNumericKey', () => {
 
     it('falls back to the first key when nothing is numeric', () => {
         expect(findNumericKey({ brand: 'Tesla', color: 'red' })).toBe('brand');
+    });
+
+    it('never returns the excluded group column, even when it looks numeric', () => {
+        // A year stored as a string would otherwise be picked as the value.
+        expect(findNumericKey({ Bouwjaar: '2015', n: 42 }, 'Bouwjaar')).toBe(
+            'n',
+        );
+    });
+
+    it('skips date-like values when looking for a numeric column', () => {
+        expect(findNumericKey({ RegistrationDate: '2020-01-01', n: 5 })).toBe(
+            'n',
+        );
+    });
+
+    it('returns undefined when the only column is the excluded group key', () => {
+        expect(
+            findNumericKey({ Bouwjaar: '2015' }, 'Bouwjaar'),
+        ).toBeUndefined();
     });
 });
 

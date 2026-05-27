@@ -4,20 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\QueryPlan;
 
-use App\Ai\Agents\QueryProgramAgent;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
 
-/**
- * Builds the structured-output schema {@see QueryProgramAgent} exposes to the
- * model: an ordered list of sub-queries (each the full {@see PlanSchema} plus a
- * stable `id`) and a {@see Presentation}.
- *
- * The per-query shape is {@see PlanSchema::build()} verbatim, so the engine's
- * single-plan contract is reused untouched — `queries[]` just adds one nesting
- * level. References between queries ride inside `where` values as
- * `{{qID.FieldName}}` strings, so they add no schema complexity.
- */
 final class QueryProgramSchema
 {
     /**

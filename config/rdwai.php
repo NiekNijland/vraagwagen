@@ -7,14 +7,11 @@ return [
     'rdw_app_token' => env('RDW_APP_TOKEN'),
     'rate_limit' => [
         'per_minute' => env('RDWAI_RATE_LIMIT_PER_MINUTE', 10),
+        'per_day_ip' => env('RDWAI_RATE_LIMIT_PER_DAY_IP', 25),
         'per_day_global' => env('RDWAI_RATE_LIMIT_PER_DAY_GLOBAL', 50),
         'feedback_per_minute' => env('RDWAI_RATE_LIMIT_FEEDBACK_PER_MINUTE', 30),
-        'read_per_minute' => env('RDWAI_RATE_LIMIT_READ_PER_MINUTE', 60),
     ],
-    // Per-model USD prices per 1,000,000 tokens, used by CostEstimator to
-    // attach an estimate to each persisted query run. Keys without a `-`
-    // suffix are also matched as family prefixes for dated OpenAI variants
-    // (e.g. `gpt-4.1-nano` covers `gpt-4.1-nano-2025-04-14`).
+    // USD per 1M tokens; bare keys match dated OpenAI variants as family prefixes.
     'model_prices' => [
         'gpt-4.1-nano' => [
             'input' => 0.10,

@@ -51,9 +51,14 @@ export function TimeseriesView({
     const groupFields = plan.groupBy.map((k) => k.field);
     const dateKey =
         groupFields.find((k) => isDateLike(firstRow[k])) ?? groupFields[0];
-    const valueKey = plan.aggregates[0]?.alias ?? findNumericKey(firstRow);
+    const valueKey =
+        plan.aggregates[0]?.alias ?? findNumericKey(firstRow, dateKey);
 
-    if (dateKey === undefined || valueKey === undefined) {
+    if (
+        dateKey === undefined ||
+        valueKey === undefined ||
+        valueKey === dateKey
+    ) {
         return <>{fallback}</>;
     }
 
@@ -92,7 +97,7 @@ export function TimeseriesView({
             tickFormatter={(v) =>
                 formatDateTick(String(v), granularity, locale)
             }
-            minTickGap={32}
+            minTickGap={8}
             label={{
                 value: xLabel,
                 position: 'insideBottom',

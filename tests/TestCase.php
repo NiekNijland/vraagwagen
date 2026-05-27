@@ -13,10 +13,7 @@ use Override;
 
 abstract class TestCase extends BaseTestCase
 {
-    /**
-     * Neither RefreshDatabase nor DatabaseTruncation are compatible with MongoDB,
-     * so we drop all collections manually before each test.
-     */
+    // RefreshDatabase/DatabaseTruncation are MongoDB-incompatible, so drop collections manually.
     #[Override]
     protected function setUp(): void
     {

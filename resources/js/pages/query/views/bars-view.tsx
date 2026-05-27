@@ -34,9 +34,14 @@ export function BarsView({
         Object.keys(firstRow).find((k) => typeof firstRow[k] === 'string') ??
         Object.keys(firstRow)[0];
     const bucket: Bucket = plan.groupBy[0]?.bucket ?? 'none';
-    const valueKey = plan.aggregates[0]?.alias ?? findNumericKey(firstRow);
+    const valueKey =
+        plan.aggregates[0]?.alias ?? findNumericKey(firstRow, groupKey);
 
-    if (groupKey === undefined || valueKey === undefined) {
+    if (
+        groupKey === undefined ||
+        valueKey === undefined ||
+        valueKey === groupKey
+    ) {
         return <>{fallback}</>;
     }
 

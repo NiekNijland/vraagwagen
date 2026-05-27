@@ -4,15 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\QueryPlan;
 
-/**
- * Request-scoped record of every executed query in a run, keyed by id
- * (`q1`, `q2`, …). Full rows live here — out of the model's context — so the
- * UI and persistence can read them while the model only ever sees bounded
- * summaries (loop mode) or nothing at all (declarative mode).
- *
- * Resolves {@see StepReference}s and {@see Presentation} `resultRef`s, and
- * provides the ordered transcript for {@see QueryResult}.
- */
 final class QueryLedger
 {
     /** @var array<string, LedgerEntry> */
@@ -34,8 +25,6 @@ final class QueryLedger
     }
 
     /**
-     * The entries in insertion (execution) order.
-     *
      * @return list<LedgerEntry>
      */
     public function all(): array

@@ -11,15 +11,13 @@ use App\Http\Requests\Settings\TwoFactorAuthenticationRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 use Laravel\Fortify\Features;
 
 class SecurityController extends Controller implements HasMiddleware
 {
-    /**
-     * Get the middleware that should be assigned to the controller.
-     */
     public static function middleware(): array
     {
         return Features::canManageTwoFactorAuthentication()
@@ -28,9 +26,6 @@ class SecurityController extends Controller implements HasMiddleware
                 : [];
     }
 
-    /**
-     * Show the user's security settings page.
-     */
     public function edit(TwoFactorAuthenticationRequest $request): Response
     {
         $props = [
@@ -47,14 +42,16 @@ class SecurityController extends Controller implements HasMiddleware
         return Inertia::render('settings/security', $props);
     }
 
-    /**
-     * Update the user's password.
-     */
     public function update(PasswordUpdateRequest $request): RedirectResponse
     {
+        $password = $request->string('password')->toString();
+
         $request->user()->update([
-            'password' => $request->input('password'),
+            'password' => $password,
         ]);
+
+        // Evict other sessions on password change; keeps the current one authenticated.
+        Auth::logoutOtherDevices($password);
 
         Inertia::flash('toast', ['type' => ToastType::Success->value, 'message' => __('Password updated.')]);
 

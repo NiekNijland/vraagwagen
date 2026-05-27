@@ -18,9 +18,7 @@ final class QueryRateLimitTest extends TestCase
     {
         parent::setUp();
 
-        // The action is mocked so we never hit OpenAI or Socrata. It returns
-        // an empty plan/rows result so the controller falls through to its
-        // happy-path JSON response and the rate limiter is what gates traffic.
+        // Mock the action so the rate limiter is the only thing gating traffic.
         $mock = Mockery::mock(RunNaturalLanguageQuery::class);
         // @phpstan-ignore method.notFound (Mockery fluent API is not statically resolvable)
         $mock->shouldReceive('execute')->andReturn(new QueryResult(

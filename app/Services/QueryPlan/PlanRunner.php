@@ -20,79 +20,32 @@ use NiekNijland\RDW\Schema\CastType;
 use NiekNijland\RDW\Schema\DatasetSchema;
 use Throwable;
 
-/**
- * Translates a validated {@see Plan} into a typed RDW {@see QueryBuilder},
- * picks the right terminal call, and returns rows + the SoQL params we sent
- * (for the debug pane).
- *
- * The returned rows are always keyed by the public PascalCase enum case name
- * (e.g. "LicensePlate"), regardless of whether they came from the row path
- * ({@see QueryBuilder::get()}, which returns hydrated record objects whose
- * properties are camelCase) or the aggregate/groupBy path
- * ({@see QueryBuilder::getProjection()}, which returns rows keyed by the
- * Dutch snake_case rdwKey). Aggregate aliases are passed through verbatim so
- * orderBy/expr references remain valid client-side.
- *
- * Bucketed group keys ({@see GroupKey} with a non-`None` {@see Bucket}) wrap
- * the field's rdwKey in a `date_trunc_y` / `date_trunc_ym` / `date_trunc_ymd`
- * expression, aliased back to the field's PascalCase enum name so the row
- * projection looks identical to the non-bucketed groupBy path. The expression
- * is added to `$group` via {@see QueryBuilder::groupByRaw()} and to `$select`
- * via {@see QueryBuilder::selectRaw()}; `$group` is built in plan order so the
- * SoQL the user sees in the debug pane matches the plan they see in the UI.
- */
 final readonly class PlanRunner
 {
-    /**
-     * Heavy group-by / aggregate scans over the ~16M-row dataset are slow and
-     * low-cardinality (everyone asking "most common colour" shares one key), so
-     * they're cached for a full day. RDW republishes the dataset roughly daily
-     * and the cache key carries the calendar date, so a day-long TTL never
-     * serves data from before the most recent publish.
-     */
+    // Heavy aggregate scans are low-cardinality; the date-scoped cache key rolls over with RDW's daily refresh.
     private const int AGGREGATE_TTL_SECONDS = 86_400;
 
-    /**
-     * Plain row lookups (e.g. a single licence plate) are cheap, high-cardinality
-     * (low hit rate), and the most freshness-sensitive (APK / ownership), so they
-     * are kept only briefly.
-     */
+    // Row lookups are freshness-sensitive (APK / ownership), so cached only briefly.
     private const int ROW_TTL_SECONDS = 600;
 
-    /**
-     * Socrata returns at most 1000 rows per request and defaults to the same
-     * cap when no `$limit` is sent. A complete breakdown (a {@see Plan} with a
-     * null limit) is paged at this size with `$offset` until a short page
-     * signals the end, so a daily timeseries or a fine-grained histogram
-     * returns every bucket instead of the first 1000.
-     */
+    // Socrata caps a request at 1000 rows; limit-less breakdowns page at this size.
     private const int PROJECTION_PAGE_SIZE = 1000;
 
-    /**
-     * @param  Repository  $cache  RDW responses are cached here, keyed on the
-     *                             canonical SoQL params. Defaults to a no-op
-     *                             store so unit tests opt in explicitly; the
-     *                             container injects the real default store.
-     * @param  int  $maxAttempts  Total RDW attempts per query (1 = no retry).
-     *                            A transient failure (timeout / upstream 5xx)
-     *                            burns one attempt and is retried; a slow
-     *                            group-by often succeeds on the second attempt
-     *                            because Socrata has cached the result by then.
-     * @param  int  $retryBackoffMs  Pause between attempts; 0 in tests.
-     */
+    // Hard ceiling so a high-cardinality groupBy can't page an unbounded tail.
+    private const int DEFAULT_MAX_PROJECTION_ROWS = 50_000;
+
     public function __construct(
         private Rdw $rdw,
-        private Repository $cache = new Repository(new NullStore),
+        private Repository $cache = new Repository(new NullStore()),
         private int $maxAttempts = 2,
         private int $retryBackoffMs = 250,
-    ) {}
+        private int $maxProjectionRows = self::DEFAULT_MAX_PROJECTION_ROWS,
+    ) {
+    }
 
     public function run(Plan $plan): RunnerResult
     {
-        // A refusal plan ({@see DisplayHint::Unsupported}) describes "I won't
-        // answer this" — there is no SoQL to send and no rows to fetch. Skip
-        // the dataset call entirely so an off-topic / injection prompt never
-        // bills against the RDW rate limit or surfaces ghost data.
+        // A refusal plan has no SoQL to send; skip the dataset call so it never bills against the RDW rate limit.
         if ($plan->display === DisplayHint::Unsupported) {
             return new RunnerResult(rows: [], soql: [], url: '');
         }
@@ -112,11 +65,7 @@ final readonly class PlanRunner
         $soql = $builder->toSoqlParams();
         $url = $this->buildRequestUrl($soql);
 
-        // Two prompts that compile to the same SoQL share one upstream call.
-        // The key is scoped by dataset and Amsterdam calendar date so it rolls
-        // over with RDW's ~daily dataset refresh; the TTL is tiered by query
-        // cost. Only a successful fetch is cached — a thrown
-        // QueryExecutionException / RateLimitException escapes remember().
+        // Prompts compiling to the same SoQL share one upstream call; only a successful fetch is cached.
         /** @var list<array<string, mixed>> $rows */
         $rows = $this->cache->remember(
             $this->cacheKey($soql),
@@ -128,14 +77,9 @@ final readonly class PlanRunner
     }
 
     /**
-     * Execute the query with retries, returning the normalised rows. Re-issuing
-     * the same request is safe: getProjection()/get() derive everything from
-     * $builder->toSoqlParams() and never mutate the builder, so each attempt
-     * sends an identical query.
-     *
-     * @param  QueryBuilder<RegisteredVehicle>  $builder
-     * @param  array<string, BucketExpression>  $buckets
-     * @param  array<string, string>  $soql
+     * @param QueryBuilder<RegisteredVehicle> $builder
+     * @param array<string, BucketExpression> $buckets
+     * @param array<string, string> $soql
      * @return list<array<string, mixed>>
      */
     private function fetch(QueryBuilder $builder, Plan $plan, array $buckets, array $soql, string $url): array
@@ -145,8 +89,7 @@ final readonly class PlanRunner
             try {
                 return $this->execute($builder, $plan, $buckets);
             } catch (RateLimitException $e) {
-                // The controller treats RateLimitException specially (429 with
-                // a Retry-After). Pass it through; do not wrap or retry.
+                // The controller maps this to a 429; pass through without wrapping or retrying.
                 throw $e;
             } catch (Throwable $e) {
                 if ($attempt < $this->maxAttempts && QueryExecutionException::isTransientFailure($e)) {
@@ -161,11 +104,6 @@ final readonly class PlanRunner
         }
     }
 
-    /**
-     * Cache TTL for a plan, tiered by cost: heavy aggregate/group-by scans are
-     * cached for a day, cheap row lookups only briefly. Mirrors the
-     * row-vs-projection branch in {@see self::execute()}.
-     */
     private function cacheTtlSeconds(Plan $plan): int
     {
         return $plan->aggregates !== [] || $plan->groupBy !== []
@@ -174,11 +112,7 @@ final readonly class PlanRunner
     }
 
     /**
-     * Canonical cache key for a set of SoQL params. Params are sorted so their
-     * order can't change the hash, and the key carries the dataset id and the
-     * Amsterdam calendar date so entries roll over with RDW's daily refresh.
-     *
-     * @param  array<string, string>  $soql
+     * @param array<string, string> $soql
      */
     private function cacheKey(array $soql): string
     {
@@ -200,7 +134,7 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param  array<string, string>  $soql
+     * @param array<string, string> $soql
      */
     private function buildRequestUrl(array $soql): string
     {
@@ -208,12 +142,12 @@ final readonly class PlanRunner
         $datasetId = DatasetId::RegisteredVehicles->value;
         $query = http_build_query($soql, '', '&', PHP_QUERY_RFC3986);
 
-        return "{$base}/resource/{$datasetId}.json".($query !== '' ? "?{$query}" : '');
+        return "{$base}/resource/{$datasetId}.json" . ($query !== '' ? "?{$query}" : '');
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle>  $builder
-     * @param  list<WhereClause>  $clauses
+     * @param QueryBuilder<RegisteredVehicle> $builder
+     * @param list<WhereClause> $clauses
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applyWhere(QueryBuilder $builder, array $clauses): QueryBuilder
@@ -228,7 +162,7 @@ final readonly class PlanRunner
                 WhereOp::GreaterThanOrEqual => $builder->where($field, $this->castValue($field, $clause->value), '>='),
                 WhereOp::LessThan => $builder->where($field, $this->castValue($field, $clause->value), '<'),
                 WhereOp::LessThanOrEqual => $builder->where($field, $this->castValue($field, $clause->value), '<='),
-                WhereOp::Contains => $builder->whereContains($field, $clause->value),
+                WhereOp::Contains => $builder->whereRaw($this->normalisedContainsExpression($field, $clause->value)),
                 WhereOp::StartsWith => $builder->whereStartsWith($field, $clause->value),
             };
         }
@@ -237,14 +171,23 @@ final readonly class PlanRunner
     }
 
     /**
-     * Applies `$plan->select` and `$plan->groupBy` to the builder in a single
-     * ordered pass so the resulting SoQL `$select` and `$group` clauses appear
-     * in the same order the plan does. Bucketed keys go through
-     * {@see QueryBuilder::selectRaw()} / {@see QueryBuilder::groupByRaw()};
-     * plain keys go through the typed `select()` / `groupBy()`.
-     *
-     * @param  QueryBuilder<RegisteredVehicle>  $builder
-     * @param  array<string, BucketExpression>  $buckets  keyed by field enum case
+     * Separator-insensitive substring predicate, since RDW free-text fields spell values with inconsistent spaces/hyphens.
+     */
+    private function normalisedContainsExpression(RegisteredVehicleField $field, string $value): string
+    {
+        $term = strtoupper(str_replace([' ', '-'], '', $value));
+        $quoted = "'" . str_replace("'", "''", $term) . "'";
+
+        return sprintf(
+            "contains(replace(replace(%s, ' ', ''), '-', ''), %s)",
+            $field->value,
+            $quoted,
+        );
+    }
+
+    /**
+     * @param QueryBuilder<RegisteredVehicle> $builder
+     * @param array<string, BucketExpression> $buckets
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applySelectAndGroupBy(QueryBuilder $builder, Plan $plan, array $buckets): QueryBuilder
@@ -271,8 +214,8 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle>  $builder
-     * @param  list<AggregateClause>  $aggregates
+     * @param QueryBuilder<RegisteredVehicle> $builder
+     * @param list<AggregateClause> $aggregates
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applyAggregates(QueryBuilder $builder, array $aggregates): QueryBuilder
@@ -293,10 +236,10 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle>  $builder
-     * @param  list<OrderClause>  $orderBy
-     * @param  list<AggregateClause>  $aggregates
-     * @param  array<string, BucketExpression>  $buckets  keyed by field enum case
+     * @param QueryBuilder<RegisteredVehicle> $builder
+     * @param list<OrderClause> $orderBy
+     * @param list<AggregateClause> $aggregates
+     * @param array<string, BucketExpression> $buckets
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applyOrderBy(QueryBuilder $builder, array $orderBy, array $aggregates, array $buckets): QueryBuilder
@@ -306,17 +249,14 @@ final readonly class PlanRunner
             $aliasSet[$agg->alias] = true;
         }
 
-        // Socrata sorts NULLs first on DESC, so "top 5 heaviest" or "most
-        // recent transfer" otherwise leads with rows where the sort column
-        // is empty. Guarantee the sort column is populated for any plain
-        // field orderBy; dedupe so the same field isn't filtered twice.
+        // Socrata sorts NULLs first on DESC, so force the sort column non-null; dedupe per field.
         $notNullApplied = [];
 
         foreach ($orderBy as $clause) {
             $direction = $clause->direction === OrderDirection::Desc ? SortDirection::Desc : SortDirection::Asc;
 
             if (isset($buckets[$clause->expr])) {
-                $builder = $builder->orderByRaw($buckets[$clause->expr]->expression.' '.$direction->value);
+                $builder = $builder->orderByRaw($buckets[$clause->expr]->expression . ' ' . $direction->value);
 
                 continue;
             }
@@ -339,15 +279,15 @@ final readonly class PlanRunner
                 ));
             }
 
-            $builder = $builder->orderByRaw($clause->expr.' '.$direction->value);
+            $builder = $builder->orderByRaw($clause->expr . ' ' . $direction->value);
         }
 
         return $builder;
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle>  $builder
-     * @param  array<string, BucketExpression>  $buckets
+     * @param QueryBuilder<RegisteredVehicle> $builder
+     * @param array<string, BucketExpression> $buckets
      * @return list<array<string, mixed>>
      */
     private function execute(QueryBuilder $builder, Plan $plan, array $buckets): array
@@ -362,23 +302,9 @@ final readonly class PlanRunner
     }
 
     /**
-     * Fetch the raw projection rows for an aggregate / group-by query.
+     * Pages a limit-less projection until a short page (so a breakdown returns every bucket, not just Socrata's first 1000).
      *
-     * An explicit {@see Plan::$limit} is an intentional bound — a top-N ranking
-     * (bars) or a capped list — so it runs as a single request. A null limit
-     * means "every bucket": Socrata would otherwise stop at its 1000-row
-     * default and, because breakdowns sort by the bucket field, silently drop
-     * the tail (the most recent periods of a daily timeseries, the heaviest
-     * bins of a histogram). So we page with `$offset` until a short page signals
-     * the end and assemble the full set. Only the projection path pages — an
-     * unbounded plain-row query must never walk all ~16M records, so
-     * {@see self::execute()} keeps it on the single-request `get()` path.
-     *
-     * Re-issuing a page is safe: the builder is immutable and never mutated, so
-     * a transient failure mid-pagination simply restarts {@see self::fetch()}
-     * from the first page.
-     *
-     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param QueryBuilder<RegisteredVehicle> $builder
      * @return list<array<string, mixed>>
      */
     private function fetchProjectionRows(QueryBuilder $builder, Plan $plan): array
@@ -393,17 +319,13 @@ final readonly class PlanRunner
             $page = $builder->limit(self::PROJECTION_PAGE_SIZE)->offset($offset)->getProjection();
             $rows = array_merge($rows, $page);
             $offset += self::PROJECTION_PAGE_SIZE;
-        } while (count($page) === self::PROJECTION_PAGE_SIZE);
+        } while (count($page) === self::PROJECTION_PAGE_SIZE && count($rows) < $this->maxProjectionRows);
 
         return $rows;
     }
 
     /**
-     * Build an output row for a hydrated record in the order requested by
-     * `$plan->select` (PascalCase enum case names). When no select was given
-     * we fall through to every property the record exposes.
-     *
-     * @param  list<string>  $select
+     * @param list<string> $select
      * @return array<string, mixed>
      */
     private function recordToArray(object $record, array $select): array
@@ -437,14 +359,11 @@ final readonly class PlanRunner
     }
 
     /**
-     * Aggregate/groupBy rows arrive keyed by the Dutch snake_case rdwKey.
-     * Rewrite known keys to their public PascalCase enum case so the frontend
-     * never needs its own translation table. Bucket aliases (which already
-     * match the field's enum case) and aggregate aliases pass through.
+     * Rewrites Dutch snake_case rdwKey row keys to their PascalCase enum case; aliases pass through.
      *
-     * @param  list<array<string, mixed>>  $rows
-     * @param  list<AggregateClause>  $aggregates
-     * @param  array<string, BucketExpression>  $buckets  keyed by field enum case
+     * @param list<array<string, mixed>> $rows
+     * @param list<AggregateClause> $aggregates
+     * @param array<string, BucketExpression> $buckets
      * @return list<array<string, mixed>>
      */
     private function normaliseProjectionRows(array $rows, array $aggregates, array $buckets): array
@@ -474,14 +393,7 @@ final readonly class PlanRunner
     }
 
     /**
-     * Translate every bucketed {@see GroupKey} into a SoQL expression bound to
-     * the field's rdwKey, plus an alias matching the field's PascalCase enum
-     * case so the projection row key looks identical to the non-bucket path.
-     * Returns a map keyed by the field's enum case so both the select/group
-     * pass and the orderBy pass can look the bucket up by `$clause->expr`
-     * without rebuilding the index.
-     *
-     * @param  list<GroupKey>  $groupBy
+     * @param list<GroupKey> $groupBy
      * @return array<string, BucketExpression>
      */
     private function buildBucketsByField(array $groupBy): array
@@ -556,10 +468,7 @@ final readonly class PlanRunner
 
     private function castValue(RegisteredVehicleField $field, string $raw): mixed
     {
-        // Plates are stored uppercase without separators ("1ZTZ08"); users — and
-        // dependent-step references resolved from another query — may carry the
-        // dashed form ("1-ZTZ-08"). Normalise so the case-sensitive `kenteken`
-        // comparison still matches. Mirrors the frontend plate.ts normalisation.
+        // Plates are stored uppercase without separators; normalise so the case-sensitive match works.
         if ($field === RegisteredVehicleField::LicensePlate) {
             return PlateNormaliser::normalise($raw);
         }

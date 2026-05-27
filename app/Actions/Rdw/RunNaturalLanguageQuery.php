@@ -18,24 +18,12 @@ use App\Services\QueryPlan\Plan;
 use App\Services\QueryPlan\PlanRunner;
 use App\Services\QueryPlan\Presentation;
 use App\Services\QueryPlan\QueryLedger;
-use App\Services\QueryPlan\QueryProgram;
 use App\Services\QueryPlan\QueryProgramFactory;
 use App\Services\QueryPlan\QueryResult;
 use App\Services\QueryPlan\StepReferenceException;
 use App\Services\QueryPlan\StepReferenceResolver;
 use App\Services\QueryPlan\TokenUsage;
 
-/**
- * Turns a natural-language question into an executed {@see QueryResult}.
- *
- * Every question is a {@see QueryProgram}: a simple
- * "how many Toyotas" is a one-query program; a ratio is two queries plus a
- * derive; "how many of my car's model" is a dependent step. The queries run in
- * order, dependent-step references are resolved between them, then the
- * presentation is resolved (optionally computing a deterministic figure). A
- * reference or derivation that fails on real data degrades to a graceful
- * `unsupported` answer rather than a 500.
- */
 class RunNaturalLanguageQuery
 {
     public function __construct(
@@ -44,7 +32,8 @@ class RunNaturalLanguageQuery
         private readonly QueryProgramFactory $programFactory,
         private readonly StepReferenceResolver $referenceResolver,
         private readonly Derivation $derivation,
-    ) {}
+    ) {
+    }
 
     public function execute(string $userPrompt, Locale $locale): QueryResult
     {
@@ -58,7 +47,7 @@ class RunNaturalLanguageQuery
         $tokens = TokenUsage::fromUsage($response->usage);
         $estimatedCost = $this->costEstimator->estimate($model, $response->usage);
 
-        $ledger = new QueryLedger;
+        $ledger = new QueryLedger();
 
         try {
             foreach ($program->queries as $query) {
@@ -85,11 +74,7 @@ class RunNaturalLanguageQuery
 
         $source = $this->presentedEntry($presentation, $ledger);
 
-        // The presented query's plan display is authoritative: it reflects the
-        // repairs PlanFactory applies (e.g. a bogus count downgraded to
-        // unsupported) that the model's raw presentation.display does not.
-        // Re-stamp the presentation with it so the rendered displayHint and the
-        // persisted presentation.display can never diverge.
+        // Re-stamp with the presented plan's display (authoritative: includes PlanFactory repairs).
         $presentation = new Presentation(
             resultRef: $presentation->resultRef,
             display: $source->plan->display,
@@ -111,12 +96,6 @@ class RunNaturalLanguageQuery
         );
     }
 
-    /**
-     * The ledger entry whose plan/rows back the presented view. For a plain
-     * passthrough that is `resultRef`; for a derive it is the primary operand
-     * (the grouped source, or the numerator) so the debug pane and persisted
-     * plan still reflect a real query.
-     */
     private function presentedEntry(Presentation $presentation, QueryLedger $ledger): LedgerEntry
     {
         $derive = $presentation->derive;

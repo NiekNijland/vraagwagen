@@ -15,8 +15,6 @@ final class CreateNewUser implements CreatesNewUsers
     use PasswordValidationRules, ProfileValidationRules;
 
     /**
-     * Validate and create a newly registered user.
-     *
      * @param array<array-key, mixed> $input
      */
     public function create(array $input): User
@@ -30,6 +28,8 @@ final class CreateNewUser implements CreatesNewUsers
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => $validated['password'],
+            // Locale (resolved by SetLocale) so the first email lands in that language.
+            'locale' => app()->getLocale(),
         ]);
     }
 }

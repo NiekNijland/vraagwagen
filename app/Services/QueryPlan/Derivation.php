@@ -4,12 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\QueryPlan;
 
-/**
- * Pure, deterministic combine of ledgered query results into a single
- * {@see Derived} figure. The model picks the op and operands ({@see Presentation}
- * `derive`); the arithmetic happens here, never in the model, so no displayed
- * number is ever typed by the LLM.
- */
 final class Derivation
 {
     public function percentage(float $numerator, float $denominator): Derived
@@ -33,15 +27,9 @@ final class Derivation
     }
 
     /**
-     * A single group's share of the column total within one grouped result.
-     * `rows` are the normalised projection rows; `labelColumn` is the group
-     * field (e.g. "PrimaryColor"), `value` the group to select (e.g. "GEEL"),
-     * and `countColumn` the aggregate alias (e.g. "n").
+     * @param list<array<string, mixed>> $rows
      *
-     * @param  list<array<string, mixed>>  $rows
-     *
-     * @throws DerivationException when the selector matches no row, or the
-     *                             column total is zero.
+     * @throws DerivationException
      */
     public function groupShare(array $rows, string $labelColumn, string $value, string $countColumn): Derived
     {
