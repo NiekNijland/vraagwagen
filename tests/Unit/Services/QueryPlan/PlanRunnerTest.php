@@ -97,6 +97,24 @@ final class PlanRunnerTest extends TestCase
         self::assertSame('42', $result->rows[0]['n']);
     }
 
+    public function test_decimal_where_value_is_emitted_as_unquoted_number(): void
+    {
+        $runner = $this->runnerReturning([]);
+
+        $plan = new Plan(
+            where: [new WhereClause('CatalogPrice', WhereOp::GreaterThan, '50000')],
+            select: [],
+            groupBy: [],
+            aggregates: [new AggregateClause(AggregateFn::Count, null, 'n')],
+            orderBy: [],
+            limit: null,
+            display: DisplayHint::Count,
+            explanation: '',
+        );
+
+        self::assertSame('catalogusprijs > 50000', $runner->run($plan)->soql['$where']);
+    }
+
     public function test_orderby_accepts_field_names_and_aggregate_aliases_but_rejects_others(): void
     {
         $runner = $this->runnerReturning([]);
@@ -379,13 +397,13 @@ final class PlanRunnerTest extends TestCase
     public function test_unsupported_display_short_circuits_without_hitting_rdw(): void
     {
         // No response queued: any RDW call would make the MockHandler throw.
-        $mock = new MockHandler();
+        $mock = new MockHandler;
         $stack = HandlerStack::create($mock);
         $guzzle = new GuzzleClient([
             'base_uri' => 'https://opendata.rdw.nl/',
             'handler' => $stack,
         ]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
         $runner = new PlanRunner($rdw);
 
         $result = $runner->run(new Plan(
@@ -475,9 +493,9 @@ final class PlanRunnerTest extends TestCase
             ], JSON_THROW_ON_ERROR)),
         ]));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
 
-        $runner = new PlanRunner($rdw, cache: new Repository(new ArrayStore()), retryBackoffMs: 0);
+        $runner = new PlanRunner($rdw, cache: new Repository(new ArrayStore), retryBackoffMs: 0);
 
         $first = $runner->run($this->colorCountPlan());
         $second = $runner->run($this->colorCountPlan());
@@ -491,7 +509,7 @@ final class PlanRunnerTest extends TestCase
     public function test_cache_key_is_scoped_by_dataset_and_day_and_ttl_is_tiered_by_cost(): void
     {
         // Capture the (key, ttl) handed to the store on each miss.
-        $store = new class() extends ArrayStore
+        $store = new class extends ArrayStore
         {
             /** @var list<array{key: string, ttl: int}> */
             public array $puts = [];
@@ -513,7 +531,7 @@ final class PlanRunnerTest extends TestCase
             ], JSON_THROW_ON_ERROR)),
         ]));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
 
         $runner = new PlanRunner($rdw, cache: new Repository($store), retryBackoffMs: 0);
 
@@ -550,7 +568,7 @@ final class PlanRunnerTest extends TestCase
     {
         // A full page means "there may be more" so the runner fetches the next; a short page ends it.
         $page1 = array_map(
-            static fn (int $i): array => ['eerste_kleur' => 'C' . $i, 'n' => (string) $i],
+            static fn (int $i): array => ['eerste_kleur' => 'C'.$i, 'n' => (string) $i],
             range(1, 1000),
         );
         $page2 = [
@@ -565,8 +583,8 @@ final class PlanRunnerTest extends TestCase
         ]));
         $stack->push(Middleware::history($transactions));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
-        $runner = new PlanRunner($rdw, cache: new Repository(new ArrayStore()), retryBackoffMs: 0);
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        $runner = new PlanRunner($rdw, cache: new Repository(new ArrayStore), retryBackoffMs: 0);
 
         $result = $runner->run(new Plan(
             where: [],
@@ -597,7 +615,7 @@ final class PlanRunnerTest extends TestCase
     {
         // An explicit limit is an intentional bound, so it stays a single request.
         $rows = array_map(
-            static fn (int $i): array => ['eerste_kleur' => 'C' . $i, 'n' => (string) $i],
+            static fn (int $i): array => ['eerste_kleur' => 'C'.$i, 'n' => (string) $i],
             range(1, 1000),
         );
         $runner = $this->runnerForQueue([
@@ -624,7 +642,7 @@ final class PlanRunnerTest extends TestCase
         // With the ceiling at 2500 the runner takes three full pages (3000 rows) and stops.
         $fullPage = static fn (string $tag): string => json_encode(
             array_map(
-                static fn (int $i): array => ['eerste_kleur' => $tag . $i, 'n' => (string) $i],
+                static fn (int $i): array => ['eerste_kleur' => $tag.$i, 'n' => (string) $i],
                 range(1, 1000),
             ),
             JSON_THROW_ON_ERROR,
@@ -636,10 +654,10 @@ final class PlanRunnerTest extends TestCase
             new Psr7Response(200, ['Content-Type' => 'application/json'], $fullPage('C')),
         ]));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
         $runner = new PlanRunner(
             $rdw,
-            cache: new Repository(new ArrayStore()),
+            cache: new Repository(new ArrayStore),
             retryBackoffMs: 0,
             maxProjectionRows: 2500,
         );
@@ -673,7 +691,7 @@ final class PlanRunnerTest extends TestCase
     }
 
     /**
-     * @param list<array<string, mixed>> $rows
+     * @param  list<array<string, mixed>>  $rows
      */
     private function runnerReturning(array $rows): PlanRunner
     {
@@ -683,7 +701,7 @@ final class PlanRunnerTest extends TestCase
     }
 
     /**
-     * @param list<Psr7Response|Throwable> $queue
+     * @param  list<Psr7Response|Throwable>  $queue
      */
     private function runnerForQueue(array $queue): PlanRunner
     {
@@ -693,7 +711,7 @@ final class PlanRunnerTest extends TestCase
             'handler' => $stack,
         ]);
 
-        $socrata = new SocrataClient(new RdwConfiguration(), $guzzle);
+        $socrata = new SocrataClient(new RdwConfiguration, $guzzle);
         $rdw = new Rdw(http: $socrata);
 
         return new PlanRunner($rdw, maxAttempts: 2, retryBackoffMs: 0);

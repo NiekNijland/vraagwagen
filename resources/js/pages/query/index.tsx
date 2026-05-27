@@ -1,9 +1,9 @@
 import { Head } from '@inertiajs/react';
 import {
     ArrowRight,
-    BarChart3,
+    CornerDownLeft,
     Github,
-    LineChart,
+    MousePointerClick,
     Plus,
     Sparkles,
     X,
@@ -549,7 +549,7 @@ function ComposerCard({
                         )}
                     />
                     <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
-                        <div className="inline-flex items-center gap-3 text-xs whitespace-nowrap text-muted-foreground">
+                        <div className="inline-flex items-center gap-2 text-xs whitespace-nowrap text-muted-foreground">
                             {plate !== null ? (
                                 <PlateChip
                                     plate={plate}
@@ -559,10 +559,12 @@ function ComposerCard({
                                 <>
                                     <span className="inline-flex items-center gap-1">
                                         <kbd className="rdw-kbd">⌘</kbd>
-                                        <kbd className="rdw-kbd">↵</kbd>
+                                        <kbd className="rdw-kbd">
+                                            <CornerDownLeft className="h-3 w-3" />
+                                        </kbd>
                                     </span>
                                     <span className="hidden sm:inline">
-                                        {t('pages.query.submitHint')}
+                                        {t('pages.query.submitAction')}
                                     </span>
                                 </>
                             )}
@@ -640,8 +642,12 @@ function DiscoverCards({
                 <span className="text-[11px] font-semibold tracking-[0.18em] text-[var(--rdw-orange)] uppercase">
                     {t('pages.query.popular')}
                 </span>
-                <span className="text-[11.5px] whitespace-nowrap text-muted-foreground/70">
-                    {t('pages.query.submitHint')}
+                <span className="inline-flex items-center gap-1.5 text-[11.5px] whitespace-nowrap text-muted-foreground/70">
+                    <MousePointerClick
+                        className="h-3.5 w-3.5 text-[var(--rdw-orange)]"
+                        aria-hidden="true"
+                    />
+                    {t('pages.query.popularHint')}
                 </span>
             </div>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
@@ -993,12 +999,6 @@ function StatStrip({ stats, locale }: { stats: SessionStats; locale: string }) {
                 >
                     opendata.rdw.nl
                 </a>
-                <span className="text-muted-foreground/40">·</span>
-                <BarChart3 className="h-3 w-3 text-[var(--rdw-orange)]" />
-                <span className="text-muted-foreground">SoQL</span>
-                <span className="text-muted-foreground/40">·</span>
-                <LineChart className="h-3 w-3 text-[var(--rdw-orange)]" />
-                <span className="text-muted-foreground">AI</span>
                 <span className="text-muted-foreground/40">·</span>
                 <a
                     href="https://github.com/NiekNijland/rdwai"

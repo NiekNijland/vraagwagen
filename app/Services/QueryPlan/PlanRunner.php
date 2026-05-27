@@ -36,12 +36,11 @@ final readonly class PlanRunner
 
     public function __construct(
         private Rdw $rdw,
-        private Repository $cache = new Repository(new NullStore()),
+        private Repository $cache = new Repository(new NullStore),
         private int $maxAttempts = 2,
         private int $retryBackoffMs = 250,
         private int $maxProjectionRows = self::DEFAULT_MAX_PROJECTION_ROWS,
-    ) {
-    }
+    ) {}
 
     public function run(Plan $plan): RunnerResult
     {
@@ -77,9 +76,9 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param QueryBuilder<RegisteredVehicle> $builder
-     * @param array<string, BucketExpression> $buckets
-     * @param array<string, string> $soql
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  array<string, BucketExpression>  $buckets
+     * @param  array<string, string>  $soql
      * @return list<array<string, mixed>>
      */
     private function fetch(QueryBuilder $builder, Plan $plan, array $buckets, array $soql, string $url): array
@@ -112,7 +111,7 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param array<string, string> $soql
+     * @param  array<string, string>  $soql
      */
     private function cacheKey(array $soql): string
     {
@@ -134,7 +133,7 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param array<string, string> $soql
+     * @param  array<string, string>  $soql
      */
     private function buildRequestUrl(array $soql): string
     {
@@ -142,12 +141,12 @@ final readonly class PlanRunner
         $datasetId = DatasetId::RegisteredVehicles->value;
         $query = http_build_query($soql, '', '&', PHP_QUERY_RFC3986);
 
-        return "{$base}/resource/{$datasetId}.json" . ($query !== '' ? "?{$query}" : '');
+        return "{$base}/resource/{$datasetId}.json".($query !== '' ? "?{$query}" : '');
     }
 
     /**
-     * @param QueryBuilder<RegisteredVehicle> $builder
-     * @param list<WhereClause> $clauses
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  list<WhereClause>  $clauses
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applyWhere(QueryBuilder $builder, array $clauses): QueryBuilder
@@ -176,7 +175,7 @@ final readonly class PlanRunner
     private function normalisedContainsExpression(RegisteredVehicleField $field, string $value): string
     {
         $term = strtoupper(str_replace([' ', '-'], '', $value));
-        $quoted = "'" . str_replace("'", "''", $term) . "'";
+        $quoted = "'".str_replace("'", "''", $term)."'";
 
         return sprintf(
             "contains(replace(replace(%s, ' ', ''), '-', ''), %s)",
@@ -186,8 +185,8 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param QueryBuilder<RegisteredVehicle> $builder
-     * @param array<string, BucketExpression> $buckets
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  array<string, BucketExpression>  $buckets
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applySelectAndGroupBy(QueryBuilder $builder, Plan $plan, array $buckets): QueryBuilder
@@ -214,8 +213,8 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param QueryBuilder<RegisteredVehicle> $builder
-     * @param list<AggregateClause> $aggregates
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  list<AggregateClause>  $aggregates
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applyAggregates(QueryBuilder $builder, array $aggregates): QueryBuilder
@@ -236,10 +235,10 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param QueryBuilder<RegisteredVehicle> $builder
-     * @param list<OrderClause> $orderBy
-     * @param list<AggregateClause> $aggregates
-     * @param array<string, BucketExpression> $buckets
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  list<OrderClause>  $orderBy
+     * @param  list<AggregateClause>  $aggregates
+     * @param  array<string, BucketExpression>  $buckets
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applyOrderBy(QueryBuilder $builder, array $orderBy, array $aggregates, array $buckets): QueryBuilder
@@ -256,7 +255,7 @@ final readonly class PlanRunner
             $direction = $clause->direction === OrderDirection::Desc ? SortDirection::Desc : SortDirection::Asc;
 
             if (isset($buckets[$clause->expr])) {
-                $builder = $builder->orderByRaw($buckets[$clause->expr]->expression . ' ' . $direction->value);
+                $builder = $builder->orderByRaw($buckets[$clause->expr]->expression.' '.$direction->value);
 
                 continue;
             }
@@ -279,15 +278,15 @@ final readonly class PlanRunner
                 ));
             }
 
-            $builder = $builder->orderByRaw($clause->expr . ' ' . $direction->value);
+            $builder = $builder->orderByRaw($clause->expr.' '.$direction->value);
         }
 
         return $builder;
     }
 
     /**
-     * @param QueryBuilder<RegisteredVehicle> $builder
-     * @param array<string, BucketExpression> $buckets
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  array<string, BucketExpression>  $buckets
      * @return list<array<string, mixed>>
      */
     private function execute(QueryBuilder $builder, Plan $plan, array $buckets): array
@@ -304,7 +303,7 @@ final readonly class PlanRunner
     /**
      * Pages a limit-less projection until a short page (so a breakdown returns every bucket, not just Socrata's first 1000).
      *
-     * @param QueryBuilder<RegisteredVehicle> $builder
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
      * @return list<array<string, mixed>>
      */
     private function fetchProjectionRows(QueryBuilder $builder, Plan $plan): array
@@ -325,7 +324,7 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param list<string> $select
+     * @param  list<string>  $select
      * @return array<string, mixed>
      */
     private function recordToArray(object $record, array $select): array
@@ -361,9 +360,9 @@ final readonly class PlanRunner
     /**
      * Rewrites Dutch snake_case rdwKey row keys to their PascalCase enum case; aliases pass through.
      *
-     * @param list<array<string, mixed>> $rows
-     * @param list<AggregateClause> $aggregates
-     * @param array<string, BucketExpression> $buckets
+     * @param  list<array<string, mixed>>  $rows
+     * @param  list<AggregateClause>  $aggregates
+     * @param  array<string, BucketExpression>  $buckets
      * @return list<array<string, mixed>>
      */
     private function normaliseProjectionRows(array $rows, array $aggregates, array $buckets): array
@@ -393,7 +392,7 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param list<GroupKey> $groupBy
+     * @param  list<GroupKey>  $groupBy
      * @return array<string, BucketExpression>
      */
     private function buildBucketsByField(array $groupBy): array
@@ -481,7 +480,7 @@ final readonly class PlanRunner
         return match ($descriptor->cast) {
             CastType::Boolean => in_array(strtolower($raw), ['true', '1', 'ja', 'yes'], true),
             CastType::Integer => (int) $raw,
-            CastType::Decimal => $raw,
+            CastType::Decimal => is_numeric($raw) ? (float) $raw : $raw,
             CastType::CalendarDate, CastType::NumericDate => CarbonImmutable::parse($raw, 'UTC'),
             default => $raw,
         };

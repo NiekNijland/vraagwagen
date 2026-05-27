@@ -16,9 +16,7 @@ final readonly class PromptBuilder
     /** Matches `<user_question>` tags so users can't smuggle a closing tag to break out. */
     private const string USER_QUESTION_TAG_PATTERN = '/<\s*\/?\s*user_question\s*>/i';
 
-    public function __construct(private SchemaRegistry $schemas)
-    {
-    }
+    public function __construct(private SchemaRegistry $schemas) {}
 
     /**
      * Wrap user input in tags so the LLM treats it as data, stripping any tags they typed.
@@ -152,6 +150,10 @@ PROMPT;
 Each line is `EnglishName (type): dutch_source_key`. Use the EnglishName in plans; the type tells you how to encode values.
 
 {$fieldCatalog}
+
+## Fields that look like something they aren't
+
+- `PowerToReadyMassRatio` (vermogen_massarijklaar) is a power-to-mass **ratio** in kW/kg, recorded mainly for mopeds and motorcycles — **not** a vehicle's engine power. This dataset has **no** field for absolute power (kW, pk/hp, "vermogen"/"horsepower"). Any question about how powerful a vehicle is, or filtering on a kW/pk power threshold, is **out of scope**: emit a refusal program (`display: unsupported`). Never substitute `PowerToReadyMassRatio` for it.
 
 # Value vocabulary
 
