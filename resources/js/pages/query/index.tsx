@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -664,6 +665,7 @@ function TopBar() {
                 </span>
             </a>
             <div className="inline-flex items-center gap-2">
+                <ThemeToggle />
                 <LanguageSwitcher />
             </div>
         </header>
