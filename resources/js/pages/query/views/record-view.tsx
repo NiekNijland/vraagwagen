@@ -7,6 +7,7 @@ import {
     isDateLike,
     translateColumn,
 } from '../format';
+import { formatPlate } from '../plate';
 import type { QueryRow } from '../types';
 
 const SECTION_ORDER = [
@@ -84,6 +85,11 @@ const FIELD_SECTION: Record<string, SectionKey> = {
     OdometerJudgementCode: 'status',
 };
 
+// RDW's `voertuigsoort` value for motorcycles. Stored verbatim (Title-case
+// Dutch), so the projected VehicleType column carries this exact string; it
+// drives the square two-line plate rendering below.
+const MOTORCYCLE_VEHICLE_TYPE = 'Motorfiets';
+
 export function RecordView({
     rows,
     locale,
@@ -98,10 +104,13 @@ export function RecordView({
         typeof record.LicensePlate === 'string' && record.LicensePlate !== ''
             ? record.LicensePlate
             : null;
+    const isMotorcycle = record.VehicleType === MOTORCYCLE_VEHICLE_TYPE;
 
     return (
         <div className="flex flex-col gap-6">
-            {plate !== null && <LicensePlateBadge plate={plate} />}
+            {plate !== null && (
+                <LicensePlateBadge plate={plate} isMotorcycle={isMotorcycle} />
+            )}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {SECTION_ORDER.map((key) => {
@@ -151,8 +160,39 @@ export function RecordView({
     );
 }
 
-function LicensePlateBadge({ plate }: { plate: string }) {
-    const formatted = formatDutchPlate(plate);
+function LicensePlateBadge({
+    plate,
+    isMotorcycle,
+}: {
+    plate: string;
+    isMotorcycle: boolean;
+}) {
+    const cleaned = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    const formatted = formatPlate(cleaned);
+
+    if (isMotorcycle) {
+        const [top, bottom] = splitPlateLines(formatted);
+
+        return (
+            <div className="flex justify-center">
+                <div className="inline-flex items-stretch overflow-hidden rounded-md border-2 border-black bg-[#ffd400] font-mono shadow-sm">
+                    <div className="flex w-8 items-center justify-center bg-[#0033a0] text-[11px] font-bold text-white">
+                        NL
+                    </div>
+                    <div className="flex flex-col items-center justify-center px-5 py-3 leading-[1.05]">
+                        <span className="text-3xl font-bold tracking-[0.15em] text-black tabular-nums sm:text-4xl">
+                            {top}
+                        </span>
+                        {bottom !== '' && (
+                            <span className="text-3xl font-bold tracking-[0.15em] text-black tabular-nums sm:text-4xl">
+                                {bottom}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex justify-center">
@@ -168,34 +208,20 @@ function LicensePlateBadge({ plate }: { plate: string }) {
     );
 }
 
-function formatDutchPlate(raw: string): string {
-    const cleaned = raw.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+/**
+ * Splits a dash-formatted plate into two rows for the square motorcycle plate:
+ * all groups but the last on top, the final group below
+ * (e.g. "14-MB-BP" → ["14-MB", "BP"]). Returns an empty second row when the
+ * plate has no separators so the caller renders a single line.
+ */
+function splitPlateLines(formatted: string): [string, string] {
+    const groups = formatted.split('-');
 
-    if (cleaned.length !== 6) {
-        return cleaned;
+    if (groups.length < 2) {
+        return [formatted, ''];
     }
 
-    // RDW plates split into three groups of two by character class transitions.
-    const groups: string[] = [];
-    let buffer = cleaned[0];
-    let isDigit = /\d/.test(cleaned[0]);
-
-    for (let i = 1; i < cleaned.length; i++) {
-        const ch = cleaned[i];
-        const chIsDigit = /\d/.test(ch);
-
-        if (chIsDigit === isDigit) {
-            buffer += ch;
-        } else {
-            groups.push(buffer);
-            buffer = ch;
-            isDigit = chIsDigit;
-        }
-    }
-
-    groups.push(buffer);
-
-    return groups.length >= 2 ? groups.join('-') : cleaned;
+    return [groups.slice(0, -1).join('-'), groups[groups.length - 1]];
 }
 
 function groupBySection(

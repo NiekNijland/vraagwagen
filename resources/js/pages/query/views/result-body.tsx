@@ -1,16 +1,42 @@
+import { lazy, Suspense } from 'react';
+
 import { useTranslation } from '@/hooks/use-translation';
 
 import type { QueryResult } from '../types';
-import { BarsView } from './bars-view';
 import { CountView } from './count-view';
-import { HistogramView } from './histogram-view';
-import { PieView } from './pie-view';
+import { DerivedView } from './derived-view';
 import { RecordView } from './record-view';
-import { StackedBarsView } from './stacked-bars-view';
 import { StatsView } from './stats-view';
 import { TableView } from './table-view';
-import { TimeseriesView } from './timeseries-view';
 import { UnsupportedView } from './unsupported-view';
+
+// The chart views pull in recharts (~300KB). The query page always opens on the
+// composer rather than a chart, so we load these on demand — recharts only ships
+// once a chart result actually renders, not on every page visit.
+const BarsView = lazy(() =>
+    import('./bars-view').then((m) => ({ default: m.BarsView })),
+);
+const StackedBarsView = lazy(() =>
+    import('./stacked-bars-view').then((m) => ({ default: m.StackedBarsView })),
+);
+const PieView = lazy(() =>
+    import('./pie-view').then((m) => ({ default: m.PieView })),
+);
+const HistogramView = lazy(() =>
+    import('./histogram-view').then((m) => ({ default: m.HistogramView })),
+);
+const TimeseriesView = lazy(() =>
+    import('./timeseries-view').then((m) => ({ default: m.TimeseriesView })),
+);
+
+function ChartFallback() {
+    return (
+        <div
+            className="rdw-skel h-[220px] w-full rounded-[12px]"
+            aria-hidden="true"
+        />
+    );
+}
 
 export function ResultBody({
     result,
@@ -26,6 +52,15 @@ export function ResultBody({
     // check so an off-topic question doesn't render as "no rows matched".
     if (displayHint === 'unsupported') {
         return <UnsupportedView />;
+    }
+
+    // A derived figure (percentage / ratio / group share) is computed by the
+    // engine from the steps; render the single number regardless of how many
+    // rows the source query returned.
+    const derived = result.presentation?.derived ?? null;
+
+    if (derived) {
+        return <DerivedView derived={derived} locale={locale} />;
     }
 
     if (rows.length === 0) {
@@ -45,48 +80,58 @@ export function ResultBody({
             return <StatsView rows={rows} plan={plan} locale={locale} />;
         case 'bars':
             return (
-                <BarsView
-                    rows={rows}
-                    plan={plan}
-                    locale={locale}
-                    fallback={table}
-                />
+                <Suspense fallback={<ChartFallback />}>
+                    <BarsView
+                        rows={rows}
+                        plan={plan}
+                        locale={locale}
+                        fallback={table}
+                    />
+                </Suspense>
             );
         case 'stacked_bars':
             return (
-                <StackedBarsView
-                    rows={rows}
-                    plan={plan}
-                    locale={locale}
-                    fallback={table}
-                />
+                <Suspense fallback={<ChartFallback />}>
+                    <StackedBarsView
+                        rows={rows}
+                        plan={plan}
+                        locale={locale}
+                        fallback={table}
+                    />
+                </Suspense>
             );
         case 'pie':
             return (
-                <PieView
-                    rows={rows}
-                    plan={plan}
-                    locale={locale}
-                    fallback={table}
-                />
+                <Suspense fallback={<ChartFallback />}>
+                    <PieView
+                        rows={rows}
+                        plan={plan}
+                        locale={locale}
+                        fallback={table}
+                    />
+                </Suspense>
             );
         case 'histogram':
             return (
-                <HistogramView
-                    rows={rows}
-                    plan={plan}
-                    locale={locale}
-                    fallback={table}
-                />
+                <Suspense fallback={<ChartFallback />}>
+                    <HistogramView
+                        rows={rows}
+                        plan={plan}
+                        locale={locale}
+                        fallback={table}
+                    />
+                </Suspense>
             );
         case 'timeseries':
             return (
-                <TimeseriesView
-                    rows={rows}
-                    plan={plan}
-                    locale={locale}
-                    fallback={table}
-                />
+                <Suspense fallback={<ChartFallback />}>
+                    <TimeseriesView
+                        rows={rows}
+                        plan={plan}
+                        locale={locale}
+                        fallback={table}
+                    />
+                </Suspense>
             );
         case 'record':
             return <RecordView rows={rows} locale={locale} />;

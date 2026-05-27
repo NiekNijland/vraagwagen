@@ -45,18 +45,32 @@ export function formatPlate(plate: string): string {
     return plate;
 }
 
+// A plate has at most three groups, so it can span at most three
+// whitespace-separated tokens ("GT-486-N", "GT486N" and "GT 486 N" are all the
+// same plate). Anything wider than that is sentence text, never a plate.
+const MAX_PLATE_TOKENS = 3;
+
 export function extractPlateFromText(text: string): string | null {
-    const candidates = text.match(/[0-9A-Za-z]+(?:[-\s][0-9A-Za-z]+)*/g);
+    // Split on whitespace only — a space is a token boundary, never part of a
+    // plate. (detectPlate still strips dashes inside a token, so "GT-486-N"
+    // stays one token.) Then probe runs of up to three adjacent tokens, which
+    // recovers space-separated plates without ever merging a whole sentence
+    // into one oversized candidate.
+    const tokens = text.split(/\s+/).filter((token) => token.length > 0);
 
-    if (candidates === null) {
-        return null;
-    }
+    for (let start = 0; start < tokens.length; start++) {
+        for (
+            let size = 1;
+            size <= MAX_PLATE_TOKENS && start + size <= tokens.length;
+            size++
+        ) {
+            const plate = detectPlate(
+                tokens.slice(start, start + size).join(''),
+            );
 
-    for (const candidate of candidates) {
-        const plate = detectPlate(candidate);
-
-        if (plate !== null) {
-            return formatPlate(plate);
+            if (plate !== null) {
+                return formatPlate(plate);
+            }
         }
     }
 

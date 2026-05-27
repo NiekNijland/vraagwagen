@@ -1,4 +1,12 @@
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import {
+    Area,
+    AreaChart,
+    Bar,
+    BarChart,
+    CartesianGrid,
+    XAxis,
+    YAxis,
+} from 'recharts';
 
 import {
     ChartContainer,
@@ -7,8 +15,21 @@ import {
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
 
-import { findNumericKey, formatNumber, isDateLike, localeTag } from '../format';
+import {
+    detectTimeGranularity,
+    fillTimeBuckets,
+    findNumericKey,
+    formatNumber,
+    isDateLike,
+    localeTag,
+} from '../format';
+import type { TimeGranularity } from '../format';
 import type { Plan, QueryRow } from '../types';
+
+// At or below this many buckets the series reads as discrete periods, so bars
+// communicate "a count per period" better than an interpolated area; beyond it
+// the bars get too thin and a trend area is clearer.
+const BARS_MAX_BUCKETS = 31;
 
 export function TimeseriesView({
     rows,
@@ -31,7 +52,7 @@ export function TimeseriesView({
         return <>{fallback}</>;
     }
 
-    const data = rows
+    const points = rows
         .map((r) => ({
             x: String(r[dateKey] ?? ''),
             value: Number(r[valueKey] ?? 0),
@@ -39,9 +60,12 @@ export function TimeseriesView({
         .filter((d) => d.x !== '' && Number.isFinite(d.value))
         .sort((a, b) => a.x.localeCompare(b.x));
 
-    if (data.length === 0) {
+    if (points.length === 0) {
         return <>{fallback}</>;
     }
+
+    const granularity = detectTimeGranularity(points.map((d) => d.x));
+    const data = fillTimeBuckets(points, granularity);
 
     const config = {
         value: {
@@ -50,7 +74,68 @@ export function TimeseriesView({
         },
     } satisfies ChartConfig;
 
-    const granularity = detectGranularity(data.map((d) => d.x));
+    const xAxis = (
+        <XAxis
+            dataKey="x"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            tick={{ fontSize: 11 }}
+            tickFormatter={(v) =>
+                formatDateTick(String(v), granularity, locale)
+            }
+            minTickGap={32}
+        />
+    );
+
+    const yAxis = (
+        <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={48}
+            tick={{ fontSize: 11 }}
+            allowDecimals={false}
+            tickFormatter={(v) => formatNumber(v, locale)}
+        />
+    );
+
+    const tooltip = (
+        <ChartTooltip
+            cursor={{ stroke: 'var(--chart-1)', strokeOpacity: 0.3 }}
+            content={
+                <ChartTooltipContent
+                    indicator="line"
+                    labelFormatter={(label) =>
+                        formatDateLabel(String(label), granularity, locale)
+                    }
+                    formatter={(value) => formatNumber(value, locale)}
+                />
+            }
+        />
+    );
+
+    // Discrete, sparse periods render as bars: each bucket stands on its own and
+    // zero-months show as empty slots rather than a line dipping through them.
+    if (data.length <= BARS_MAX_BUCKETS) {
+        return (
+            <ChartContainer config={config} className="h-[360px] w-full">
+                <BarChart
+                    data={data}
+                    margin={{ left: 12, right: 12, top: 8, bottom: 8 }}
+                >
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    {xAxis}
+                    {yAxis}
+                    {tooltip}
+                    <Bar
+                        dataKey="value"
+                        fill="var(--chart-1)"
+                        radius={[4, 4, 0, 0]}
+                    />
+                </BarChart>
+            </ChartContainer>
+        );
+    }
 
     return (
         <ChartContainer config={config} className="h-[360px] w-full">
@@ -79,40 +164,9 @@ export function TimeseriesView({
                     </linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                    dataKey="x"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(v) =>
-                        formatDateTick(String(v), granularity, locale)
-                    }
-                    minTickGap={32}
-                />
-                <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    width={48}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(v) => formatNumber(v, locale)}
-                />
-                <ChartTooltip
-                    cursor={{ stroke: 'var(--chart-1)', strokeOpacity: 0.3 }}
-                    content={
-                        <ChartTooltipContent
-                            indicator="line"
-                            labelFormatter={(label) =>
-                                formatDateLabel(
-                                    String(label),
-                                    granularity,
-                                    locale,
-                                )
-                            }
-                            formatter={(value) => formatNumber(value, locale)}
-                        />
-                    }
-                />
+                {xAxis}
+                {yAxis}
+                {tooltip}
                 <Area
                     type="monotone"
                     dataKey="value"
@@ -125,34 +179,9 @@ export function TimeseriesView({
     );
 }
 
-type Granularity = 'year' | 'month' | 'day';
-
-// 80%+ on Jan 1 / day 1 is enough: a single off-day point shouldn't demote
-// the whole axis to daily ticks.
-const GRANULARITY_THRESHOLD = 0.8;
-
-function detectGranularity(xs: string[]): Granularity {
-    if (xs.length === 0) {
-        return 'day';
-    }
-
-    const onJan1 = xs.filter((x) => /^\d{4}-01-01/.test(x)).length;
-    const onDay1 = xs.filter((x) => /^\d{4}-\d{2}-01/.test(x)).length;
-
-    if (onJan1 / xs.length >= GRANULARITY_THRESHOLD) {
-        return 'year';
-    }
-
-    if (onDay1 / xs.length >= GRANULARITY_THRESHOLD) {
-        return 'month';
-    }
-
-    return 'day';
-}
-
 function formatDateTick(
     value: string,
-    granularity: Granularity,
+    granularity: TimeGranularity,
     locale: string,
 ): string {
     if (granularity === 'year') {
@@ -180,7 +209,7 @@ function formatDateTick(
 
 function formatDateLabel(
     value: string,
-    granularity: Granularity,
+    granularity: TimeGranularity,
     locale: string,
 ): string {
     if (granularity === 'year') {

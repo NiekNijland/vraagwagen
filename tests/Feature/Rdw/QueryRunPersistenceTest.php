@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Rdw;
 
-use App\Ai\Agents\QueryPlanAgent;
+use App\Ai\Agents\QueryProgramAgent;
 use App\Models\QueryRun;
 use App\Models\User;
 use GuzzleHttp\Client as GuzzleClient;
@@ -99,22 +99,34 @@ final class QueryRunPersistenceTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $plan
+     * Fake the agent to return a one-query program presenting the given plan.
+     *
+     * @param  array<string, mixed>  $plan
      */
     private function fakeQueryPlan(array $plan, ?Usage $usage = null, string $model = 'fake'): void
     {
-        QueryPlanAgent::fake([
+        $program = [
+            'queries' => [['id' => 'q1'] + $plan],
+            'presentation' => [
+                'resultRef' => 'q1',
+                'display' => $plan['display'] ?? 'table',
+                'derive' => null,
+                'explanation' => $plan['explanation'] ?? '',
+            ],
+        ];
+
+        QueryProgramAgent::fake([
             new StructuredTextResponse(
-                $plan,
-                json_encode($plan, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage(),
+                $program,
+                json_encode($program, JSON_THROW_ON_ERROR),
+                $usage ?? new Usage,
                 new Meta('openai', $model),
             ),
         ]);
     }
 
     /**
-     * @param list<array<string, mixed>> $rows
+     * @param  list<array<string, mixed>>  $rows
      */
     private function fakeRdwWithRows(array $rows): void
     {
@@ -131,7 +143,7 @@ final class QueryRunPersistenceTest extends TestCase
         ]);
 
         $this->app->instance(Rdw::class, new Rdw(
-            http: new SocrataClient(new RdwConfiguration(), $guzzle),
+            http: new SocrataClient(new RdwConfiguration, $guzzle),
         ));
     }
 }

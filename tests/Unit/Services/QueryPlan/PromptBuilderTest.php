@@ -68,8 +68,8 @@ final class PromptBuilderTest extends TestCase
     {
         $prompt = $this->builder()->systemPrompt(Locale::English);
 
-        self::assertStringContainsString('display: stacked_bars', $prompt);
-        self::assertStringNotContainsString('display: stackedBars', $prompt);
+        self::assertStringContainsString('`stacked_bars`', $prompt);
+        self::assertStringNotContainsString('stackedBars', $prompt);
     }
 
     public function test_prompt_disambiguates_the_lookalike_date_fields(): void
@@ -150,6 +150,6 @@ final class PromptBuilderTest extends TestCase
 
     private function builder(): PromptBuilder
     {
-        return new PromptBuilder(new SchemaRegistry());
+        return new PromptBuilder(new SchemaRegistry);
     }
 }

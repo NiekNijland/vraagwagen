@@ -20,7 +20,7 @@ final class PlanPresenter
      * this is purely a read-path compatibility shim for QueryRun documents
      * stored before the groupBy schema gained buckets.
      *
-     * @param array<string, mixed> $plan
+     * @param  array<string, mixed>  $plan
      * @return array<string, mixed>
      */
     public static function normalisePersisted(array $plan): array
@@ -35,6 +35,46 @@ final class PlanPresenter
         }
 
         return $plan;
+    }
+
+    /**
+     * Serialise the executed steps of a program for the debug pane and
+     * persistence. Each step carries its *resolved* plan (references already
+     * substituted), so the SoQL the user sees matches what actually ran.
+     *
+     * @param  list<LedgerEntry>  $steps
+     * @return list<array<string, mixed>>
+     */
+    public static function stepsToArray(array $steps): array
+    {
+        return array_map(static fn (LedgerEntry $entry): array => [
+            'id' => $entry->id,
+            'plan' => self::toArray($entry->plan),
+            'soql' => $entry->result->soql,
+            'url' => $entry->result->url,
+            'rowCount' => count($entry->result->rows),
+        ], $steps);
+    }
+
+    /**
+     * Serialise the resolved presentation (and any computed figure) for the
+     * frontend. Null in single mode, where there is no presentation layer.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function presentationToArray(?Presentation $presentation, ?Derived $derived): ?array
+    {
+        if ($presentation === null) {
+            return null;
+        }
+
+        return [
+            'resultRef' => $presentation->resultRef,
+            'display' => $presentation->display->value,
+            'derive' => $presentation->derive?->toArray(),
+            'derived' => $derived?->toArray(),
+            'explanation' => $presentation->explanation,
+        ];
     }
 
     /**

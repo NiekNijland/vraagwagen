@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\QueryPlan;
 
-use App\Ai\Agents\QueryPlanAgent;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
 use NiekNijland\RDW\Datasets\DatasetId;
@@ -15,8 +14,9 @@ use NiekNijland\RDW\Schema\FieldDescriptor;
 use NiekNijland\RDW\Schema\SchemaRegistry;
 
 /**
- * Builds the structured-output schema {@see QueryPlanAgent}
- * exposes to the model, expressed with Laravel's {@see JsonSchema} builder.
+ * Builds the per-query structured-output schema embedded in
+ * {@see QueryProgramSchema} (one entry per program query), expressed with
+ * Laravel's {@see JsonSchema} builder.
  *
  * The shape mirrors the typed {@see Plan} that {@see PlanFactory} reconstructs:
  * every property is marked required so the OpenAI strict-schema mode validates

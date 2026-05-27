@@ -6,8 +6,9 @@ namespace App\Ai\Agents;
 
 use App\Enums\Locale;
 use App\Services\QueryPlan\Plan;
-use App\Services\QueryPlan\PlanSchema;
 use App\Services\QueryPlan\PromptBuilder;
+use App\Services\QueryPlan\QueryProgram;
+use App\Services\QueryPlan\QueryProgramSchema;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
 use Laravel\Ai\Contracts\Agent;
@@ -19,38 +20,36 @@ use RuntimeException;
 
 /**
  * Translates a natural-language question about the RDW vehicle registry into a
- * structured {@see Plan} via OpenAI structured output.
+ * whole {@see QueryProgram} (an ordered list of sub-queries plus a presentation)
+ * in a single completion, rather than a single {@see Plan}. Dependent steps and
+ * ratios are expressed in that one structured output, so cost and latency stay
+ * at the single-shot level.
  *
- * The locale is injected per request so the system prompt asks for the
- * explanation in the user's language. The model is read from config so it can
- * be tuned without a code change; the provider is pinned to OpenAI because the
- * strict structured-output schema in {@see PlanSchema} targets it.
+ * The provider is pinned to OpenAI to match {@see QueryProgramSchema}; the model
+ * is read from config so it can be tuned without a code change.
  */
-final class QueryPlanAgent implements Agent, HasStructuredOutput
+final class QueryProgramAgent implements Agent, HasStructuredOutput
 {
     use Promptable;
 
     public function __construct(
         private readonly PromptBuilder $promptBuilder,
         private readonly Locale $locale = Locale::English,
-    ) {
-    }
+    ) {}
 
     /**
-     * Ask the model a user question and return its structured plan response.
+     * Ask the model a user question and return its structured program response.
      *
-     * {@see Promptable::prompt()} widens its return to the base
-     * {@see \Laravel\Ai\Responses\AgentResponse}; because this agent declares
-     * {@see HasStructuredOutput} the provider always answers with a
-     * {@see StructuredAgentResponse}, so we narrow it back here and fail loudly
-     * if a provider ever breaks that contract.
+     * Narrows {@see Promptable::prompt()}'s widened return to the
+     * {@see StructuredAgentResponse} that {@see HasStructuredOutput} guarantees,
+     * failing loudly if a provider ever breaks that contract.
      */
     public function ask(string $question): StructuredAgentResponse
     {
         $response = $this->prompt($this->promptBuilder->userPrompt($question));
 
         if (! $response instanceof StructuredAgentResponse) {
-            throw new RuntimeException('QueryPlanAgent did not return a structured response.');
+            throw new RuntimeException('QueryProgramAgent did not return a structured response.');
         }
 
         return $response;
@@ -66,7 +65,7 @@ final class QueryPlanAgent implements Agent, HasStructuredOutput
      */
     public function schema(JsonSchema $schema): array
     {
-        return PlanSchema::build($schema);
+        return QueryProgramSchema::build($schema);
     }
 
     public function provider(): Lab

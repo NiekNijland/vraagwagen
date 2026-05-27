@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Rdw;
 
-use App\Models\QueryRun;
+use App\Enums\Rating;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,7 +16,7 @@ final class SubmitFeedbackRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'rating' => ['required', Rule::in([QueryRun::RATING_UP, QueryRun::RATING_DOWN])],
+            'rating' => ['required', Rule::enum(Rating::class)],
             'comment' => ['nullable', 'string', 'max:1000'],
         ];
     }

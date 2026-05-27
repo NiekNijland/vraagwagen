@@ -6,6 +6,8 @@ namespace App\Services\QueryPlan;
 
 use App\Actions\Rdw\QueryExecutionException;
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\NullStore;
+use Illuminate\Cache\Repository;
 use InvalidArgumentException;
 use NiekNijland\RDW\Datasets\DatasetId;
 use NiekNijland\RDW\Exceptions\RateLimitException;
@@ -41,9 +43,40 @@ use Throwable;
  */
 final readonly class PlanRunner
 {
-    public function __construct(private Rdw $rdw)
-    {
-    }
+    /**
+     * Heavy group-by / aggregate scans over the ~16M-row dataset are slow and
+     * low-cardinality (everyone asking "most common colour" shares one key), so
+     * they're cached for a full day. RDW republishes the dataset roughly daily
+     * and the cache key carries the calendar date, so a day-long TTL never
+     * serves data from before the most recent publish.
+     */
+    private const int AGGREGATE_TTL_SECONDS = 86_400;
+
+    /**
+     * Plain row lookups (e.g. a single licence plate) are cheap, high-cardinality
+     * (low hit rate), and the most freshness-sensitive (APK / ownership), so they
+     * are kept only briefly.
+     */
+    private const int ROW_TTL_SECONDS = 600;
+
+    /**
+     * @param  Repository  $cache  RDW responses are cached here, keyed on the
+     *                             canonical SoQL params. Defaults to a no-op
+     *                             store so unit tests opt in explicitly; the
+     *                             container injects the real default store.
+     * @param  int  $maxAttempts  Total RDW attempts per query (1 = no retry).
+     *                            A transient failure (timeout / upstream 5xx)
+     *                            burns one attempt and is retried; a slow
+     *                            group-by often succeeds on the second attempt
+     *                            because Socrata has cached the result by then.
+     * @param  int  $retryBackoffMs  Pause between attempts; 0 in tests.
+     */
+    public function __construct(
+        private Rdw $rdw,
+        private Repository $cache = new Repository(new NullStore),
+        private int $maxAttempts = 2,
+        private int $retryBackoffMs = 250,
+    ) {}
 
     public function run(Plan $plan): RunnerResult
     {
@@ -70,21 +103,95 @@ final readonly class PlanRunner
         $soql = $builder->toSoqlParams();
         $url = $this->buildRequestUrl($soql);
 
-        try {
-            $rows = $this->execute($builder, $plan, $buckets);
-        } catch (RateLimitException $e) {
-            // The controller treats RateLimitException specially (429 with a
-            // Retry-After). Pass it through; do not wrap.
-            throw $e;
-        } catch (Throwable $e) {
-            throw new QueryExecutionException($plan, $soql, $url, $e);
-        }
+        // Two prompts that compile to the same SoQL share one upstream call.
+        // The key is scoped by dataset and Amsterdam calendar date so it rolls
+        // over with RDW's ~daily dataset refresh; the TTL is tiered by query
+        // cost. Only a successful fetch is cached — a thrown
+        // QueryExecutionException / RateLimitException escapes remember().
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $this->cache->remember(
+            $this->cacheKey($soql),
+            $this->cacheTtlSeconds($plan),
+            fn (): array => $this->fetch($builder, $plan, $buckets, $soql, $url),
+        );
 
         return new RunnerResult(rows: $rows, soql: $soql, url: $url);
     }
 
     /**
-     * @param array<string, string> $soql
+     * Execute the query with retries, returning the normalised rows. Re-issuing
+     * the same request is safe: getProjection()/get() derive everything from
+     * $builder->toSoqlParams() and never mutate the builder, so each attempt
+     * sends an identical query.
+     *
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  array<string, BucketExpression>  $buckets
+     * @param  array<string, string>  $soql
+     * @return list<array<string, mixed>>
+     */
+    private function fetch(QueryBuilder $builder, Plan $plan, array $buckets, array $soql, string $url): array
+    {
+        $attempt = 1;
+        while (true) {
+            try {
+                return $this->execute($builder, $plan, $buckets);
+            } catch (RateLimitException $e) {
+                // The controller treats RateLimitException specially (429 with
+                // a Retry-After). Pass it through; do not wrap or retry.
+                throw $e;
+            } catch (Throwable $e) {
+                if ($attempt < $this->maxAttempts && QueryExecutionException::isTransientFailure($e)) {
+                    $this->backoff();
+                    $attempt++;
+
+                    continue;
+                }
+
+                throw new QueryExecutionException($plan, $soql, $url, $e);
+            }
+        }
+    }
+
+    /**
+     * Cache TTL for a plan, tiered by cost: heavy aggregate/group-by scans are
+     * cached for a day, cheap row lookups only briefly. Mirrors the
+     * row-vs-projection branch in {@see self::execute()}.
+     */
+    private function cacheTtlSeconds(Plan $plan): int
+    {
+        return $plan->aggregates !== [] || $plan->groupBy !== []
+            ? self::AGGREGATE_TTL_SECONDS
+            : self::ROW_TTL_SECONDS;
+    }
+
+    /**
+     * Canonical cache key for a set of SoQL params. Params are sorted so their
+     * order can't change the hash, and the key carries the dataset id and the
+     * Amsterdam calendar date so entries roll over with RDW's daily refresh.
+     *
+     * @param  array<string, string>  $soql
+     */
+    private function cacheKey(array $soql): string
+    {
+        ksort($soql);
+
+        return sprintf(
+            'rdw:%s:%s:%s',
+            DatasetId::RegisteredVehicles->value,
+            CarbonImmutable::now('Europe/Amsterdam')->toDateString(),
+            sha1(json_encode($soql, JSON_THROW_ON_ERROR)),
+        );
+    }
+
+    private function backoff(): void
+    {
+        if ($this->retryBackoffMs > 0) {
+            usleep($this->retryBackoffMs * 1000);
+        }
+    }
+
+    /**
+     * @param  array<string, string>  $soql
      */
     private function buildRequestUrl(array $soql): string
     {
@@ -92,12 +199,12 @@ final readonly class PlanRunner
         $datasetId = DatasetId::RegisteredVehicles->value;
         $query = http_build_query($soql, '', '&', PHP_QUERY_RFC3986);
 
-        return "{$base}/resource/{$datasetId}.json" . ($query !== '' ? "?{$query}" : '');
+        return "{$base}/resource/{$datasetId}.json".($query !== '' ? "?{$query}" : '');
     }
 
     /**
-     * @param QueryBuilder<RegisteredVehicle> $builder
-     * @param list<WhereClause> $clauses
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  list<WhereClause>  $clauses
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applyWhere(QueryBuilder $builder, array $clauses): QueryBuilder
@@ -127,8 +234,8 @@ final readonly class PlanRunner
      * {@see QueryBuilder::selectRaw()} / {@see QueryBuilder::groupByRaw()};
      * plain keys go through the typed `select()` / `groupBy()`.
      *
-     * @param QueryBuilder<RegisteredVehicle> $builder
-     * @param array<string, BucketExpression> $buckets keyed by field enum case
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  array<string, BucketExpression>  $buckets  keyed by field enum case
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applySelectAndGroupBy(QueryBuilder $builder, Plan $plan, array $buckets): QueryBuilder
@@ -155,8 +262,8 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param QueryBuilder<RegisteredVehicle> $builder
-     * @param list<AggregateClause> $aggregates
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  list<AggregateClause>  $aggregates
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applyAggregates(QueryBuilder $builder, array $aggregates): QueryBuilder
@@ -177,10 +284,10 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param QueryBuilder<RegisteredVehicle> $builder
-     * @param list<OrderClause> $orderBy
-     * @param list<AggregateClause> $aggregates
-     * @param array<string, BucketExpression> $buckets keyed by field enum case
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  list<OrderClause>  $orderBy
+     * @param  list<AggregateClause>  $aggregates
+     * @param  array<string, BucketExpression>  $buckets  keyed by field enum case
      * @return QueryBuilder<RegisteredVehicle>
      */
     private function applyOrderBy(QueryBuilder $builder, array $orderBy, array $aggregates, array $buckets): QueryBuilder
@@ -200,7 +307,7 @@ final readonly class PlanRunner
             $direction = $clause->direction === OrderDirection::Desc ? SortDirection::Desc : SortDirection::Asc;
 
             if (isset($buckets[$clause->expr])) {
-                $builder = $builder->orderByRaw($buckets[$clause->expr]->expression . ' ' . $direction->value);
+                $builder = $builder->orderByRaw($buckets[$clause->expr]->expression.' '.$direction->value);
 
                 continue;
             }
@@ -223,15 +330,15 @@ final readonly class PlanRunner
                 ));
             }
 
-            $builder = $builder->orderByRaw($clause->expr . ' ' . $direction->value);
+            $builder = $builder->orderByRaw($clause->expr.' '.$direction->value);
         }
 
         return $builder;
     }
 
     /**
-     * @param QueryBuilder<RegisteredVehicle> $builder
-     * @param array<string, BucketExpression> $buckets
+     * @param  QueryBuilder<RegisteredVehicle>  $builder
+     * @param  array<string, BucketExpression>  $buckets
      * @return list<array<string, mixed>>
      */
     private function execute(QueryBuilder $builder, Plan $plan, array $buckets): array
@@ -250,7 +357,7 @@ final readonly class PlanRunner
      * `$plan->select` (PascalCase enum case names). When no select was given
      * we fall through to every property the record exposes.
      *
-     * @param list<string> $select
+     * @param  list<string>  $select
      * @return array<string, mixed>
      */
     private function recordToArray(object $record, array $select): array
@@ -289,9 +396,9 @@ final readonly class PlanRunner
      * never needs its own translation table. Bucket aliases (which already
      * match the field's enum case) and aggregate aliases pass through.
      *
-     * @param list<array<string, mixed>> $rows
-     * @param list<AggregateClause> $aggregates
-     * @param array<string, BucketExpression> $buckets keyed by field enum case
+     * @param  list<array<string, mixed>>  $rows
+     * @param  list<AggregateClause>  $aggregates
+     * @param  array<string, BucketExpression>  $buckets  keyed by field enum case
      * @return list<array<string, mixed>>
      */
     private function normaliseProjectionRows(array $rows, array $aggregates, array $buckets): array
@@ -328,7 +435,7 @@ final readonly class PlanRunner
      * pass and the orderBy pass can look the bucket up by `$clause->expr`
      * without rebuilding the index.
      *
-     * @param list<GroupKey> $groupBy
+     * @param  list<GroupKey>  $groupBy
      * @return array<string, BucketExpression>
      */
     private function buildBucketsByField(array $groupBy): array
@@ -403,6 +510,14 @@ final readonly class PlanRunner
 
     private function castValue(RegisteredVehicleField $field, string $raw): mixed
     {
+        // Plates are stored uppercase without separators ("1ZTZ08"); users — and
+        // dependent-step references resolved from another query — may carry the
+        // dashed form ("1-ZTZ-08"). Normalise so the case-sensitive `kenteken`
+        // comparison still matches. Mirrors the frontend plate.ts normalisation.
+        if ($field === RegisteredVehicleField::LicensePlate) {
+            return PlateNormaliser::normalise($raw);
+        }
+
         $descriptor = $this->schema()->byEnumCase[$field->name] ?? null;
         if ($descriptor === null) {
             return $raw;

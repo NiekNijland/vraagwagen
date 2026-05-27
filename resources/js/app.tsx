@@ -1,5 +1,7 @@
 import { createInertiaApp } from '@inertiajs/react';
+import type { ResolvedComponent } from '@inertiajs/react';
 import { LaravelReactI18nProvider } from 'laravel-react-internationalization';
+import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { StrictMode } from 'react';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 import { Toaster } from '@/components/ui/sonner';
@@ -13,6 +15,17 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
+    // Resolve pages ourselves (rather than letting the Inertia Vite plugin
+    // inject the glob) so colocated *.test.tsx files never enter the page
+    // graph — otherwise their test-only imports ship to production.
+    resolve: (name) =>
+        resolvePageComponent(
+            `./pages/${name}.tsx`,
+            import.meta.glob<ResolvedComponent>([
+                './pages/**/*.tsx',
+                '!./pages/**/*.test.tsx',
+            ]),
+        ),
     layout: (name) => {
         switch (true) {
             case name.startsWith('query/'):

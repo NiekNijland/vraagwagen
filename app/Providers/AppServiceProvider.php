@@ -24,10 +24,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Unfiltered group-bys over the ~16M-row registered-vehicles dataset
+        // are genuinely slow on a cold Socrata cache; 15s clipped them. Give
+        // the first attempt real headroom — PlanRunner adds one retry on top.
         $this->app->singleton(Rdw::class, static fn (): Rdw => new Rdw(new RdwConfiguration(
             appToken: config('rdwai.rdw_app_token'),
             userAgent: 'rdwai/0.1 (laravel)',
-            timeoutSeconds: 15.0,
+            timeoutSeconds: 25.0,
         )));
 
         // Share the SchemaRegistry the Rdw client uses with the rest of the

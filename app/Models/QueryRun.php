@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\Rating;
 use Database\Factories\QueryRunFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Carbon;
 use MongoDB\Laravel\Eloquent\Model;
 
 /**
@@ -22,18 +24,20 @@ use MongoDB\Laravel\Eloquent\Model;
  * @property string $url
  * @property list<array<string, mixed>> $rows
  * @property string $display_hint
+ * @property list<array<string, mixed>> $steps
+ * @property array<string, mixed>|null $presentation
  * @property string|null $user_id
- * @property string|null $rating
+ * @property Rating|null $rating
  * @property string|null $comment
- * @property \Illuminate\Support\Carbon|null $rated_at
+ * @property Carbon|null $rated_at
  * @property string|null $model
  * @property int|null $prompt_tokens
  * @property int|null $completion_tokens
  * @property int|null $cache_read_tokens
  * @property int|null $thought_tokens
  * @property float|null $estimated_cost
- * @property \Illuminate\Support\Carbon $created_at
- * @property \Illuminate\Support\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  *
  * @method static QueryRun create(array<string, mixed> $attributes = [])
  * @method static \MongoDB\Laravel\Eloquent\Builder<QueryRun> query()
@@ -47,6 +51,8 @@ use MongoDB\Laravel\Eloquent\Model;
     'url',
     'rows',
     'display_hint',
+    'steps',
+    'presentation',
     'user_id',
     'rating',
     'comment',
@@ -65,10 +71,6 @@ class QueryRun extends Model
 
     protected $connection = 'mongodb';
 
-    public const string RATING_UP = 'up';
-
-    public const string RATING_DOWN = 'down';
-
     /**
      * @return array<string, string>
      */
@@ -78,6 +80,9 @@ class QueryRun extends Model
             'plan' => 'array',
             'soql' => 'array',
             'rows' => 'array',
+            'steps' => 'array',
+            'presentation' => 'array',
+            'rating' => Rating::class,
             'rated_at' => 'datetime',
             'prompt_tokens' => 'integer',
             'completion_tokens' => 'integer',

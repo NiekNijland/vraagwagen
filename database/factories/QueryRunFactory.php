@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\Rating;
 use App\Models\QueryRun;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -48,7 +49,7 @@ class QueryRunFactory extends Factory
     public function ratedUp(): static
     {
         return $this->state(fn (array $attributes): array => [
-            'rating' => QueryRun::RATING_UP,
+            'rating' => Rating::Up,
             'rated_at' => now(),
         ]);
     }
@@ -56,7 +57,7 @@ class QueryRunFactory extends Factory
     public function ratedDown(): static
     {
         return $this->state(fn (array $attributes): array => [
-            'rating' => QueryRun::RATING_DOWN,
+            'rating' => Rating::Down,
             'rated_at' => now(),
         ]);
     }

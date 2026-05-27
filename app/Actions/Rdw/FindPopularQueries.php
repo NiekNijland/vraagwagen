@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Rdw;
 
+use App\Enums\Rating;
 use App\Models\QueryRun;
 use Illuminate\Support\Facades\DB;
 use MongoDB\BSON\UTCDateTime;
@@ -47,7 +48,7 @@ final class FindPopularQueries
             ->aggregate([
                 ['$match' => [
                     'locale' => $locale,
-                    'rating' => QueryRun::RATING_UP,
+                    'rating' => Rating::Up->value,
                     'created_at' => ['$gte' => new UTCDateTime(now()->subDays(self::LOOKBACK_DAYS))],
                 ]],
                 ['$group' => [
@@ -74,7 +75,7 @@ final class FindPopularQueries
     }
 
     /**
-     * @param list<string> $seed
+     * @param  list<string>  $seed
      * @return list<string>
      */
     private function topUpWithRecent(array $seed, string $locale, int $limit): array
@@ -88,7 +89,7 @@ final class FindPopularQueries
         // @phpstan-ignore staticMethod.dynamicCall (Eloquent fluent API is not statically resolvable)
         $query = QueryRun::query()
             ->where('locale', $locale)
-            ->whereNotIn('rating', [QueryRun::RATING_DOWN])
+            ->whereNotIn('rating', [Rating::Down->value])
             ->orderBy('created_at', 'desc')
             ->limit($remaining * 4);
 

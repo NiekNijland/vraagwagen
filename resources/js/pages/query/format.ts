@@ -155,6 +155,139 @@ export function formatBucketLabel(
     });
 }
 
+export type TimeGranularity = 'year' | 'month' | 'day';
+export type TimePoint = { x: string; value: number };
+
+// 80%+ on Jan 1 / day 1 is enough: a single off-day point shouldn't demote
+// the whole axis to daily ticks.
+const GRANULARITY_THRESHOLD = 0.8;
+
+// A date_trunc bucket arrives as an ISO timestamp ("2001-03-01T00:00:00.000").
+// Infer how coarse the series is so ticks render — and gaps fill — at the right
+// step. The plan's bucket would be authoritative, but the timeseries view keys
+// off the returned rows, so sniffing the values keeps the two paths in sync.
+export function detectTimeGranularity(xs: string[]): TimeGranularity {
+    if (xs.length === 0) {
+        return 'day';
+    }
+
+    const onJan1 = xs.filter((x) => /^\d{4}-01-01/.test(x)).length;
+    const onDay1 = xs.filter((x) => /^\d{4}-\d{2}-01/.test(x)).length;
+
+    if (onJan1 / xs.length >= GRANULARITY_THRESHOLD) {
+        return 'year';
+    }
+
+    if (onDay1 / xs.length >= GRANULARITY_THRESHOLD) {
+        return 'month';
+    }
+
+    return 'day';
+}
+
+// Daily series over decades would balloon into thousands of buckets; past this
+// we leave the points untouched and let the area chart smooth over the gaps.
+const MAX_FILLED_BUCKETS = 731;
+
+// SoQL's `GROUP BY date_trunc_*` only emits buckets that have rows, so a month
+// (or year/day) with zero registrations simply vanishes and a line chart bridges
+// straight over it — implying continuity that isn't there. Re-insert the missing
+// buckets as explicit zeros across the observed span so gaps read as gaps.
+// `points` must be sorted ascending by `x`.
+export function fillTimeBuckets(
+    points: TimePoint[],
+    granularity: TimeGranularity,
+): TimePoint[] {
+    if (points.length < 2) {
+        return points;
+    }
+
+    const valueByDay = new Map<string, number>();
+
+    for (const point of points) {
+        valueByDay.set(point.x.slice(0, 10), point.value);
+    }
+
+    const keys = enumerateBuckets(
+        points[0].x.slice(0, 10),
+        points[points.length - 1].x.slice(0, 10),
+        granularity,
+    );
+
+    if (keys.length === 0 || keys.length > MAX_FILLED_BUCKETS) {
+        return points;
+    }
+
+    // Re-attach the canonical time suffix so every x — observed or filled —
+    // parses identically (local midnight) in the tick/label formatters.
+    return keys.map((key) => ({
+        x: `${key}T00:00:00.000`,
+        value: valueByDay.get(key) ?? 0,
+    }));
+}
+
+// Enumerate every YYYY-MM-DD bucket key from `first` to `last` inclusive at the
+// given granularity. Returns [] when either bound is unparseable.
+function enumerateBuckets(
+    first: string,
+    last: string,
+    granularity: TimeGranularity,
+): string[] {
+    const [fy, fm, fd] = first.split('-').map(Number);
+    const [ly, lm, ld] = last.split('-').map(Number);
+
+    if ([fy, fm, fd, ly, lm, ld].some((n) => !Number.isFinite(n))) {
+        return [];
+    }
+
+    const keys: string[] = [];
+
+    if (granularity === 'year') {
+        for (let y = fy; y <= ly; y++) {
+            keys.push(`${pad(y, 4)}-01-01`);
+        }
+
+        return keys;
+    }
+
+    if (granularity === 'month') {
+        let y = fy;
+        let m = fm;
+
+        while (y < ly || (y === ly && m <= lm)) {
+            keys.push(`${pad(y, 4)}-${pad(m, 2)}-01`);
+            m += 1;
+
+            if (m > 12) {
+                m = 1;
+                y += 1;
+            }
+        }
+
+        return keys;
+    }
+
+    // Step in UTC days so DST and month lengths can't drift the cursor.
+    const end = Date.UTC(ly, lm - 1, ld);
+
+    for (
+        let cursor = Date.UTC(fy, fm - 1, fd);
+        cursor <= end && keys.length <= MAX_FILLED_BUCKETS;
+        cursor += 86_400_000
+    ) {
+        const date = new Date(cursor);
+        keys.push(
+            `${pad(date.getUTCFullYear(), 4)}-${pad(date.getUTCMonth() + 1, 2)}-${pad(date.getUTCDate(), 2)}`,
+        );
+    }
+
+    return keys;
+}
+
+function pad(value: number, length: number): string {
+    return String(value).padStart(length, '0');
+}
+
 // 5 chart slots in the design system. We cycle for groups with more categories.
 const CHART_PALETTE_SIZE = 5;
 

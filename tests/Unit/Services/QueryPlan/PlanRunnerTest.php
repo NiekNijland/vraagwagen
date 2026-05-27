@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services\QueryPlan;
 
+use App\Actions\Rdw\QueryExecutionException;
 use App\Services\QueryPlan\AggregateClause;
 use App\Services\QueryPlan\AggregateFn;
 use App\Services\QueryPlan\Bucket;
@@ -15,15 +16,22 @@ use App\Services\QueryPlan\Plan;
 use App\Services\QueryPlan\PlanRunner;
 use App\Services\QueryPlan\WhereClause;
 use App\Services\QueryPlan\WhereOp;
+use Carbon\CarbonImmutable;
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Request as Psr7Request;
 use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Cache\ArrayStore;
+use Illuminate\Cache\Repository;
 use InvalidArgumentException;
+use NiekNijland\RDW\Datasets\DatasetId;
 use NiekNijland\RDW\Http\Configuration as RdwConfiguration;
 use NiekNijland\RDW\Http\SocrataClient;
 use NiekNijland\RDW\Rdw;
 use PHPUnit\Framework\TestCase;
+use Throwable;
 
 final class PlanRunnerTest extends TestCase
 {
@@ -357,13 +365,13 @@ final class PlanRunnerTest extends TestCase
     {
         // No mock response is queued — if the runner tries to call RDW the
         // Guzzle MockHandler will throw "queue is empty", failing the test.
-        $mock = new MockHandler();
+        $mock = new MockHandler;
         $stack = HandlerStack::create($mock);
         $guzzle = new GuzzleClient([
             'base_uri' => 'https://opendata.rdw.nl/',
             'handler' => $stack,
         ]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
         $runner = new PlanRunner($rdw);
 
         $result = $runner->run(new Plan(
@@ -382,24 +390,200 @@ final class PlanRunnerTest extends TestCase
         self::assertSame('', $result->url);
     }
 
+    public function test_transient_timeout_is_retried_and_then_succeeds(): void
+    {
+        // First attempt times out (Guzzle ConnectException, which the package
+        // surfaces as an HttpException with status 0); the runner retries and
+        // the second attempt returns rows.
+        $runner = $this->runnerForQueue([
+            new ConnectException('cURL error 28: Operation timed out', new Psr7Request('GET', 'test')),
+            new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
+                ['eerste_kleur' => 'GEEL', 'n' => '7'],
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $result = $runner->run($this->colorCountPlan());
+
+        self::assertSame('GEEL', $result->rows[0]['PrimaryColor']);
+        self::assertSame('7', $result->rows[0]['n']);
+    }
+
+    public function test_transient_timeout_exhausts_retries_and_throws_a_transient_execution_exception(): void
+    {
+        $runner = $this->runnerForQueue([
+            new ConnectException('cURL error 28: Operation timed out', new Psr7Request('GET', 'test')),
+            new ConnectException('cURL error 28: Operation timed out', new Psr7Request('GET', 'test')),
+        ]);
+
+        try {
+            $runner->run($this->colorCountPlan());
+            self::fail('Expected a QueryExecutionException once retries are exhausted.');
+        } catch (QueryExecutionException $e) {
+            self::assertTrue($e->isTransient);
+        }
+    }
+
+    public function test_rdw_server_error_is_treated_as_transient_and_retried(): void
+    {
+        // A 5xx is an RDW-side hiccup, not a fault in the generated query, so
+        // the runner retries it (here the second attempt succeeds).
+        $runner = $this->runnerForQueue([
+            new Psr7Response(503, [], 'service unavailable'),
+            new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
+                ['eerste_kleur' => 'GEEL', 'n' => '7'],
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $result = $runner->run($this->colorCountPlan());
+
+        self::assertSame('GEEL', $result->rows[0]['PrimaryColor']);
+    }
+
+    public function test_permanent_rejection_is_not_retried(): void
+    {
+        // Only one 400 is queued: if the runner retried it would dequeue a
+        // second (absent) item and the MockHandler would throw "queue empty"
+        // instead. A single, non-transient QueryExecutionException proves the
+        // runner did not retry a query RDW rejected on its merits.
+        $runner = $this->runnerForQueue([
+            new Psr7Response(400, [], 'malformed where clause'),
+        ]);
+
+        try {
+            $runner->run($this->colorCountPlan());
+            self::fail('Expected a QueryExecutionException for the rejected query.');
+        } catch (QueryExecutionException $e) {
+            self::assertFalse($e->isTransient);
+            self::assertSame('malformed where clause', $e->responseBody);
+        }
+    }
+
+    public function test_identical_soql_is_served_from_cache_without_a_second_rdw_call(): void
+    {
+        // Only ONE upstream response is queued. If the second run() re-hit RDW
+        // the MockHandler would throw "queue is empty", so a clean second result
+        // proves the SoQL-keyed cache served it.
+        $stack = HandlerStack::create(new MockHandler([
+            new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
+                ['eerste_kleur' => 'WIT', 'n' => '42'],
+            ], JSON_THROW_ON_ERROR)),
+        ]));
+        $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+
+        $runner = new PlanRunner($rdw, cache: new Repository(new ArrayStore), retryBackoffMs: 0);
+
+        $first = $runner->run($this->colorCountPlan());
+        $second = $runner->run($this->colorCountPlan());
+
+        self::assertSame('WIT', $first->rows[0]['PrimaryColor']);
+        self::assertSame($first->rows, $second->rows);
+        // SoQL/url are recomputed each call (cheap, deterministic), so they
+        // match even though only the rows are cached.
+        self::assertSame($first->soql, $second->soql);
+    }
+
+    public function test_cache_key_is_scoped_by_dataset_and_day_and_ttl_is_tiered_by_cost(): void
+    {
+        // Records the (key, ttl-in-seconds) handed to the store on each miss so
+        // we can assert the key shape and the cost-tiered TTL without reaching
+        // into store internals.
+        $store = new class extends ArrayStore
+        {
+            /** @var list<array{key: string, ttl: int}> */
+            public array $puts = [];
+
+            public function put($key, $value, $seconds)
+            {
+                $this->puts[] = ['key' => (string) $key, 'ttl' => (int) $seconds];
+
+                return parent::put($key, $value, $seconds);
+            }
+        };
+
+        $stack = HandlerStack::create(new MockHandler([
+            new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
+                ['eerste_kleur' => 'WIT', 'n' => '42'],
+            ], JSON_THROW_ON_ERROR)),
+            new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
+                ['kenteken' => '12-AB-345'],
+            ], JSON_THROW_ON_ERROR)),
+        ]));
+        $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+
+        $runner = new PlanRunner($rdw, cache: new Repository($store), retryBackoffMs: 0);
+
+        // Aggregate path → long (daily) TTL.
+        $runner->run($this->colorCountPlan());
+
+        // Plain row path → short TTL.
+        $runner->run(new Plan(
+            where: [new WhereClause('LicensePlate', WhereOp::Equals, '12-AB-345')],
+            select: ['LicensePlate'],
+            groupBy: [],
+            aggregates: [],
+            orderBy: [],
+            limit: 1,
+            display: DisplayHint::Table,
+            explanation: '',
+        ));
+
+        $prefix = sprintf(
+            'rdw:%s:%s:',
+            DatasetId::RegisteredVehicles->value,
+            CarbonImmutable::now('Europe/Amsterdam')->toDateString(),
+        );
+
+        self::assertCount(2, $store->puts);
+        self::assertStringStartsWith($prefix, $store->puts[0]['key']);
+        self::assertStringStartsWith($prefix, $store->puts[1]['key']);
+        self::assertNotSame($store->puts[0]['key'], $store->puts[1]['key']);
+        self::assertSame(86_400, $store->puts[0]['ttl']);
+        self::assertSame(600, $store->puts[1]['ttl']);
+    }
+
+    private function colorCountPlan(): Plan
+    {
+        return new Plan(
+            where: [],
+            select: [],
+            groupBy: [new GroupKey('PrimaryColor', Bucket::None)],
+            aggregates: [new AggregateClause(AggregateFn::Count, null, 'n')],
+            orderBy: [new OrderClause('n', OrderDirection::Desc)],
+            limit: 25,
+            display: DisplayHint::Bars,
+            explanation: '',
+        );
+    }
+
     /**
-     * @param list<array<string, mixed>> $rows
+     * @param  list<array<string, mixed>>  $rows
      */
     private function runnerReturning(array $rows): PlanRunner
     {
-        $mock = new MockHandler([
+        return $this->runnerForQueue([
             new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode($rows, JSON_THROW_ON_ERROR)),
         ]);
+    }
 
-        $stack = HandlerStack::create($mock);
+    /**
+     * Build a runner over an arbitrary Guzzle queue (responses and/or transport
+     * exceptions), with zero retry backoff so timeout tests never actually sleep.
+     *
+     * @param  list<Psr7Response|Throwable>  $queue
+     */
+    private function runnerForQueue(array $queue): PlanRunner
+    {
+        $stack = HandlerStack::create(new MockHandler($queue));
         $guzzle = new GuzzleClient([
             'base_uri' => 'https://opendata.rdw.nl/',
             'handler' => $stack,
         ]);
 
-        $socrata = new SocrataClient(new RdwConfiguration(), $guzzle);
+        $socrata = new SocrataClient(new RdwConfiguration, $guzzle);
         $rdw = new Rdw(http: $socrata);
 
-        return new PlanRunner($rdw);
+        return new PlanRunner($rdw, maxAttempts: 2, retryBackoffMs: 0);
     }
 }

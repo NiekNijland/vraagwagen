@@ -10,14 +10,14 @@ use Tests\TestCase;
 
 final class QueryShareTest extends TestCase
 {
-    public function test_home_passes_shared_run_when_q_parameter_matches_a_persisted_run(): void
+    public function test_home_passes_shared_run_when_slug_in_path_matches_a_persisted_run(): void
     {
         QueryRun::factory()->createOne([
             'slug' => 'sharedabc1',
             'prompt' => 'shared prompt',
         ]);
 
-        $this->get(route('home') . '?q=sharedabc1')
+        $this->get(route('rdw.query.shared', 'sharedabc1'))
             ->assertOk()
             ->assertInertia(
                 fn (Assert $page) => $page
@@ -27,9 +27,9 @@ final class QueryShareTest extends TestCase
             );
     }
 
-    public function test_home_passes_null_shared_run_when_q_does_not_match(): void
+    public function test_home_passes_null_shared_run_when_slug_does_not_match(): void
     {
-        $this->get(route('home') . '?q=nope1234')
+        $this->get(route('rdw.query.shared', 'nope1234'))
             ->assertOk()
             ->assertInertia(
                 fn (Assert $page) => $page
@@ -38,7 +38,7 @@ final class QueryShareTest extends TestCase
             );
     }
 
-    public function test_home_passes_null_shared_run_when_q_is_absent(): void
+    public function test_home_passes_null_shared_run_when_slug_is_absent(): void
     {
         $this->get(route('home'))
             ->assertOk()
@@ -59,7 +59,7 @@ final class QueryShareTest extends TestCase
             'prompt' => 'legacy prompt',
         ]);
 
-        $this->get(route('home') . '?q=legacyabc12')
+        $this->get(route('rdw.query.shared', 'legacyabc12'))
             ->assertOk()
             ->assertInertia(
                 fn (Assert $page) => $page

@@ -1,12 +1,11 @@
 export function buildShareUrl(locale: string, slug: string): string {
     if (typeof window === 'undefined') {
-        return `/${locale}?q=${encodeURIComponent(slug)}`;
+        return `/${locale}/${encodeURIComponent(slug)}`;
     }
 
     const url = new URL(window.location.href);
-    url.pathname = `/${locale}`;
+    url.pathname = `/${locale}/${encodeURIComponent(slug)}`;
     url.search = '';
-    url.searchParams.set('q', slug);
 
     return url.toString();
 }

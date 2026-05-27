@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', static function (Request $request) {
     $query = $request->getQueryString();
 
-    return redirect('/' . app()->getLocale() . ($query !== null && $query !== '' ? '?' . $query : ''));
+    return redirect('/'.app()->getLocale().($query !== null && $query !== '' ? '?'.$query : ''));
 });
 
 Route::prefix('{locale}')
@@ -22,6 +22,10 @@ Route::prefix('{locale}')
     ))
     ->group(function (): void {
         Route::get('/', [QueryController::class, 'index'])->name('home');
+
+        Route::get('/{slug}', [QueryController::class, 'index'])
+            ->where('slug', '[A-Za-z0-9]+')
+            ->name('rdw.query.shared');
     });
 
 Route::post('/api/query', [QueryController::class, 'run'])
@@ -45,4 +49,4 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
 });
 
-require __DIR__ . '/settings.php';
+require __DIR__.'/settings.php';

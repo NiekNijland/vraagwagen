@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Tests\Feature\Rdw;
 
 use App\Actions\Rdw\RunNaturalLanguageQuery;
-use App\Ai\Agents\QueryPlanAgent;
+use App\Ai\Agents\QueryProgramAgent;
+use App\Services\QueryPlan\PlanRunner;
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Request as Psr7Request;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Ai\Responses\Data\Meta;
@@ -74,6 +77,206 @@ final class QueryControllerTest extends TestCase
         self::assertNotNull($response->json('estimatedCost'));
     }
 
+    public function test_run_resolves_a_dependent_step_lookup_end_to_end(): void
+    {
+        // "How many of my car's model are on the road? 1-ZTZ-08" — q1 looks up
+        // the plate, q2 counts that exact make+model using {{q1.*}} references
+        // that PHP resolves between the two queries. One LLM call, two RDW calls.
+        $this->fakeProgram([
+            'queries' => [
+                [
+                    'id' => 'q1',
+                    'where' => [['field' => 'LicensePlate', 'op' => 'eq', 'value' => '1-ZTZ-08']],
+                    'select' => ['Brand', 'CommercialName'],
+                    'groupBy' => [], 'aggregates' => [], 'orderBy' => [],
+                    'limit' => 1, 'display' => 'record', 'explanation' => 'The vehicle.',
+                ],
+                [
+                    'id' => 'q2',
+                    'where' => [
+                        ['field' => 'Brand', 'op' => 'eq', 'value' => '{{q1.Brand}}'],
+                        ['field' => 'CommercialName', 'op' => 'eq', 'value' => '{{q1.CommercialName}}'],
+                    ],
+                    'select' => [], 'groupBy' => [],
+                    'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+                    'orderBy' => [], 'limit' => 1, 'display' => 'count', 'explanation' => 'Same model.',
+                ],
+            ],
+            'presentation' => [
+                'resultRef' => 'q2', 'display' => 'count', 'derive' => null,
+                'explanation' => 'How many of the same make and model are registered.',
+            ],
+        ]);
+
+        $this->fakeRdwWithResponses(
+            new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
+                ['kenteken' => '1ZTZ08', 'merk' => 'VOLKSWAGEN', 'handelsbenaming' => 'UP'],
+            ], JSON_THROW_ON_ERROR)),
+            new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
+                ['n' => '58408'],
+            ], JSON_THROW_ON_ERROR)),
+        );
+
+        $response = $this->postJson(route('rdw.query.run'), ['prompt' => 'How many of my model? 1-ZTZ-08']);
+
+        $response->assertOk()
+            ->assertJsonPath('rows.0.n', '58408')
+            ->assertJsonPath('displayHint', 'count')
+            ->assertJsonPath('presentation.resultRef', 'q2')
+            ->assertJsonPath('steps.0.id', 'q1')
+            ->assertJsonPath('steps.1.id', 'q2')
+            // q2's where was resolved from q1's result before q2 ran.
+            ->assertJsonPath('steps.1.plan.where.0.value', 'VOLKSWAGEN')
+            ->assertJsonPath('steps.1.plan.where.1.value', 'UP');
+
+        self::assertCount(2, $response->json('steps'));
+        QueryProgramAgent::assertPrompted(fn (): bool => true);
+    }
+
+    public function test_run_degrades_to_a_localized_unsupported_answer_when_a_reference_cannot_resolve(): void
+    {
+        $program = [
+            'queries' => [
+                [
+                    'id' => 'q1',
+                    'where' => [['field' => 'LicensePlate', 'op' => 'eq', 'value' => 'XX-XX-XX']],
+                    'select' => ['Brand'],
+                    'groupBy' => [], 'aggregates' => [], 'orderBy' => [],
+                    'limit' => 1, 'display' => 'record', 'explanation' => 'The vehicle.',
+                ],
+                [
+                    'id' => 'q2',
+                    'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => '{{q1.Brand}}']],
+                    'select' => [], 'groupBy' => [],
+                    'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+                    'orderBy' => [], 'limit' => 1, 'display' => 'count', 'explanation' => 'Same model.',
+                ],
+            ],
+            'presentation' => [
+                'resultRef' => 'q2', 'display' => 'count', 'derive' => null,
+                'explanation' => 'How many of the same make and model are registered.',
+            ],
+        ];
+
+        // q1 returns no rows, so the {{q1.Brand}} reference cannot resolve and
+        // the query degrades to a graceful unsupported answer (not a 500).
+        $emptyRows = fn (): Psr7Response => new Psr7Response(
+            200, ['Content-Type' => 'application/json'], json_encode([], JSON_THROW_ON_ERROR),
+        );
+
+        $this->fakeProgram($program);
+        $this->fakeRdwWithResponse($emptyRows());
+
+        $this->postJson(route('rdw.query.run'), ['prompt' => 'How many of my model? XX-XX-XX'])
+            ->assertOk()
+            ->assertJsonPath('displayHint', 'unsupported')
+            ->assertJsonPath('plan.explanation', 'This question could not be answered with the available data.');
+
+        $this->fakeProgram($program);
+        $this->fakeRdwWithResponse($emptyRows());
+
+        $this->postJson(route('rdw.query.run'), ['prompt' => 'Hoeveel van mijn model? XX-XX-XX'], ['Accept-Language' => 'nl'])
+            ->assertOk()
+            ->assertJsonPath('displayHint', 'unsupported')
+            ->assertJsonPath('plan.explanation', 'Deze vraag kon niet worden beantwoord met de beschikbare gegevens.');
+    }
+
+    public function test_run_computes_a_group_share_figure_from_one_grouped_query(): void
+    {
+        // "What percentage of cars are yellow?" — one grouped query plus a
+        // groupShare derive. PHP picks the GEEL group and divides by the column
+        // total; the model never types the number.
+        $this->fakeProgram([
+            'queries' => [[
+                'id' => 'q1',
+                'where' => [],
+                'select' => [],
+                'groupBy' => [['field' => 'PrimaryColor', 'bucket' => 'none']],
+                'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+                'orderBy' => [['expr' => 'n', 'direction' => 'desc']],
+                'limit' => 25, 'display' => 'bars', 'explanation' => 'Colours.',
+            ]],
+            'presentation' => [
+                'resultRef' => 'derived',
+                'display' => 'count',
+                'derive' => [
+                    'op' => 'groupShare', 'source' => 'q1',
+                    'selectorColumn' => 'PrimaryColor', 'selectorValue' => 'GEEL',
+                ],
+                'explanation' => 'The share of yellow cars.',
+            ],
+        ]);
+
+        $this->fakeRdwWithRows([
+            ['eerste_kleur' => 'GEEL', 'n' => '320'],
+            ['eerste_kleur' => 'WIT', 'n' => '4680'],
+            ['eerste_kleur' => 'ZWART', 'n' => '5000'],
+        ]);
+
+        $response = $this->postJson(route('rdw.query.run'), ['prompt' => 'What percentage of cars are yellow?']);
+
+        $response->assertOk()
+            ->assertJsonPath('presentation.resultRef', 'derived')
+            ->assertJsonPath('presentation.derived.op', 'groupShare')
+            // The presented view falls back to the grouped source query's display.
+            ->assertJsonPath('displayHint', 'bars');
+
+        self::assertEqualsWithDelta(320.0, $response->json('presentation.derived.numerator'), 0.001);
+        self::assertEqualsWithDelta(10_000.0, $response->json('presentation.derived.denominator'), 0.001);
+        self::assertEqualsWithDelta(0.032, $response->json('presentation.derived.value'), 1e-6);
+    }
+
+    public function test_run_computes_a_two_scalar_ratio_across_two_queries(): void
+    {
+        // "Average empty mass of VWs vs all cars" — two scalar queries with
+        // different filters, combined with a ratio derive. Two RDW calls, one
+        // LLM call, and PHP does the division.
+        $this->fakeProgram([
+            'queries' => [
+                [
+                    'id' => 'q1',
+                    'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => 'VOLKSWAGEN']],
+                    'select' => [], 'groupBy' => [],
+                    'aggregates' => [['fn' => 'avg', 'field' => 'EmptyMass', 'alias' => 'avg_mass']],
+                    'orderBy' => [], 'limit' => 1, 'display' => 'count', 'explanation' => 'VW average mass.',
+                ],
+                [
+                    'id' => 'q2',
+                    'where' => [], 'select' => [], 'groupBy' => [],
+                    'aggregates' => [['fn' => 'avg', 'field' => 'EmptyMass', 'alias' => 'avg_mass']],
+                    'orderBy' => [], 'limit' => 1, 'display' => 'count', 'explanation' => 'Overall average mass.',
+                ],
+            ],
+            'presentation' => [
+                'resultRef' => 'derived',
+                'display' => 'count',
+                'derive' => ['op' => 'ratio', 'numerator' => 'q1', 'denominator' => 'q2'],
+                'explanation' => 'How VW mass compares to the fleet.',
+            ],
+        ]);
+
+        $this->fakeRdwWithResponses(
+            new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
+                ['avg_mass' => '1500'],
+            ], JSON_THROW_ON_ERROR)),
+            new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode([
+                ['avg_mass' => '1200'],
+            ], JSON_THROW_ON_ERROR)),
+        );
+
+        $response = $this->postJson(route('rdw.query.run'), ['prompt' => 'Average mass of VWs vs all cars?']);
+
+        $response->assertOk()
+            ->assertJsonPath('presentation.resultRef', 'derived')
+            ->assertJsonPath('presentation.derived.op', 'ratio')
+            ->assertJsonPath('displayHint', 'count');
+
+        self::assertCount(2, $response->json('steps'));
+        self::assertEqualsWithDelta(1500.0, $response->json('presentation.derived.numerator'), 0.001);
+        self::assertEqualsWithDelta(1200.0, $response->json('presentation.derived.denominator'), 0.001);
+        self::assertEqualsWithDelta(1.25, $response->json('presentation.derived.value'), 1e-6);
+    }
+
     public function test_run_validates_prompt_length(): void
     {
         $this->postJson(route('rdw.query.run'), ['prompt' => 'no'])
@@ -132,6 +335,35 @@ final class QueryControllerTest extends TestCase
             ->assertJsonStructure(['plan', 'soql', 'url', 'responseBody']);
     }
 
+    public function test_run_returns_504_with_timeout_message_and_debug_payload_when_rdw_times_out(): void
+    {
+        $this->fakeQueryPlan([
+            'where' => [],
+            'select' => [],
+            'groupBy' => [['field' => 'PrimaryColor', 'bucket' => 'none']],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'orderBy' => [['expr' => 'n', 'direction' => 'desc']],
+            'limit' => 25,
+            'display' => 'bars',
+            'explanation' => 'Color distribution',
+        ]);
+
+        // Both attempts time out (cURL 28 → HttpException status 0). The runner
+        // exhausts its retry and the controller maps the transient failure to a
+        // 504 "took too long" message — not the misleading "rejected" copy.
+        $this->fakeRdwWithQueue([
+            new ConnectException('cURL error 28: Operation timed out', new Psr7Request('GET', 'test')),
+            new ConnectException('cURL error 28: Operation timed out', new Psr7Request('GET', 'test')),
+        ]);
+
+        $response = $this->postJson(route('rdw.query.run'), ['prompt' => 'How many cars are yellow?']);
+
+        $response->assertStatus(504)
+            ->assertJsonPath('error', 'RDW took too long to answer this query. Please try again in a moment.')
+            ->assertJsonPath('responseBody', null)
+            ->assertJsonStructure(['plan', 'soql', 'url']);
+    }
+
     public function test_run_returns_429_when_rdw_rate_limits(): void
     {
         $this->fakeQueryPlan([
@@ -167,22 +399,42 @@ final class QueryControllerTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $plan
+     * Fake the agent to return a one-query program that presents the given
+     * plan — the shape most controller tests need. Dependent-step / derive
+     * tests call {@see fakeProgram} with a full program instead.
+     *
+     * @param  array<string, mixed>  $plan
      */
     private function fakeQueryPlan(array $plan, ?Usage $usage = null, string $model = 'fake'): void
     {
-        QueryPlanAgent::fake([
+        $this->fakeProgram([
+            'queries' => [['id' => 'q1'] + $plan],
+            'presentation' => [
+                'resultRef' => 'q1',
+                'display' => $plan['display'] ?? 'table',
+                'derive' => null,
+                'explanation' => $plan['explanation'] ?? '',
+            ],
+        ], $usage, $model);
+    }
+
+    /**
+     * @param  array<string, mixed>  $program
+     */
+    private function fakeProgram(array $program, ?Usage $usage = null, string $model = 'fake'): void
+    {
+        QueryProgramAgent::fake([
             new StructuredTextResponse(
-                $plan,
-                json_encode($plan, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage(),
+                $program,
+                json_encode($program, JSON_THROW_ON_ERROR),
+                $usage ?? new Usage,
                 new Meta('openai', $model),
             ),
         ]);
     }
 
     /**
-     * @param list<array<string, mixed>> $rows
+     * @param  list<array<string, mixed>>  $rows
      */
     private function fakeRdwWithRows(array $rows): void
     {
@@ -193,19 +445,35 @@ final class QueryControllerTest extends TestCase
 
     private function fakeRdwWithResponse(Psr7Response $response): void
     {
-        $this->app->instance(Rdw::class, $this->makeFakeRdw($response));
+        $this->fakeRdwWithResponses($response);
     }
 
-    private function makeFakeRdw(Psr7Response $response): Rdw
+    /**
+     * Queue one RDW response per query the program runs, in order.
+     */
+    private function fakeRdwWithResponses(Psr7Response ...$responses): void
     {
-        $mock = new MockHandler([$response]);
-        $stack = HandlerStack::create($mock);
+        $this->fakeRdwWithQueue(array_values($responses));
+    }
+
+    /**
+     * Queue an arbitrary mix of RDW responses and transport exceptions (e.g.
+     * Guzzle ConnectException for a timeout), and pin a zero-backoff PlanRunner
+     * so retry-driven tests resolve immediately instead of sleeping.
+     *
+     * @param  list<Psr7Response|\Throwable>  $queue
+     */
+    private function fakeRdwWithQueue(array $queue): void
+    {
+        $stack = HandlerStack::create(new MockHandler($queue));
 
         $guzzle = new GuzzleClient([
             'base_uri' => 'https://opendata.rdw.nl/',
             'handler' => $stack,
         ]);
 
-        return new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        $this->app->instance(Rdw::class, $rdw);
+        $this->app->instance(PlanRunner::class, new PlanRunner($rdw, maxAttempts: 2, retryBackoffMs: 0));
     }
 }

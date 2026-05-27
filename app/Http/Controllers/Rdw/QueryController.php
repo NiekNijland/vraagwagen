@@ -27,10 +27,9 @@ use Throwable;
 
 final class QueryController extends Controller
 {
-    public function index(Request $request): InertiaResponse
+    public function index(string $locale, ?string $slug = null): InertiaResponse
     {
         $sharedRun = null;
-        $slug = $request->query('q');
 
         if (is_string($slug) && $slug !== '') {
             $run = QueryRun::query()->where('slug', $slug)->first();
@@ -63,19 +62,23 @@ final class QueryController extends Controller
             $serialisedPlan = PlanPresenter::toArray($e->plan);
             Log::warning('RDW query failed', [
                 'message' => $e->getMessage(),
+                'transient' => $e->isTransient,
                 'plan' => $serialisedPlan,
                 'soql' => $e->soql,
                 'url' => $e->url,
                 'responseBody' => $e->responseBody,
             ]);
 
+            // A transient failure (RDW timeout / upstream error) is not the
+            // user's fault — the query is valid, it just took too long. Tell
+            // them to retry (504) rather than to rephrase (422).
             return response()->json([
-                'error' => __('query.errors.rejected'),
+                'error' => __($e->isTransient ? 'query.errors.timeout' : 'query.errors.rejected'),
                 'plan' => $serialisedPlan,
                 'soql' => $e->soql,
                 'url' => $e->url,
                 'responseBody' => $e->responseBody,
-            ], 422);
+            ], $e->isTransient ? 504 : 422);
         } catch (InvalidArgumentException $e) {
             // Field-name / alias / enum validation failures from PlanFactory or
             // PlanRunner. The message references internal field names, so we
@@ -99,6 +102,9 @@ final class QueryController extends Controller
             ], 500);
         }
 
+        $steps = PlanPresenter::stepsToArray($result->steps);
+        $presentation = PlanPresenter::presentationToArray($result->presentation, $result->derived);
+
         $user = $request->user();
         $run = $persist->execute(
             prompt: $prompt,
@@ -111,6 +117,8 @@ final class QueryController extends Controller
             model: $result->model,
             tokens: $result->tokens,
             estimatedCost: $result->estimatedCost,
+            steps: $steps,
+            presentation: $presentation,
         );
 
         return response()->json([
@@ -120,6 +128,8 @@ final class QueryController extends Controller
             'url' => $result->url,
             'rows' => $result->rows,
             'displayHint' => $result->plan->display->value,
+            'steps' => $steps,
+            'presentation' => $presentation,
             'model' => $result->model,
             'tokens' => $result->tokens->toArray(),
             'estimatedCost' => $result->estimatedCost,
@@ -177,6 +187,8 @@ final class QueryController extends Controller
             'url' => $run->url,
             'rows' => $run->rows,
             'displayHint' => $run->display_hint,
+            'steps' => $run->steps ?? [],
+            'presentation' => $run->presentation,
             'rating' => $run->rating,
             'comment' => $run->comment,
             // Coalesce nullable model to '' so the TS shape stays non-nullable

@@ -36,6 +36,39 @@ export type Plan = {
 
 export type QueryRow = Record<string, unknown>;
 
+export type DeriveOp =
+    | 'groupShare'
+    | 'percentage'
+    | 'ratio'
+    | 'difference'
+    | 'sum';
+
+/** One executed query in a multi-step program (for the debug pane). */
+export type Step = {
+    id: string;
+    plan: Plan;
+    soql: Record<string, string>;
+    url: string;
+    rowCount: number;
+};
+
+/** The deterministic figure computed by the engine from query results. */
+export type Derived = {
+    op: DeriveOp;
+    value: number;
+    numerator: number;
+    denominator: number;
+};
+
+/** The resolved presentation: which result is shown and any computed figure. */
+export type Presentation = {
+    resultRef: string;
+    display: DisplayHint;
+    derive: Record<string, unknown> | null;
+    derived: Derived | null;
+    explanation: string;
+};
+
 export type TokenUsage = {
     prompt: number;
     completion: number;
@@ -56,6 +89,8 @@ export type QueryResult = {
     model: string;
     tokens: TokenUsage;
     estimatedCost: number | null;
+    steps?: Step[];
+    presentation?: Presentation | null;
 };
 
 export type SharedRun = {
@@ -72,6 +107,8 @@ export type SharedRun = {
     model: string;
     tokens: TokenUsage;
     estimatedCost: number | null;
+    steps?: Step[];
+    presentation?: Presentation | null;
 };
 
 export type RunResponse = {
@@ -84,6 +121,8 @@ export type RunResponse = {
     model: string;
     tokens: TokenUsage;
     estimatedCost: number | null;
+    steps?: Step[];
+    presentation?: Presentation | null;
 };
 
 export type ErrorResponse = {

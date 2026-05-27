@@ -1,0 +1,121 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Unit\Services\QueryPlan;
+
+use App\Services\QueryPlan\DisplayHint;
+use App\Services\QueryPlan\LedgerEntry;
+use App\Services\QueryPlan\Plan;
+use App\Services\QueryPlan\QueryLedger;
+use App\Services\QueryPlan\RunnerResult;
+use App\Services\QueryPlan\StepReferenceException;
+use App\Services\QueryPlan\StepReferenceResolver;
+use App\Services\QueryPlan\WhereClause;
+use App\Services\QueryPlan\WhereOp;
+use PHPUnit\Framework\TestCase;
+
+final class StepReferenceResolverTest extends TestCase
+{
+    public function test_resolves_references_from_a_single_row_lookup(): void
+    {
+        $ledger = $this->ledgerWith('q1', [['Brand' => 'VOLKSWAGEN', 'CommercialName' => 'UP']]);
+
+        $resolved = (new StepReferenceResolver)->resolve(
+            $this->plan([
+                new WhereClause('Brand', WhereOp::Equals, '{{q1.Brand}}'),
+                new WhereClause('CommercialName', WhereOp::Equals, '{{q1.CommercialName}}'),
+            ]),
+            $ledger,
+        );
+
+        self::assertSame('VOLKSWAGEN', $resolved->where[0]->value);
+        self::assertSame('UP', $resolved->where[1]->value);
+        // Field and op are preserved untouched.
+        self::assertSame('Brand', $resolved->where[0]->field);
+        self::assertSame(WhereOp::Equals, $resolved->where[0]->op);
+    }
+
+    public function test_passes_plain_literals_through_untouched(): void
+    {
+        $resolved = (new StepReferenceResolver)->resolve(
+            $this->plan([new WhereClause('Brand', WhereOp::Equals, 'TOYOTA')]),
+            new QueryLedger,
+        );
+
+        self::assertSame('TOYOTA', $resolved->where[0]->value);
+    }
+
+    public function test_throws_when_referenced_query_is_missing(): void
+    {
+        $this->expectException(StepReferenceException::class);
+
+        (new StepReferenceResolver)->resolve(
+            $this->plan([new WhereClause('Brand', WhereOp::Equals, '{{q9.Brand}}')]),
+            new QueryLedger,
+        );
+    }
+
+    public function test_throws_when_referenced_query_returned_no_rows(): void
+    {
+        $this->expectException(StepReferenceException::class);
+
+        (new StepReferenceResolver)->resolve(
+            $this->plan([new WhereClause('Brand', WhereOp::Equals, '{{q1.Brand}}')]),
+            $this->ledgerWith('q1', []),
+        );
+    }
+
+    public function test_throws_when_referenced_query_returned_multiple_rows(): void
+    {
+        $this->expectException(StepReferenceException::class);
+
+        (new StepReferenceResolver)->resolve(
+            $this->plan([new WhereClause('Brand', WhereOp::Equals, '{{q1.Brand}}')]),
+            $this->ledgerWith('q1', [['Brand' => 'A'], ['Brand' => 'B']]),
+        );
+    }
+
+    public function test_throws_when_referenced_column_is_absent(): void
+    {
+        $this->expectException(StepReferenceException::class);
+
+        (new StepReferenceResolver)->resolve(
+            $this->plan([new WhereClause('CommercialName', WhereOp::Equals, '{{q1.CommercialName}}')]),
+            $this->ledgerWith('q1', [['Brand' => 'VOLKSWAGEN']]),
+        );
+    }
+
+    public function test_throws_when_referenced_value_is_null(): void
+    {
+        $this->expectException(StepReferenceException::class);
+
+        (new StepReferenceResolver)->resolve(
+            $this->plan([new WhereClause('Brand', WhereOp::Equals, '{{q1.Brand}}')]),
+            $this->ledgerWith('q1', [['Brand' => null]]),
+        );
+    }
+
+    /**
+     * @param  list<WhereClause>  $where
+     */
+    private function plan(array $where): Plan
+    {
+        return new Plan($where, [], [], [], [], 1, DisplayHint::Count, '');
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function ledgerWith(string $id, array $rows): QueryLedger
+    {
+        $ledger = new QueryLedger;
+        $ledger->record(new LedgerEntry(
+            $id,
+            $this->plan([]),
+            new RunnerResult(rows: $rows, soql: [], url: ''),
+        ));
+
+        return $ledger;
+    }
+}

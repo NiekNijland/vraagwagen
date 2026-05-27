@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Rdw;
 
+use App\Enums\Rating;
 use App\Models\QueryRun;
 use Tests\TestCase;
 
@@ -23,7 +24,7 @@ final class QueryFeedbackTest extends TestCase
 
         $fresh = QueryRun::query()->where('slug', 'fbslug1234')->first();
         self::assertInstanceOf(QueryRun::class, $fresh);
-        self::assertSame('up', $fresh->rating);
+        self::assertSame(Rating::Up, $fresh->rating);
         self::assertSame('Spot on, exactly what I asked for.', $fresh->comment);
         self::assertNotNull($fresh->rated_at);
     }
@@ -67,7 +68,7 @@ final class QueryFeedbackTest extends TestCase
     public function test_feedback_overwrites_a_previous_rating(): void
     {
         $run = QueryRun::factory()->ratedUp()->createOne(['slug' => 'fbslug4444']);
-        self::assertSame('up', $run->rating);
+        self::assertSame(Rating::Up, $run->rating);
 
         $this->postJson(route('rdw.query.feedback', ['slug' => 'fbslug4444']), [
             'rating' => 'down',
@@ -76,7 +77,7 @@ final class QueryFeedbackTest extends TestCase
 
         $fresh = QueryRun::query()->where('slug', 'fbslug4444')->first();
         self::assertInstanceOf(QueryRun::class, $fresh);
-        self::assertSame('down', $fresh->rating);
+        self::assertSame(Rating::Down, $fresh->rating);
         self::assertSame('Changed my mind', $fresh->comment);
     }
 

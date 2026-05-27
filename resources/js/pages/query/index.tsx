@@ -2,18 +2,10 @@ import { Head } from '@inertiajs/react';
 import {
     ArrowRight,
     BarChart3,
-    ChevronDown,
-    Copy,
-    Download,
-    ExternalLink,
     Github,
     LineChart,
     Plus,
-    Share2,
     Sparkles,
-    ThumbsDown,
-    ThumbsUp,
-    Wrench,
     X,
 } from 'lucide-react';
 import {
@@ -30,20 +22,17 @@ import { LanguageSwitcher } from '@/components/language-switcher';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Collapsible,
-    CollapsibleContent,
-    CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { Textarea } from '@/components/ui/textarea';
-import { useClipboard } from '@/hooks/use-clipboard';
+import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion';
 import { useTranslation } from '@/hooks/use-translation';
-import { downloadRows } from '@/lib/export-rows';
 import { cn } from '@/lib/utils';
 
 import { parseJson, postJson } from './api';
+import { ErrorView, ResultView } from './components/result-view';
+import { pickDiscoverItems, SUGGESTIONS_EN, SUGGESTIONS_NL } from './examples';
+import type { DiscoverItem, DiscoverViz } from './examples';
 import { localeTag } from './format';
-import { detectPlate, extractPlateFromText, formatPlate } from './plate';
+import { extractPlateFromText } from './plate';
 import {
     clearRecentQueries,
     getRecentQueriesServerSnapshot,
@@ -51,8 +40,7 @@ import {
     readRecentQueries,
     subscribeToRecentQueries,
 } from './recent-queries';
-import { buildShareUrl, resetShareUrl, updateShareUrl } from './share-url';
-import { formatResponseBody, SoQLHighlight } from './soql-highlight';
+import { resetShareUrl, updateShareUrl } from './share-url';
 import type {
     ErrorResponse,
     QueryError,
@@ -62,276 +50,10 @@ import type {
     SharedRun,
 } from './types';
 import { useTypewriterPlaceholder } from './use-typewriter-placeholder';
-import { ResultBody } from './views/result-body';
 
 type PageProps = { sharedRun: SharedRun | null };
 
 const MIN_PROMPT_LENGTH = 3;
-
-// Curated against the planner's capabilities (single RegisteredVehicles
-// dataset, no location/fuel fields). Each item maps to a clean display hint:
-// count, bars, timeseries, table, record, stats, or histogram.
-const SUGGESTIONS_NL: readonly string[] = [
-    'Hoeveel Tesla Model 3 zijn er in Nederland?',
-    'Hoeveel Ferrari’s zijn er geregistreerd?',
-    'Hoeveel BMW M3 staan er op kenteken?',
-    'Hoeveel Land Rover Defender zijn er in Nederland?',
-    'Hoeveel Porsche 911 zijn er geregistreerd?',
-    'Hoeveel campers staan er op kenteken?',
-    'Hoeveel motorfietsen zwaarder dan 1000 cc?',
-    'Hoeveel oranje voertuigen zijn er?',
-    'Hoeveel Fiat 500’s uit 2015 zijn er?',
-    'Hoeveel voertuigen ouder dan 30 jaar zijn er?',
-    'Welke kleuren Volkswagen Up! uit 2017 zijn er?',
-    'Kleurverdeling Audi A4 uit bouwjaar 2020',
-    'Welke autokleur is het zeldzaamst?',
-    'Welk merk heeft de meeste roze auto’s?',
-    'Meest geregistreerde Tesla-modellen',
-    'Top 10 populairste automerken',
-    'Meest voorkomende kleuren in het hele register',
-    'Volkswagen Golf-tenaamstellingen per maand in 2024',
-    'Aantal Tesla’s per jaar sinds 2015',
-    'Nieuwe Porsche-registraties per maand in 2024',
-    'Aantal motorfietsen per bouwjaar sinds 2000',
-    'Recente overschrijvingen Suzuki GSX-R 1100 uit 1991',
-    'Top 5 zwaarste voertuigen op kenteken',
-    'Top 10 snelste motorfietsen op kenteken',
-    'Top 10 duurste Ferrari’s op catalogusprijs',
-    'Recente Tesla-overschrijvingen',
-    '10 oudste actieve motorfietsen',
-    '10 nieuwste Bugatti’s op kenteken',
-    'Toon alles over kenteken GT-486-N',
-    'Toon alles over kenteken 42-JHB-6',
-    'Toon alles over kenteken JD-72-LB',
-    'Toyota in cijfers: aantal, gemiddelde massa en gemiddelde catalogusprijs',
-    'Statistieken Volkswagen Golf: aantal en gemiddelde massa',
-    'BMW stats: aantal, gemiddelde topsnelheid en gemiddelde catalogusprijs',
-    'Verdeling van leeg gewicht van Volkswagen Up!',
-    'Hoe is de cilinderinhoud van motorfietsen verdeeld?',
-    'Verdeling aantal zitplaatsen bij personenauto’s',
-    'Hoeveel APK-keuringen verlopen deze maand?',
-    'Hoeveel verzekerde Toyota’s zijn er?',
-    'Hoeveel taxi’s staan er op kenteken?',
-    'Hoeveel voertuigen wachten op keuring?',
-];
-
-const SUGGESTIONS_EN: readonly string[] = [
-    'How many Tesla Model 3 are registered in the Netherlands?',
-    'How many Ferraris are registered?',
-    'How many BMW M3 in the Dutch register?',
-    'How many Land Rover Defenders in the Netherlands?',
-    'How many Porsche 911 are registered?',
-    'How many campers are registered?',
-    'How many motorcycles over 1000 cc?',
-    'How many orange vehicles are there?',
-    'How many 2015 Fiat 500s are there?',
-    'How many vehicles over 30 years old?',
-    'What colors of Volkswagen Up! from 2017 are out there?',
-    'Color breakdown of Audi A4 from model year 2020',
-    'What is the rarest car color?',
-    'Which brand has the most pink cars?',
-    'Most-registered Tesla models',
-    'Top 10 most popular car brands',
-    'Most common colors across the entire register',
-    'Volkswagen Golf transfers per month in 2024',
-    'Tesla registrations per year since 2015',
-    'New Porsche registrations per month in 2024',
-    'Motorcycles per model year since 2000',
-    'Recent transfers for Suzuki GSX-R 1100 (1991)',
-    'Top 5 heaviest registered vehicles',
-    'Top 10 fastest registered motorcycles',
-    'Top 10 most expensive Ferraris by catalog price',
-    'Recent Tesla transfers',
-    '10 oldest active motorcycles',
-    '10 newest Bugattis in the register',
-    'Show everything about plate GT-486-N',
-    'Show everything about plate 42-JHB-6',
-    'Show everything about plate JD-72-LB',
-    'Toyota in numbers: count, average mass and average catalog price',
-    'Stats on Volkswagen Golf: count and average mass',
-    'BMW stats: count, average top speed and average catalog price',
-    'Distribution of curb weight of Volkswagen Up!',
-    'How is motorcycle engine displacement distributed?',
-    'Distribution of seat counts across passenger cars',
-    'How many MOT inspections expire this month?',
-    'How many insured Toyotas are there?',
-    'How many taxis are registered?',
-    'How many vehicles are awaiting inspection?',
-];
-
-type DiscoverViz = 'kpi' | 'bars' | 'spark' | 'plate';
-
-type DiscoverItem = { question: string; viz: DiscoverViz };
-
-type DiscoverEntry = { nl: string; en: string };
-
-// Curated example pools, grouped by the viz they'll render. We pick one
-// random entry per viz so the four cards always span all four visual styles.
-const DISCOVER_POOL: Readonly<Record<DiscoverViz, readonly DiscoverEntry[]>> = {
-    kpi: [
-        {
-            nl: 'Hoeveel Tesla Model 3 zijn er in Nederland?',
-            en: 'How many Tesla Model 3 are registered in the Netherlands?',
-        },
-        {
-            nl: 'Hoeveel Ferrari’s zijn er geregistreerd?',
-            en: 'How many Ferraris are registered?',
-        },
-        {
-            nl: 'Hoeveel BMW M3 staan er op kenteken?',
-            en: 'How many BMW M3 in the Dutch register?',
-        },
-        {
-            nl: 'Hoeveel Land Rover Defender zijn er in Nederland?',
-            en: 'How many Land Rover Defenders in the Netherlands?',
-        },
-        {
-            nl: 'Hoeveel Porsche 911 zijn er geregistreerd?',
-            en: 'How many Porsche 911 are registered?',
-        },
-        {
-            nl: 'Hoeveel campers staan er op kenteken?',
-            en: 'How many campers are registered?',
-        },
-        {
-            nl: 'Hoeveel motorfietsen zwaarder dan 1000 cc?',
-            en: 'How many motorcycles over 1000 cc?',
-        },
-        {
-            nl: 'Hoeveel oranje voertuigen zijn er?',
-            en: 'How many orange vehicles are there?',
-        },
-        {
-            nl: 'Hoeveel Fiat 500’s uit 2015 zijn er?',
-            en: 'How many 2015 Fiat 500s are there?',
-        },
-        {
-            nl: 'Hoeveel voertuigen ouder dan 30 jaar zijn er?',
-            en: 'How many vehicles over 30 years old?',
-        },
-        {
-            nl: 'Hoeveel APK-keuringen verlopen deze maand?',
-            en: 'How many MOT inspections expire this month?',
-        },
-        {
-            nl: 'Hoeveel verzekerde Toyota’s zijn er?',
-            en: 'How many insured Toyotas are there?',
-        },
-        {
-            nl: 'Hoeveel taxi’s staan er op kenteken?',
-            en: 'How many taxis are registered?',
-        },
-        {
-            nl: 'Hoeveel voertuigen wachten op keuring?',
-            en: 'How many vehicles are awaiting inspection?',
-        },
-    ],
-    bars: [
-        {
-            nl: 'Top 10 populairste automerken',
-            en: 'Top 10 most popular car brands',
-        },
-        {
-            nl: 'Meest voorkomende kleuren in het hele register',
-            en: 'Most common colors across the entire register',
-        },
-        {
-            nl: 'Kleurverdeling Audi A4 uit bouwjaar 2020',
-            en: 'Color breakdown of Audi A4 from model year 2020',
-        },
-        {
-            nl: 'Welke kleuren Volkswagen Up! uit 2017 zijn er?',
-            en: 'What colors of Volkswagen Up! from 2017 are out there?',
-        },
-        {
-            nl: 'Welke autokleur is het zeldzaamst?',
-            en: 'What is the rarest car color?',
-        },
-        {
-            nl: 'Welk merk heeft de meeste roze auto’s?',
-            en: 'Which brand has the most pink cars?',
-        },
-        {
-            nl: 'Meest geregistreerde Tesla-modellen',
-            en: 'Most-registered Tesla models',
-        },
-        {
-            nl: 'Verdeling aantal zitplaatsen bij personenauto’s',
-            en: 'Distribution of seat counts across passenger cars',
-        },
-        {
-            nl: 'Verdeling van leeg gewicht van Volkswagen Up!',
-            en: 'Distribution of curb weight of Volkswagen Up!',
-        },
-        {
-            nl: 'Hoe is de cilinderinhoud van motorfietsen verdeeld?',
-            en: 'How is motorcycle engine displacement distributed?',
-        },
-    ],
-    spark: [
-        {
-            nl: 'Aantal Tesla’s per jaar sinds 2015',
-            en: 'Tesla registrations per year since 2015',
-        },
-        {
-            nl: 'Volkswagen Golf-tenaamstellingen per maand in 2024',
-            en: 'Volkswagen Golf transfers per month in 2024',
-        },
-        {
-            nl: 'Nieuwe Porsche-registraties per maand in 2024',
-            en: 'New Porsche registrations per month in 2024',
-        },
-        {
-            nl: 'Aantal motorfietsen per bouwjaar sinds 2000',
-            en: 'Motorcycles per model year since 2000',
-        },
-    ],
-    plate: [
-        {
-            nl: 'Toon alles over kenteken GT-486-N',
-            en: 'Show everything about plate GT-486-N',
-        },
-        {
-            nl: 'Toon alles over kenteken 42-JHB-6',
-            en: 'Show everything about plate 42-JHB-6',
-        },
-        {
-            nl: 'Toon alles over kenteken JD-72-LB',
-            en: 'Show everything about plate JD-72-LB',
-        },
-        {
-            nl: 'Toon alles over kenteken R-915-FK',
-            en: 'Show everything about plate R-915-FK',
-        },
-        {
-            nl: 'Toon alles over kenteken 8-KZD-53',
-            en: 'Show everything about plate 8-KZD-53',
-        },
-        {
-            nl: 'Toon alles over kenteken 56-TV-PL',
-            en: 'Show everything about plate 56-TV-PL',
-        },
-    ],
-};
-
-const DISCOVER_VIZ_ORDER: readonly DiscoverViz[] = [
-    'kpi',
-    'bars',
-    'spark',
-    'plate',
-];
-
-function pickDiscoverItems(locale: string): DiscoverItem[] {
-    return DISCOVER_VIZ_ORDER.map((viz) => {
-        const pool = DISCOVER_POOL[viz];
-        const entry = pool[Math.floor(Math.random() * pool.length)];
-
-        return {
-            viz,
-            question: locale === 'nl' ? entry.nl : entry.en,
-        };
-    });
-}
 
 type SessionStats = {
     runs: number;
@@ -359,6 +81,10 @@ function fallbackErrorForStatus(
 
     if (status === 419) {
         return t('pages.query.errors.sessionExpired');
+    }
+
+    if (status === 504) {
+        return t('pages.query.errors.timeout');
     }
 
     if (status >= 500) {
@@ -538,12 +264,25 @@ function QueryPageInner({ sharedRun }: PageProps) {
     const suggestions = locale === 'nl' ? SUGGESTIONS_NL : SUGGESTIONS_EN;
     const discoverItems = useMemo(() => pickDiscoverItems(locale), [locale]);
 
+    // Screen readers can't see the result swap in, so announce the high-level
+    // status politely. Errors already surface through the toast's own live
+    // region, so they're intentionally left out here.
+    const liveMessage = loading
+        ? t('pages.query.thinking')
+        : result !== null
+          ? result.plan.explanation
+          : '';
+
     return (
         <>
             <Head title={t('pages.query.title')} />
             <div className="rdw-app relative isolate flex min-h-screen flex-col overflow-x-hidden bg-background text-foreground">
                 <div className="rdw-bg" aria-hidden="true" />
                 <div className="rdw-grid" aria-hidden="true" />
+
+                <p className="sr-only" role="status" aria-live="polite">
+                    {liveMessage}
+                </p>
 
                 <TopBar />
 
@@ -758,7 +497,9 @@ function ComposerCard({
     const { t } = useTranslation();
     const staticPlaceholder = t('pages.query.placeholder');
     const [focused, setFocused] = useState(false);
-    const animate = !compact && !focused && value === '';
+    const reducedMotion = usePrefersReducedMotion();
+    // Hold the static placeholder still for users who opt out of motion.
+    const animate = !compact && !focused && value === '' && !reducedMotion;
     const typed = useTypewriterPlaceholder(
         placeholderSuggestions,
         animate,
@@ -772,7 +513,9 @@ function ComposerCard({
         }
     };
 
-    const plate = detectPlate(value);
+    // Scan the whole question for a plate rather than requiring the field to be
+    // a bare plate — users type it inside a sentence ("… op de weg? 1-ZTZ-08?").
+    const plate = extractPlateFromText(value);
 
     return (
         <div
@@ -810,7 +553,7 @@ function ComposerCard({
                                 >
                                     <span className="rdw-plate-flag">NL</span>
                                     <span className="rdw-plate-text">
-                                        {formatPlate(plate)}
+                                        {plate}
                                     </span>
                                 </span>
                             ) : (
@@ -1168,470 +911,6 @@ function LoadingSkeleton() {
     );
 }
 
-// ─── Result view ──────────────────────────────────────────────
-function ResultView({
-    result,
-    locale,
-    onRatingChange,
-}: {
-    result: QueryResult;
-    locale: string;
-    onRatingChange: (next: {
-        rating: Rating | null;
-        comment: string | null;
-    }) => void;
-}) {
-    const isUnsupported = result.displayHint === 'unsupported';
-
-    return (
-        <div className="flex flex-col gap-4">
-            <div>
-                <p className="max-w-[640px] text-sm leading-relaxed text-muted-foreground">
-                    <strong className="font-semibold text-foreground">
-                        {result.plan.explanation}
-                    </strong>
-                </p>
-                <UsageLine result={result} locale={locale} />
-            </div>
-
-            <ResultBody result={result} locale={locale} />
-
-            <ResultToolbar result={result} locale={locale} />
-
-            {result.slug !== undefined && (
-                <FeedbackPanel
-                    key={result.slug}
-                    slug={result.slug}
-                    rating={result.rating}
-                    comment={result.comment}
-                    onChange={onRatingChange}
-                />
-            )}
-
-            {!isUnsupported && (
-                <QueryDebugPanel
-                    soql={result.soql}
-                    url={result.url}
-                    model={result.model}
-                />
-            )}
-        </div>
-    );
-}
-
-function UsageLine({
-    result,
-    locale,
-}: {
-    result: QueryResult;
-    locale: string;
-}) {
-    const { t } = useTranslation();
-    const total =
-        result.tokens.prompt +
-        result.tokens.completion +
-        result.tokens.cacheRead +
-        result.tokens.thought;
-
-    if (total === 0 && result.estimatedCost === null) {
-        return null;
-    }
-
-    const tokensLabel = t('pages.query.tokensCount', {
-        count: new Intl.NumberFormat(locale).format(total),
-    });
-    const costLabel =
-        result.estimatedCost === null
-            ? null
-            : t('pages.query.estimatedCost', {
-                  amount: new Intl.NumberFormat(locale, {
-                      style: 'currency',
-                      currency: 'USD',
-                      minimumFractionDigits: 4,
-                      maximumFractionDigits: 6,
-                  }).format(result.estimatedCost),
-              });
-
-    const segments = [tokensLabel, costLabel].filter((s): s is string =>
-        Boolean(s),
-    );
-
-    return (
-        <p className="mt-1 text-[11.5px] tracking-wide text-muted-foreground/80">
-            {segments.join(' · ')}
-        </p>
-    );
-}
-
-// ─── Toolbar (share, csv, json) ───────────────────────────────
-function ResultToolbar({
-    result,
-    locale,
-}: {
-    result: QueryResult;
-    locale: string;
-}) {
-    const { t } = useTranslation();
-    const [, copy] = useClipboard();
-    const hasRows = result.rows.length > 0;
-    const shareUrl =
-        result.slug !== undefined ? buildShareUrl(locale, result.slug) : null;
-
-    return (
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
-            {shareUrl && (
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                        const ok = await copy(shareUrl);
-
-                        if (ok) {
-                            toast.success(t('pages.query.shareCopied'));
-                        } else {
-                            toast.error(t('pages.query.shareFailed'));
-                        }
-                    }}
-                >
-                    <Share2 className="h-3 w-3" />
-                    {t('pages.query.share')}
-                </Button>
-            )}
-
-            {hasRows && (
-                <>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                            downloadRows(result.rows, 'csv', result.prompt)
-                        }
-                    >
-                        <Download className="h-3 w-3" />
-                        {t('pages.query.exportCsv')}
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                            downloadRows(result.rows, 'json', result.prompt)
-                        }
-                    >
-                        <Download className="h-3 w-3" />
-                        {t('pages.query.exportJson')}
-                    </Button>
-                </>
-            )}
-        </div>
-    );
-}
-
-// ─── Error view ──────────────────────────────────────────────
-function ErrorView({ error }: { error: QueryError }) {
-    return (
-        <div className="flex flex-col gap-4">
-            <div className="flex items-start gap-3">
-                <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-[var(--rdw-orange-faint)] text-[var(--rdw-orange)]">
-                    <Wrench className="h-4 w-4" />
-                </span>
-                <p className="text-sm leading-relaxed text-[var(--rdw-orange)]">
-                    {error.message}
-                </p>
-            </div>
-            <QueryDebugPanel
-                soql={error.soql}
-                url={error.url}
-                responseBody={error.responseBody}
-                defaultOpen
-            />
-        </div>
-    );
-}
-
-// ─── SoQL / URL debug panel ──────────────────────────────────
-function QueryDebugPanel({
-    soql,
-    url,
-    model,
-    responseBody,
-    defaultOpen = false,
-}: {
-    soql?: Record<string, string>;
-    url?: string;
-    model?: string;
-    responseBody?: string | null;
-    defaultOpen?: boolean;
-}) {
-    const { t } = useTranslation();
-    const [, copy] = useClipboard();
-    const hasResponseBody = responseBody !== undefined && responseBody !== null;
-    const hasModel = model !== undefined && model !== '';
-
-    if (
-        soql === undefined &&
-        url === undefined &&
-        !hasResponseBody &&
-        !hasModel
-    ) {
-        return null;
-    }
-
-    const soqlString =
-        soql === undefined
-            ? ''
-            : Object.entries(soql)
-                  .map(([k, v]) => `$${k}: ${v}`)
-                  .join('\n');
-
-    return (
-        <Collapsible defaultOpen={defaultOpen}>
-            <CollapsibleTrigger className="group inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12.5px] text-muted-foreground transition hover:text-foreground">
-                <span>{t('pages.query.showQuery')}</span>
-                <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-3 space-y-3 rounded-[12px] border bg-[color:color-mix(in_oklab,var(--background)_60%,transparent)] p-3.5 text-xs">
-                {hasModel && (
-                    <DebugSection label={t('pages.query.model')}>
-                        <code className="block rounded bg-background/80 p-2 font-mono text-[11px]">
-                            {model}
-                        </code>
-                    </DebugSection>
-                )}
-                {soql && (
-                    <DebugSection
-                        label={t('pages.query.soql')}
-                        actions={
-                            <CopyChip
-                                onCopy={() => copy(soqlString)}
-                                label="Copy"
-                            />
-                        }
-                    >
-                        <pre className="overflow-x-auto rounded bg-background/80 p-2.5 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap">
-                            <SoQLHighlight value={soqlString} />
-                        </pre>
-                    </DebugSection>
-                )}
-                {url !== undefined && (
-                    <DebugSection
-                        label={t('pages.query.url')}
-                        meta={
-                            <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-emerald-500">
-                                GET
-                            </span>
-                        }
-                        actions={
-                            <>
-                                <CopyChip
-                                    onCopy={() => copy(url)}
-                                    label="Copy"
-                                />
-                                <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 rounded border bg-card px-2 py-1 text-[11px] text-muted-foreground transition hover:border-[var(--rdw-orange)] hover:text-foreground"
-                                >
-                                    <ExternalLink className="h-3 w-3" />
-                                    Open
-                                </a>
-                            </>
-                        }
-                    >
-                        <div className="block overflow-x-auto rounded bg-background/80 p-2.5 font-mono text-[11px] leading-relaxed break-all whitespace-pre-wrap text-muted-foreground">
-                            <span className="mr-1 text-muted-foreground/60">
-                                ↳
-                            </span>
-                            {url}
-                        </div>
-                    </DebugSection>
-                )}
-                {hasResponseBody && (
-                    <DebugSection label={t('pages.query.rdwResponse')}>
-                        <pre className="overflow-x-auto rounded bg-background/80 p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
-                            {formatResponseBody(responseBody)}
-                        </pre>
-                    </DebugSection>
-                )}
-            </CollapsibleContent>
-        </Collapsible>
-    );
-}
-
-function DebugSection({
-    label,
-    meta,
-    actions,
-    children,
-}: {
-    label: string;
-    meta?: React.ReactNode;
-    actions?: React.ReactNode;
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-3">
-                <span className="text-[10.5px] font-semibold tracking-[0.12em] whitespace-nowrap text-[var(--rdw-orange)] uppercase">
-                    {label}
-                </span>
-                {meta}
-                {actions !== undefined && (
-                    <span className="ml-auto inline-flex items-center gap-1.5">
-                        {actions}
-                    </span>
-                )}
-            </div>
-            {children}
-        </div>
-    );
-}
-
-function CopyChip({
-    onCopy,
-    label,
-}: {
-    onCopy: () => Promise<boolean> | boolean;
-    label: string;
-}) {
-    const [copied, setCopied] = useState(false);
-
-    return (
-        <button
-            type="button"
-            onClick={async () => {
-                const ok = await onCopy();
-
-                if (ok) {
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 1500);
-                }
-            }}
-            className="inline-flex items-center gap-1 rounded border bg-card px-2 py-1 text-[11px] text-muted-foreground transition hover:border-[var(--rdw-orange)] hover:text-foreground"
-        >
-            <Copy className="h-3 w-3" />
-            {copied ? '✓' : label}
-        </button>
-    );
-}
-
-// ─── Feedback panel ──────────────────────────────────────────
-function FeedbackPanel({
-    slug,
-    rating,
-    comment,
-    onChange,
-}: {
-    slug: string;
-    rating: Rating | null;
-    comment: string | null;
-    onChange: (next: { rating: Rating | null; comment: string | null }) => void;
-}) {
-    const { t } = useTranslation();
-    const [commentDraft, setCommentDraft] = useState(comment ?? '');
-    const [submitting, setSubmitting] = useState(false);
-
-    const submitFeedback = async (
-        nextRating: Rating,
-        nextComment: string | null,
-    ): Promise<void> => {
-        setSubmitting(true);
-
-        try {
-            const response = await postJson(`/api/query/${slug}/feedback`, {
-                rating: nextRating,
-                comment: nextComment,
-            });
-
-            if (!response.ok) {
-                throw new Error('feedback failed');
-            }
-
-            onChange({ rating: nextRating, comment: nextComment });
-            toast.success(t('pages.query.feedbackThanks'));
-        } catch {
-            toast.error(t('pages.query.feedbackFailed'));
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="flex flex-col gap-2 rounded-[12px] border bg-card/40 p-3 text-xs">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-muted-foreground">
-                    {t('pages.query.feedbackPrompt')}
-                </span>
-                <div className="flex items-center gap-1.5">
-                    <Button
-                        type="button"
-                        variant={rating === 'up' ? 'default' : 'outline'}
-                        size="icon"
-                        className="h-8 w-8"
-                        disabled={submitting}
-                        onClick={() =>
-                            void submitFeedback('up', commentDraft || null)
-                        }
-                        aria-label={t('pages.query.feedbackHelpful')}
-                    >
-                        <ThumbsUp className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                        type="button"
-                        variant={rating === 'down' ? 'default' : 'outline'}
-                        size="icon"
-                        className="h-8 w-8"
-                        disabled={submitting}
-                        onClick={() =>
-                            void submitFeedback('down', commentDraft || null)
-                        }
-                        aria-label={t('pages.query.feedbackNotHelpful')}
-                    >
-                        <ThumbsDown className="h-3.5 w-3.5" />
-                    </Button>
-                </div>
-            </div>
-
-            {rating !== null && (
-                <div className="flex flex-col gap-2">
-                    <Textarea
-                        value={commentDraft}
-                        onChange={(e) => setCommentDraft(e.target.value)}
-                        placeholder={t(
-                            rating === 'up'
-                                ? 'pages.query.feedbackCommentPlaceholderPositive'
-                                : 'pages.query.feedbackCommentPlaceholderNegative',
-                        )}
-                        rows={2}
-                        className="resize-none text-xs"
-                    />
-                    <div className="flex justify-end">
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                                submitting || commentDraft === (comment ?? '')
-                            }
-                            onClick={() =>
-                                void submitFeedback(
-                                    rating,
-                                    commentDraft || null,
-                                )
-                            }
-                        >
-                            {t('pages.query.feedbackSubmit')}
-                        </Button>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
 // ─── Stat strip (bottom) ─────────────────────────────────────
 function StatStrip({ stats, locale }: { stats: SessionStats; locale: string }) {
     const { t } = useTranslation();
@@ -1734,5 +1013,7 @@ function sharedRunToResult(run: SharedRun): QueryResult {
         model: run.model,
         tokens: run.tokens,
         estimatedCost: run.estimatedCost,
+        steps: run.steps,
+        presentation: run.presentation,
     };
 }
