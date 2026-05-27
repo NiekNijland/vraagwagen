@@ -21,7 +21,9 @@ final readonly class PromptBuilder
      */
     private const string USER_QUESTION_TAG_PATTERN = '/<\s*\/?\s*user_question\s*>/i';
 
-    public function __construct(private SchemaRegistry $schemas) {}
+    public function __construct(private SchemaRegistry $schemas)
+    {
+    }
 
     /**
      * Wrap raw user input in tagged delimiters so the LLM treats it as data,

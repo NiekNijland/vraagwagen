@@ -132,6 +132,17 @@ run_step 'Install Composer dependencies' \
         --classmap-authoritative \
         --no-scripts
 
+# ── Clear stale compiled caches ──────────────────────────────────────
+# This site deploys in-place (see above), so `bootstrap/cache/` survives
+# `git reset --hard` and carries the previous release's compiled manifests.
+# When a package is removed (e.g. migrating off Prism), the stale
+# `packages.php`/`services.php` still name its service provider, and the
+# very next framework boot — `package:discover` below — fails with
+# "Class ... not found" before it can rebuild them. We must use `rm`
+# rather than `artisan optimize:clear`, because artisan cannot boot
+# through the poisoned manifest. The glob keeps `.gitignore` intact.
+run_step 'Clear stale compiled caches' rm -f bootstrap/cache/packages.php bootstrap/cache/services.php
+
 run_step 'Discover Composer packages' php artisan package:discover --ansi
 
 run_step 'Clear Laravel caches before frontend build' php artisan optimize:clear
