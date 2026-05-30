@@ -16,4 +16,8 @@ return [
 
     'unsupported' => 'This question could not be answered with the available data.',
 
+    'refusal' => [
+        'too_broad' => 'That matches too many vehicles to combine across datasets. Narrow it down — for example by a specific model, year, or a less common brand.',
+    ],
+
 ];

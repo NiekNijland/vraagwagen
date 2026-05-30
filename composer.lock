@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b153239d2816809d095c9ad4e1903f52",
+    "content-hash": "a1990dad4e45986f1eb082d50b914eca",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -3286,16 +3286,16 @@
         },
         {
             "name": "nieknijland/rdw-opendata-php",
-            "version": "v0.3.1",
+            "version": "v0.4.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NiekNijland/rdw-opendata-php.git",
-                "reference": "383b6a7b997bab4291ffddeaf9bde1f066ec94af"
+                "reference": "8618bfb135707e1e2e54015c5939aac48eb5be0d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NiekNijland/rdw-opendata-php/zipball/383b6a7b997bab4291ffddeaf9bde1f066ec94af",
-                "reference": "383b6a7b997bab4291ffddeaf9bde1f066ec94af",
+                "url": "https://api.github.com/repos/NiekNijland/rdw-opendata-php/zipball/8618bfb135707e1e2e54015c5939aac48eb5be0d",
+                "reference": "8618bfb135707e1e2e54015c5939aac48eb5be0d",
                 "shasum": ""
             },
             "require": {
@@ -3339,7 +3339,7 @@
             ],
             "support": {
                 "issues": "https://github.com/NiekNijland/rdw-opendata-php/issues",
-                "source": "https://github.com/NiekNijland/rdw-opendata-php/tree/v0.3.1"
+                "source": "https://github.com/NiekNijland/rdw-opendata-php/tree/v0.4.0"
             },
             "funding": [
                 {
@@ -3347,7 +3347,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-05-17T14:39:53+00:00"
+            "time": "2026-05-30T13:58:40+00:00"
         },
         {
             "name": "nikic/php-parser",

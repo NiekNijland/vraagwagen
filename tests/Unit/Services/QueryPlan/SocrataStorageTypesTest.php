@@ -60,16 +60,13 @@ final class SocrataStorageTypesTest extends TestCase
         // Pinning the derived set: if RDW promotes a column from text to number (or vice versa),
         // this test fails so we notice instead of silently producing wrong comparisons.
         $expected = [
-            'brandstofverbruik_buiten',
             'brandstofverbruik_gecombineerd',
-            'brandstofverbruik_stad',
             'co2_uitstoot_gecombineerd',
             'co2_uitstoot_gewogen',
             'geluidsniveau_rijdend',
             'geluidsniveau_stationair',
             'nettomaximumvermogen',
             'nominaal_continu_maximumvermogen',
-            'roetuitstoot',
             'toerental_geluidsniveau',
             'uitstoot_deeltjes_licht',
             'uitstoot_deeltjes_zwaar',

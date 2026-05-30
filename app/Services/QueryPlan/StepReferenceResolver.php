@@ -89,14 +89,13 @@ final class StepReferenceResolver
             ));
         }
 
-        // The prompt instructs the LLM to set lookup `limit: 1000` and PlanFactory clamps to the
-        // same ceiling, so a row count *at* LIST_LIMIT is a complete result the model asked for;
-        // only refuse when it spilled past the cap.
+        // Lookup queries are forced to fetch LIST_LIMIT + 1 rows (see RunNaturalLanguageQuery), so
+        // spilling past the cap is a reliable signal that the join is incomplete — refuse rather
+        // than silently undercount with a truncated IN list.
         if (count($rows) > self::LIST_LIMIT) {
-            throw new StepReferenceException(sprintf(
-                'Reference "%s" returned %d rows, which exceeds the %d-row cross-dataset limit; ask a more specific question.',
+            throw new CrossDatasetOverflowException(sprintf(
+                'Reference "%s" matches more than %d vehicles, which exceeds the cross-dataset limit; ask a more specific question.',
                 $reference->token(),
-                count($rows),
                 self::LIST_LIMIT,
             ));
         }
@@ -141,7 +140,7 @@ final class StepReferenceResolver
     }
 
     /**
-     * @param array<string, mixed> $row
+     * @param  array<string, mixed>  $row
      */
     private function columnValue(array $row, StepReference $reference): mixed
     {

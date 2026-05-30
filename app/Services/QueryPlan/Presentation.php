@@ -14,8 +14,8 @@ final readonly class Presentation
         public DisplayHint $display,
         public ?Derive $derive,
         public string $explanation,
-    ) {
-    }
+        public ?Refusal $refusal = null,
+    ) {}
 
     public function isDerived(): bool
     {

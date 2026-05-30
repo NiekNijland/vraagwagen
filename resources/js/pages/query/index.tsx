@@ -361,6 +361,10 @@ function QueryPageInner({
                                     result={result}
                                     locale={locale}
                                     onRatingChange={updateRating}
+                                    onPickFollowUp={(followPrompt) => {
+                                        setPrompt(followPrompt);
+                                        void submit(followPrompt);
+                                    }}
                                 />
                             </ResultPanel>
                         )}

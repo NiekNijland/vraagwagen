@@ -16,4 +16,8 @@ return [
 
     'unsupported' => 'Deze vraag kon niet worden beantwoord met de beschikbare gegevens.',
 
+    'refusal' => [
+        'too_broad' => 'Dit komt overeen met te veel voertuigen om tussen datasets te combineren. Maak het specifieker — bijvoorbeeld met een bepaald model, bouwjaar of een minder vaak voorkomend merk.',
+    ],
+
 ];

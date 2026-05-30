@@ -43,6 +43,17 @@ final class QueryProgramSchema
                 ->required(),
         ]);
 
+        $refusal = $schema->object([
+            'reason' => $schema->string()
+                ->enum(array_map(static fn (RefusalReason $r): string => $r->value, RefusalReason::cases()))
+                ->description('Why the question cannot be answered: out_of_scope (not about the Dutch vehicle registry), no_such_data (registry records no such field — driver, owner, price paid, mileage, theft), too_broad (unbounded query or a cross-dataset join over the 1000-plate cap), ambiguous (under-specified).')
+                ->required(),
+            'suggestions' => $schema->array()
+                ->items($schema->string())
+                ->description('1-3 concrete questions the registry CAN answer that are close to what the user asked, each a complete question in the system-prompt language. Empty only when nothing relevant is answerable.')
+                ->required(),
+        ]);
+
         $presentation = $schema->object([
             'resultRef' => $schema->string()
                 ->description('Which query id to display, or "derived" when "derive" is set.')
@@ -55,8 +66,12 @@ final class QueryProgramSchema
                 ->nullable()
                 ->description('Set to combine query results into one deterministic figure; null for a plain passthrough of resultRef.')
                 ->required(),
+            'refusal' => $refusal
+                ->nullable()
+                ->description('Set ONLY when display is "unsupported": the machine reason and alternative questions. Null for every answerable question.')
+                ->required(),
             'explanation' => $schema->string()
-                ->description('One short sentence summarising the answer, in the language specified by the system prompt. Never include computed numbers.')
+                ->description('One short sentence in the system-prompt language. For an answer, summarise it (never include computed numbers). For an unsupported question, state plainly why it cannot be answered.')
                 ->required(),
         ]);
 

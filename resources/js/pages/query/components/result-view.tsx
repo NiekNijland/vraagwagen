@@ -1,4 +1,5 @@
 import { Download, Share2, Wrench } from 'lucide-react';
+import { useMemo } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -6,17 +7,21 @@ import { useClipboard } from '@/hooks/use-clipboard';
 import { useTranslation } from '@/hooks/use-translation';
 import { downloadRows } from '@/lib/export-rows';
 
+import { suggestFollowUps } from '../follow-ups';
 import { localeTag } from '../format';
 import { buildShareUrl } from '../share-url';
 import type { QueryError, QueryResult, Rating } from '../types';
 import { ResultBody } from '../views/result-body';
 import { FeedbackPanel } from './feedback-panel';
+import { FollowUpChips } from './follow-up-chips';
+import { PlanRationale } from './plan-rationale';
 import { QueryDebugPanel } from './query-debug-panel';
 
 export function ResultView({
     result,
     locale,
     onRatingChange,
+    onPickFollowUp,
 }: {
     result: QueryResult;
     locale: string;
@@ -24,21 +29,42 @@ export function ResultView({
         rating: Rating | null;
         comment: string | null;
     }) => void;
+    onPickFollowUp?: (prompt: string) => void;
 }) {
+    const { t } = useTranslation();
     const isUnsupported = result.displayHint === 'unsupported';
+    const followUps = useMemo(
+        () => suggestFollowUps(result.plan, t),
+        [result.plan, t],
+    );
+
+    // The presentation carries the authoritative one-line summary (the refusal "why" for an
+    // unsupported question, the answer summary otherwise); fall back to the plan's copy.
+    const explanation =
+        result.presentation?.explanation || result.plan.explanation;
 
     return (
         <div className="flex flex-col gap-4">
             <div>
                 <p className="max-w-[640px] text-sm leading-relaxed text-muted-foreground">
                     <strong className="font-semibold text-foreground">
-                        {result.plan.explanation}
+                        {explanation}
                     </strong>
                 </p>
                 <UsageLine result={result} locale={locale} />
             </div>
 
-            <ResultBody result={result} locale={locale} />
+            {/* A refusal renders its model-supplied alternatives inside ResultBody, so pass the
+                picker through; an answered query gets the heuristic follow-up chips below. */}
+            <ResultBody
+                result={result}
+                locale={locale}
+                onPickSuggestion={onPickFollowUp}
+            />
+
+            {!isUnsupported && onPickFollowUp !== undefined && (
+                <FollowUpChips items={followUps} onPick={onPickFollowUp} />
+            )}
 
             <ResultToolbar result={result} locale={locale} />
 
@@ -53,13 +79,20 @@ export function ResultView({
             )}
 
             {!isUnsupported && (
-                <QueryDebugPanel
-                    soql={result.soql}
-                    url={result.url}
-                    model={result.model}
-                    steps={result.steps}
-                    correlationId={result.correlationId}
-                />
+                <div className="flex flex-wrap items-center gap-1">
+                    <PlanRationale
+                        plan={result.plan}
+                        steps={result.steps}
+                        locale={locale}
+                    />
+                    <QueryDebugPanel
+                        soql={result.soql}
+                        url={result.url}
+                        model={result.model}
+                        steps={result.steps}
+                        correlationId={result.correlationId}
+                    />
+                </div>
             )}
         </div>
     );

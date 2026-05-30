@@ -8,6 +8,8 @@ use InvalidArgumentException;
 
 final class PresentationFactory
 {
+    private const int MAX_SUGGESTIONS = 3;
+
     /**
      * @param  array<string, mixed>  $data
      * @param  list<string>  $queryIds
@@ -18,6 +20,20 @@ final class PresentationFactory
         $explanation = (string) ($data['explanation'] ?? '');
         $resultRef = (string) ($data['resultRef'] ?? '');
         $derive = $this->parseDerive($data['derive'] ?? null, $queryIds);
+
+        // A refusal program carries no real result to validate against the query ids: the dummy
+        // query exists only to satisfy the "at least one query" rule and never hits RDW. The
+        // refusal is parsed only here so a stray (and unused) `refusal` on an answerable plan
+        // can't fail an otherwise-valid query with an "invalid reason" error.
+        if ($display === DisplayHint::Unsupported) {
+            return new Presentation(
+                resultRef: $resultRef,
+                display: $display,
+                derive: null,
+                explanation: $explanation,
+                refusal: $this->parseRefusal($data['refusal'] ?? null) ?? new Refusal(RefusalReason::OutOfScope),
+            );
+        }
 
         if ($derive !== null) {
             if ($resultRef !== Presentation::DERIVED_REF) {
@@ -41,6 +57,37 @@ final class PresentationFactory
             derive: $derive,
             explanation: $explanation,
         );
+    }
+
+    /**
+     * Parsed only for an `unsupported` display, so a stray `refusal` the model may leave on an
+     * answerable plan is ignored rather than able to fail it. Suggestions are capped and
+     * string-coerced defensively against a non-compliant payload.
+     */
+    private function parseRefusal(mixed $raw): ?Refusal
+    {
+        if (! is_array($raw) || ($raw['reason'] ?? null) === null || $raw['reason'] === '') {
+            return null;
+        }
+
+        $reason = RefusalReason::tryFrom((string) $raw['reason']);
+        if ($reason === null) {
+            throw new InvalidArgumentException(sprintf('Invalid refusal reason "%s".', (string) $raw['reason']));
+        }
+
+        $rawSuggestions = is_array($raw['suggestions'] ?? null) ? $raw['suggestions'] : [];
+        $suggestions = [];
+        foreach ($rawSuggestions as $suggestion) {
+            $text = trim((string) $suggestion);
+            if ($text !== '') {
+                $suggestions[] = $text;
+            }
+            if (count($suggestions) === self::MAX_SUGGESTIONS) {
+                break;
+            }
+        }
+
+        return new Refusal($reason, $suggestions);
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Tests\Unit\Services\QueryPlan;
 use App\Enums\Locale;
 use App\Services\QueryPlan\DisplayHint;
 use App\Services\QueryPlan\PromptBuilder;
+use App\Services\QueryPlan\RefusalReason;
 use App\Services\QueryPlan\TargetDataset;
 use NiekNijland\RDW\Datasets\DatasetId;
 use NiekNijland\RDW\Schema\SchemaRegistry;
@@ -184,9 +185,31 @@ final class PromptBuilderTest extends TestCase
     {
         $prompt = $this->builder()->systemPrompt(Locale::English);
 
-        // Gender/demographic questions ("most popular among women") have no backing column.
-        self::assertStringContainsString('neither dataset contains', $prompt);
-        self::assertStringContainsString('silently drop the unanswerable part', $prompt);
+        // Gender/demographic questions ("most popular among women") have no backing column —
+        // they fall into the `no_such_data` refusal bucket with concrete examples of what
+        // the registry does not record.
+        self::assertStringContainsString('no_such_data', $prompt);
+        self::assertStringContainsString("driver's gender, age or identity", $prompt);
+        self::assertStringContainsString('silently drop', $prompt);
+    }
+
+    public function test_prompt_documents_the_structured_refusal_object(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        // All four machine reason categories the schema enforces must be named, plus the
+        // requirement to offer answerable alternatives instead of a bare refusal.
+        self::assertStringContainsString('refusal.reason', $prompt);
+        foreach (RefusalReason::cases() as $reason) {
+            self::assertStringContainsString(
+                $reason->value,
+                $prompt,
+                "Prompt should document the refusal reason `{$reason->value}`.",
+            );
+        }
+        self::assertStringContainsString('refusal.suggestions', $prompt);
+        // A worked refusal example threads a reason + concrete suggestions.
+        self::assertStringContainsString('refusal reason no_such_data', $prompt);
     }
 
     public function test_prompt_places_fuel_type_on_the_fuels_dataset(): void

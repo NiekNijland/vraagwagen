@@ -1,4 +1,10 @@
-export type WhereClause = { field: string; op: string; value: string };
+export type WhereClause = {
+    field: string;
+    op: string;
+    value: string;
+    /** Resolved match set for an `in` clause; absent for scalar ops. */
+    values?: string[];
+};
 export type AggregateClause = {
     fn: string;
     field: string | null;
@@ -63,12 +69,25 @@ export type Derived = {
     denominator: number;
 };
 
+export type RefusalReason =
+    | 'out_of_scope'
+    | 'no_such_data'
+    | 'too_broad'
+    | 'ambiguous';
+
+/** Why a question could not be answered, plus answerable alternatives to offer the user. */
+export type Refusal = {
+    reason: RefusalReason;
+    suggestions: string[];
+};
+
 /** The resolved presentation: which result is shown and any computed figure. */
 export type Presentation = {
     resultRef: string;
     display: DisplayHint;
     derive: Record<string, unknown> | null;
     derived: Derived | null;
+    refusal?: Refusal | null;
     explanation: string;
 };
 

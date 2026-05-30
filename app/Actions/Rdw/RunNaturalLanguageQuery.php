@@ -7,6 +7,7 @@ namespace App\Actions\Rdw;
 use App\Ai\Agents\QueryProgramAgent;
 use App\Enums\Locale;
 use App\Services\QueryPlan\CostEstimator;
+use App\Services\QueryPlan\CrossDatasetOverflowException;
 use App\Services\QueryPlan\Derivation;
 use App\Services\QueryPlan\DerivationException;
 use App\Services\QueryPlan\Derive;
@@ -18,12 +19,17 @@ use App\Services\QueryPlan\Plan;
 use App\Services\QueryPlan\PlanRunner;
 use App\Services\QueryPlan\Presentation;
 use App\Services\QueryPlan\QueryLedger;
+use App\Services\QueryPlan\QueryProgram;
 use App\Services\QueryPlan\QueryProgramFactory;
 use App\Services\QueryPlan\QueryResult;
+use App\Services\QueryPlan\Refusal;
+use App\Services\QueryPlan\RefusalReason;
+use App\Services\QueryPlan\StepReference;
 use App\Services\QueryPlan\StepReferenceException;
 use App\Services\QueryPlan\StepReferenceResolver;
 use App\Services\QueryPlan\TargetDataset;
 use App\Services\QueryPlan\TokenUsage;
+use App\Services\QueryPlan\WhereOp;
 
 class RunNaturalLanguageQuery
 {
@@ -33,8 +39,7 @@ class RunNaturalLanguageQuery
         private readonly QueryProgramFactory $programFactory,
         private readonly StepReferenceResolver $referenceResolver,
         private readonly Derivation $derivation,
-    ) {
-    }
+    ) {}
 
     public function execute(string $userPrompt, Locale $locale): QueryResult
     {
@@ -48,18 +53,75 @@ class RunNaturalLanguageQuery
         $tokens = TokenUsage::fromUsage($response->usage);
         $estimatedCost = $this->costEstimator->estimate($model, $response->usage);
 
-        $ledger = new QueryLedger();
+        $ledger = new QueryLedger;
+        $lookupIds = $this->lookupQueryIds($program);
 
         try {
             foreach ($program->queries as $query) {
-                $resolvedPlan = $this->referenceResolver->resolve($query->plan, $ledger);
+                // A query whose plates feed a later `in` clause must fetch one row past the cap so an
+                // over-cap brand is detectable (and refused) instead of silently truncating the join.
+                // We always need the full plate set for the join, so the limit is forced even on the
+                // off chance such a lookup is also the presented result.
+                $plan = in_array($query->id, $lookupIds, true)
+                    ? $this->withForcedLimit($query->plan, StepReferenceResolver::LIST_LIMIT + 1)
+                    : $query->plan;
+
+                $resolvedPlan = $this->referenceResolver->resolve($plan, $ledger);
                 $ledger->record(new LedgerEntry($query->id, $resolvedPlan, $this->planRunner->run($resolvedPlan)));
             }
 
             return $this->present($program->presentation, $ledger, $model, $tokens, $estimatedCost);
+        } catch (CrossDatasetOverflowException) {
+            // __() can return array|string|null when the key resolves to a group; we only ever
+            // store strings under this key, so narrow before passing the explanation through.
+            $tooBroad = __('query.refusal.too_broad', [], $locale->value);
+
+            return $this->unsupported(
+                $ledger, $locale, $model, $tokens, $estimatedCost,
+                is_string($tooBroad) ? $tooBroad : null,
+                new Refusal(RefusalReason::TooBroad),
+            );
         } catch (StepReferenceException|DerivationException) {
             return $this->unsupported($ledger, $locale, $model, $tokens, $estimatedCost);
         }
+    }
+
+    /**
+     * Query ids whose result is consumed by a later `in` clause via a `{{qID.field}}` reference.
+     *
+     * @return list<string>
+     */
+    private function lookupQueryIds(QueryProgram $program): array
+    {
+        $ids = [];
+        foreach ($program->queries as $query) {
+            foreach ($query->plan->where as $clause) {
+                if ($clause->op !== WhereOp::In) {
+                    continue;
+                }
+                $reference = StepReference::tryParse($clause->value);
+                if ($reference !== null && ! in_array($reference->queryId, $ids, true)) {
+                    $ids[] = $reference->queryId;
+                }
+            }
+        }
+
+        return $ids;
+    }
+
+    private function withForcedLimit(Plan $plan, int $limit): Plan
+    {
+        return new Plan(
+            dataset: $plan->dataset,
+            where: $plan->where,
+            select: $plan->select,
+            groupBy: $plan->groupBy,
+            aggregates: $plan->aggregates,
+            orderBy: $plan->orderBy,
+            limit: $limit,
+            display: $plan->display,
+            explanation: $plan->explanation,
+        );
     }
 
     private function present(
@@ -81,6 +143,7 @@ class RunNaturalLanguageQuery
             display: $source->plan->display,
             derive: $presentation->derive,
             explanation: $presentation->explanation,
+            refusal: $presentation->refusal,
         );
 
         return new QueryResult(
@@ -177,9 +240,13 @@ class RunNaturalLanguageQuery
         string $model,
         TokenUsage $tokens,
         ?float $estimatedCost,
+        ?string $explanation = null,
+        ?Refusal $refusal = null,
     ): QueryResult {
-        $translation = __('query.unsupported', [], $locale->value);
-        $explanation = is_string($translation) ? $translation : '';
+        if ($explanation === null) {
+            $translation = __('query.unsupported', [], $locale->value);
+            $explanation = is_string($translation) ? $translation : '';
+        }
 
         // Dataset is a placeholder — `PlanRunner::run` short-circuits on Unsupported before touching it.
         $plan = new Plan(
@@ -197,7 +264,13 @@ class RunNaturalLanguageQuery
             tokens: $tokens,
             estimatedCost: $estimatedCost,
             steps: $ledger->all(),
-            presentation: null,
+            presentation: new Presentation(
+                resultRef: '',
+                display: DisplayHint::Unsupported,
+                derive: null,
+                explanation: $explanation,
+                refusal: $refusal ?? new Refusal(RefusalReason::OutOfScope),
+            ),
             derived: null,
         );
     }

@@ -1,5 +1,6 @@
 import { screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 
 import { renderWithI18n } from '@/test/render';
 
@@ -53,6 +54,39 @@ describe('ResultBody', () => {
             screen.queryByText('No rows matched this query.'),
         ).not.toBeInTheDocument();
         expect(container.querySelector('svg')).toBeInTheDocument();
+    });
+
+    it('offers the refusal alternatives as clickable chips that re-run', async () => {
+        const onPickSuggestion = vi.fn();
+        renderWithI18n(
+            <ResultBody
+                result={result({
+                    displayHint: 'unsupported',
+                    presentation: {
+                        resultRef: '',
+                        display: 'unsupported',
+                        derive: null,
+                        derived: null,
+                        refusal: {
+                            reason: 'no_such_data',
+                            suggestions: ['How many electric cars?'],
+                        },
+                        explanation: 'The registry does not record the driver.',
+                    },
+                })}
+                locale="en"
+                onPickSuggestion={onPickSuggestion}
+            />,
+        );
+
+        const chip = screen.getByRole('button', {
+            name: 'How many electric cars?',
+        });
+        await userEvent.click(chip);
+
+        expect(onPickSuggestion).toHaveBeenCalledWith(
+            'How many electric cars?',
+        );
     });
 
     it('shows the empty state when a data query returns no rows', () => {

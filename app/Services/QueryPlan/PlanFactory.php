@@ -216,7 +216,11 @@ final class PlanFactory
             : [];
 
         $op = $this->parseEnum(WhereOp::class, (string) ($clause['op'] ?? ''), 'where.op');
-        $value = (string) ($clause['value'] ?? '');
+        // A non-compliant LLM sometimes packs a list into the scalar `value` slot (it belongs in
+        // `values`). Coerce that to empty rather than letting `(string) []` warn and yield "Array";
+        // the op-specific assertions below still reject the malformed clause with a clear message.
+        $rawValue = $clause['value'] ?? '';
+        $value = is_array($rawValue) ? '' : (string) $rawValue;
 
         $this->assertCommercialNameUsesContains($field, $op, $value);
 

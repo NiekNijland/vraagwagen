@@ -9,6 +9,7 @@ use App\Services\QueryPlan\DeriveOp;
 use App\Services\QueryPlan\DisplayHint;
 use App\Services\QueryPlan\Presentation;
 use App\Services\QueryPlan\PresentationFactory;
+use App\Services\QueryPlan\RefusalReason;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
@@ -162,6 +163,58 @@ final class PresentationFactoryTest extends TestCase
             'resultRef' => Presentation::DERIVED_REF,
             'display' => 'count',
             'derive' => ['op' => 'groupShare', 'source' => 'q1', 'selectorColumn' => '', 'selectorValue' => ''],
+            'explanation' => 'x',
+        ], ['q1']);
+    }
+
+    public function test_parses_a_refusal_with_reason_and_capped_suggestions(): void
+    {
+        // A refusal program carries no real result, so resultRef/derive are not validated against
+        // the query ids; the reason + alternative questions come through, trimmed and capped at 3.
+        $presentation = (new PresentationFactory)->fromArray([
+            'resultRef' => 'q1',
+            'display' => 'unsupported',
+            'derive' => null,
+            'refusal' => [
+                'reason' => 'no_such_data',
+                'suggestions' => ['  How many electric cars? ', '', 'Average CO2?', 'Most common colour?', 'Fourth?'],
+            ],
+            'explanation' => 'The registry does not record the driver.',
+        ], ['q1']);
+
+        self::assertSame(DisplayHint::Unsupported, $presentation->display);
+        self::assertNotNull($presentation->refusal);
+        self::assertSame(RefusalReason::NoSuchData, $presentation->refusal->reason);
+        self::assertSame(
+            ['How many electric cars?', 'Average CO2?', 'Most common colour?'],
+            $presentation->refusal->suggestions,
+        );
+    }
+
+    public function test_an_unsupported_display_without_a_refusal_defaults_to_out_of_scope(): void
+    {
+        $presentation = (new PresentationFactory)->fromArray([
+            'resultRef' => 'q1',
+            'display' => 'unsupported',
+            'derive' => null,
+            'refusal' => null,
+            'explanation' => 'Outside the scope of the vehicle registry.',
+        ], ['q1']);
+
+        self::assertNotNull($presentation->refusal);
+        self::assertSame(RefusalReason::OutOfScope, $presentation->refusal->reason);
+        self::assertSame([], $presentation->refusal->suggestions);
+    }
+
+    public function test_rejects_an_unknown_refusal_reason(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new PresentationFactory)->fromArray([
+            'resultRef' => 'q1',
+            'display' => 'unsupported',
+            'derive' => null,
+            'refusal' => ['reason' => 'because_i_said_so', 'suggestions' => []],
             'explanation' => 'x',
         ], ['q1']);
     }

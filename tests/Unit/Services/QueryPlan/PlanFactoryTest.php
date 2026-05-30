@@ -389,6 +389,23 @@ final class PlanFactoryTest extends TestCase
         ], TargetDataset::RegisteredVehicles);
     }
 
+    public function test_coerces_a_list_smuggled_into_the_scalar_value_slot_without_warning(): void
+    {
+        $factory = $this->factory();
+
+        // A non-compliant LLM occasionally puts the list in `value` (it belongs in `values`).
+        // `(string) []` would emit an "Array to string conversion" warning and store "Array";
+        // instead we coerce to empty and let the comparison be a clean empty match.
+        $plan = $factory->fromArray([
+            'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => ['VOLKSWAGEN', 'AUDI']]],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'display' => 'count',
+        ], TargetDataset::RegisteredVehicles);
+
+        self::assertSame('', $plan->where[0]->value);
+        self::assertNotSame('Array', $plan->where[0]->value);
+    }
+
     public function test_rejects_unknown_display_hint(): void
     {
         $factory = $this->factory();

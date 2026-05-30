@@ -17,6 +17,7 @@ use App\Services\QueryPlan\PlanRunner;
 use App\Services\QueryPlan\PresentationFactory;
 use App\Services\QueryPlan\QueryAssembler;
 use App\Services\QueryPlan\QueryProgramFactory;
+use App\Services\QueryPlan\RefusalReason;
 use App\Services\QueryPlan\ResultNormalizer;
 use App\Services\QueryPlan\SocrataStorageTypes;
 use App\Services\QueryPlan\StepReferenceResolver;
@@ -199,6 +200,105 @@ final class RunNaturalLanguageQueryTest extends TestCase
         self::assertSame([], $result->rows);
         // Steps before the failure still appear in the ledger so the debug panel can show progress.
         self::assertCount(1, $result->steps);
+    }
+
+    public function test_maps_a_cross_dataset_overflow_to_a_too_broad_refusal(): void
+    {
+        // q1 collects plates for a later `in` join; the action forces its limit to LIST_LIMIT + 1
+        // so an over-cap match set is detectable. RDW returns that many rows, so resolving q2's
+        // `in {{q1.LicensePlate}}` overflows and the whole program degrades to a too_broad refusal.
+        $this->fakeProgram([
+            'queries' => [
+                [
+                    'id' => 'q1',
+                    'dataset' => 'RegisteredVehicles',
+                    'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => 'VOLKSWAGEN']],
+                    'select' => ['LicensePlate'],
+                    'groupBy' => [], 'aggregates' => [], 'orderBy' => [],
+                    'limit' => 1000, 'display' => 'table', 'explanation' => '',
+                ],
+                [
+                    'id' => 'q2',
+                    'dataset' => 'RegisteredVehicleFuels',
+                    'where' => [['field' => 'LicensePlate', 'op' => 'in', 'value' => '{{q1.LicensePlate}}']],
+                    'select' => [], 'groupBy' => [],
+                    'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+                    'orderBy' => [], 'limit' => null, 'display' => 'count', 'explanation' => '',
+                ],
+            ],
+            'presentation' => [
+                'resultRef' => 'q2',
+                'display' => 'count',
+                'derive' => null,
+                'explanation' => '',
+            ],
+        ]);
+
+        // One row past the cap: enough to spill q2's `in` resolution into an overflow.
+        $overCap = array_map(
+            static fn (int $i): array => ['kenteken' => sprintf('AA-%05d', $i)],
+            range(1, StepReferenceResolver::LIST_LIMIT + 1),
+        );
+        $action = $this->actionFor([$overCap]);
+
+        $result = $action->execute('How many VWs have over 150 kW?', Locale::English);
+
+        self::assertSame(DisplayHint::Unsupported, $result->plan->display);
+        self::assertNotNull($result->presentation);
+        self::assertNotNull($result->presentation->refusal);
+        self::assertSame(RefusalReason::TooBroad, $result->presentation->refusal->reason);
+
+        $expected = __('query.refusal.too_broad', [], Locale::English->value);
+        self::assertIsString($expected);
+        self::assertSame($expected, $result->presentation->explanation);
+        // q2 never ran (overflow aborts before it); q1's recorded plan proves the forced limit.
+        self::assertCount(1, $result->steps);
+        self::assertSame(StepReferenceResolver::LIST_LIMIT + 1, $result->steps[0]->plan->limit);
+    }
+
+    public function test_runs_the_dependent_query_when_a_lookup_sits_exactly_at_the_cap(): void
+    {
+        // The mirror of the overflow case: a match set *at* the cap is complete, so the forced
+        // LIST_LIMIT + 1 fetch returns only LIST_LIMIT rows and the join proceeds normally.
+        $this->fakeProgram([
+            'queries' => [
+                [
+                    'id' => 'q1',
+                    'dataset' => 'RegisteredVehicles',
+                    'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => 'LADA']],
+                    'select' => ['LicensePlate'],
+                    'groupBy' => [], 'aggregates' => [], 'orderBy' => [],
+                    'limit' => 1000, 'display' => 'table', 'explanation' => '',
+                ],
+                [
+                    'id' => 'q2',
+                    'dataset' => 'RegisteredVehicleFuels',
+                    'where' => [['field' => 'LicensePlate', 'op' => 'in', 'value' => '{{q1.LicensePlate}}']],
+                    'select' => [], 'groupBy' => [],
+                    'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+                    'orderBy' => [], 'limit' => null, 'display' => 'count', 'explanation' => 'Counts matches.',
+                ],
+            ],
+            'presentation' => [
+                'resultRef' => 'q2',
+                'display' => 'count',
+                'derive' => null,
+                'explanation' => 'Counts matches.',
+            ],
+        ]);
+
+        $atCap = array_map(
+            static fn (int $i): array => ['kenteken' => sprintf('BB-%05d', $i)],
+            range(1, StepReferenceResolver::LIST_LIMIT),
+        );
+        $action = $this->actionFor([$atCap, [['n' => '7']]]);
+
+        $result = $action->execute('How many LADAs have over 150 kW?', Locale::English);
+
+        self::assertSame(DisplayHint::Count, $result->plan->display);
+        self::assertCount(2, $result->steps);
+        // The lookup is still forced to fetch one past the cap, even though it came back complete.
+        self::assertSame(StepReferenceResolver::LIST_LIMIT + 1, $result->steps[0]->plan->limit);
     }
 
     public function test_estimates_cost_from_response_usage(): void

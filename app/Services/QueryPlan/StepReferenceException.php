@@ -6,6 +6,4 @@ namespace App\Services\QueryPlan;
 
 use RuntimeException;
 
-final class StepReferenceException extends RuntimeException
-{
-}
+class StepReferenceException extends RuntimeException {}

@@ -57,6 +57,7 @@ final class QueryControllerTest extends TestCase
         $run = QueryRun::factory()->create([
             'correlation_id' => 'abc1234567',
         ]);
+        self::assertInstanceOf(QueryRun::class, $run);
 
         $this->get(route('rdw.query.shared', ['locale' => 'en', 'slug' => $run->slug]))
             ->assertOk()

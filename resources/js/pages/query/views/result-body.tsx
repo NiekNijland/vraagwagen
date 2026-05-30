@@ -41,9 +41,11 @@ function ChartFallback() {
 export function ResultBody({
     result,
     locale,
+    onPickSuggestion,
 }: {
     result: QueryResult;
     locale: string;
+    onPickSuggestion?: (question: string) => void;
 }) {
     const { t } = useTranslation();
     const { rows, displayHint, plan } = result;
@@ -51,7 +53,12 @@ export function ResultBody({
     // Unsupported is a refusal, not a data shortage — show it before the empty
     // check so an off-topic question doesn't render as "no rows matched".
     if (displayHint === 'unsupported') {
-        return <UnsupportedView />;
+        return (
+            <UnsupportedView
+                refusal={result.presentation?.refusal}
+                onPickSuggestion={onPickSuggestion}
+            />
+        );
     }
 
     // A derived figure (percentage / ratio / group share) is computed by the
