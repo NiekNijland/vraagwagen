@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Services\QueryPlan\CostEstimator;
+use App\Services\QueryPlan\SocrataStorageTypes;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -31,6 +32,10 @@ class AppServiceProvider extends ServiceProvider
         // Share the Rdw client's SchemaRegistry so schema lookups can't diverge across collaborators.
         $this->app->singleton(SchemaRegistry::class, static fn ($app): SchemaRegistry => $app->make(Rdw::class)->schemas());
 
+        // Reads + decodes a ~30 KB Socrata metadata file per dataset and memoises it on the instance;
+        // share one instance so that work happens once per process, not once per query request.
+        $this->app->singleton(SocrataStorageTypes::class);
+
         // Bind (not singleton) so a post-boot config()->set('rdwai.model_prices') is honoured.
         $this->app->bind(CostEstimator::class, static fn (): CostEstimator => new CostEstimator(
             (array) config('rdwai.model_prices', []),
@@ -50,7 +55,7 @@ class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('rdw-query', fn (Request $request): array => [
             Limit::perMinute((int) config('rdwai.rate_limit.per_minute'))->by((string) $request->ip()),
-            Limit::perDay((int) config('rdwai.rate_limit.per_day_ip'))->by('rdw-query:ip:' . $request->ip()),
+            Limit::perDay((int) config('rdwai.rate_limit.per_day_ip'))->by('rdw-query:ip:'.$request->ip()),
             Limit::perDay((int) config('rdwai.rate_limit.per_day_global'))->by('rdw-query:global'),
         ]);
 

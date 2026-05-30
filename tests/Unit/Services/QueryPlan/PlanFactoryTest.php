@@ -519,9 +519,65 @@ final class PlanFactoryTest extends TestCase
         self::assertSame([], $plan->select);
     }
 
+    public function test_rejects_commercial_name_with_eq_against_a_literal(): void
+    {
+        $factory = $this->factory();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('CommercialName must use `contains`, not `eq`');
+
+        $factory->fromArray([
+            'where' => [['field' => 'CommercialName', 'op' => 'eq', 'value' => 'GOLF']],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'display' => 'count',
+        ], TargetDataset::RegisteredVehicles);
+    }
+
+    public function test_rejects_commercial_name_with_starts_with(): void
+    {
+        $factory = $this->factory();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('CommercialName must use `contains`, not `startsWith`');
+
+        $factory->fromArray([
+            'where' => [['field' => 'CommercialName', 'op' => 'startsWith', 'value' => 'GOLF']],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'display' => 'count',
+        ], TargetDataset::RegisteredVehicles);
+    }
+
+    public function test_allows_commercial_name_eq_when_value_is_a_step_reference(): void
+    {
+        $factory = $this->factory();
+
+        $plan = $factory->fromArray([
+            'where' => [['field' => 'CommercialName', 'op' => 'eq', 'value' => '{{q1.CommercialName}}']],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'display' => 'count',
+        ], TargetDataset::RegisteredVehicles);
+
+        self::assertSame('CommercialName', $plan->where[0]->field);
+        self::assertSame(WhereOp::Equals, $plan->where[0]->op);
+        self::assertSame('{{q1.CommercialName}}', $plan->where[0]->value);
+    }
+
+    public function test_allows_commercial_name_with_contains(): void
+    {
+        $factory = $this->factory();
+
+        $plan = $factory->fromArray([
+            'where' => [['field' => 'CommercialName', 'op' => 'contains', 'value' => 'GOLF']],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'display' => 'count',
+        ], TargetDataset::RegisteredVehicles);
+
+        self::assertSame(WhereOp::Contains, $plan->where[0]->op);
+    }
+
     private function factory(): PlanFactory
     {
-        return new PlanFactory(new SchemaRegistry());
+        return new PlanFactory(new SchemaRegistry);
     }
 
     private function planWithLimit(PlanFactory $factory, ?int $limit): Plan

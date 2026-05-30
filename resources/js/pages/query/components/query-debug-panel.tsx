@@ -25,6 +25,7 @@ export function QueryDebugPanel({
     model,
     responseBody,
     steps,
+    correlationId,
     defaultOpen = false,
 }: {
     soql?: Record<string, string>;
@@ -32,12 +33,15 @@ export function QueryDebugPanel({
     model?: string;
     responseBody?: string | null;
     steps?: Step[];
+    correlationId?: string;
     defaultOpen?: boolean;
 }) {
     const { t } = useTranslation();
     const [, copy] = useClipboard();
     const hasResponseBody = responseBody !== undefined && responseBody !== null;
     const hasModel = model !== undefined && model !== '';
+    const hasCorrelationId =
+        correlationId !== undefined && correlationId !== '';
     // Show a per-step breakdown only when the program ran more than one query;
     // a single query is already covered by the SoQL section below.
     const multiStep = steps !== undefined && steps.length > 1;
@@ -46,7 +50,8 @@ export function QueryDebugPanel({
         soql === undefined &&
         url === undefined &&
         !hasResponseBody &&
-        !hasModel
+        !hasModel &&
+        !hasCorrelationId
     ) {
         return null;
     }
@@ -127,6 +132,21 @@ export function QueryDebugPanel({
                         <pre className="overflow-x-auto rounded bg-background/80 p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
                             {formatResponseBody(responseBody)}
                         </pre>
+                    </DebugSection>
+                )}
+                {hasCorrelationId && (
+                    <DebugSection
+                        label={t('pages.query.referenceId')}
+                        actions={
+                            <CopyChip
+                                onCopy={() => copy(correlationId ?? '')}
+                                label="Copy"
+                            />
+                        }
+                    >
+                        <code className="block rounded bg-background/80 p-2 font-mono text-[11px]">
+                            {correlationId}
+                        </code>
                     </DebugSection>
                 )}
             </CollapsibleContent>

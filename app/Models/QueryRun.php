@@ -14,6 +14,7 @@ use MongoDB\Laravel\Eloquent\Model;
 /**
  * @property string $id
  * @property string $slug
+ * @property string|null $correlation_id
  * @property string $prompt
  * @property string $locale
  * @property array<string, mixed> $plan
@@ -42,6 +43,7 @@ use MongoDB\Laravel\Eloquent\Model;
  */
 #[Fillable([
     'slug',
+    'correlation_id',
     'prompt',
     'locale',
     'plan',

@@ -196,6 +196,17 @@
     background-position: center top;
     mask-image: radial-gradient(75% 65% at 50% 38%, black, transparent 85%);
     opacity: 0.9;
+    /* Drift exactly one tile so the loop is seamless on the repeating grid. */
+    animation: rdw-grid-drift 50s linear infinite;
+}
+
+@keyframes rdw-grid-drift {
+    from {
+        background-position: 0 0;
+    }
+    to {
+        background-position: 144px 144px;
+    }
 }
 
 .rdw-grid::after {
@@ -264,9 +275,23 @@
     opacity: 0.35;
     pointer-events: none;
     transition: opacity 300ms ease;
+    /* Slow breathe so the idle composer feels alive without pulling focus. */
+    animation: rdw-glow-breathe 6s ease-in-out infinite;
+}
+
+@keyframes rdw-glow-breathe {
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+    50% {
+        opacity: 0.5;
+    }
 }
 
 .rdw-composer-wrap:focus-within .rdw-composer-glow {
+    /* Focus overrides the breathe and locks the glow at full strength. */
+    animation: none;
     opacity: 0.9;
 }
 
@@ -475,7 +500,9 @@
     .rdw-spinner,
     .rdw-bar-grow,
     .rdw-result-mount,
-    .rdw-fade-in {
+    .rdw-fade-in,
+    .rdw-grid,
+    .rdw-composer-glow {
         animation: none !important;
     }
     .rdw-composer-wrap:focus-within .rdw-composer-glow {

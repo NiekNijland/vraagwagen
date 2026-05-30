@@ -3,6 +3,8 @@ import type { RenderOptions, RenderResult } from '@testing-library/react';
 import { LaravelReactI18nProvider } from 'laravel-react-internationalization';
 import type { ReactElement, ReactNode } from 'react';
 
+import { TooltipProvider } from '@/components/ui/tooltip';
+
 // Load the real translation catalogs the same way the app bootstrap does, so
 // components render the copy users actually see rather than raw keys.
 const langFiles = import.meta.glob('/lang/*.json', { eager: true });
@@ -26,7 +28,7 @@ export function renderWithI18n(
                 fallbackLocale="en"
                 files={langFiles}
             >
-                {children}
+                <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
             </LaravelReactI18nProvider>
         );
     }

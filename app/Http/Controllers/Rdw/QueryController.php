@@ -32,6 +32,9 @@ final class QueryController extends Controller
 
     private const int CLIENT_COOKIE_MINUTES = 525_600;
 
+    /** Same length as the slug — short enough to quote, long enough to be uniquely searchable. */
+    private const int CORRELATION_ID_LENGTH = 10;
+
     public function index(Request $request, string $locale, ?string $slug = null): InertiaResponse
     {
         $sharedRun = null;
@@ -46,6 +49,10 @@ final class QueryController extends Controller
 
         return Inertia::render('query/index', [
             'sharedRun' => $sharedRun,
+            // Authoritative prompt bounds so the composer's client-side limits can't drift from
+            // the server-side validation in RunQueryRequest.
+            'promptMinLength' => (int) config('rdwai.prompt.min_length', 3),
+            'promptMaxLength' => (int) config('rdwai.prompt.max_length', 2000),
         ]);
     }
 
@@ -57,11 +64,18 @@ final class QueryController extends Controller
         $prompt = $request->string('prompt')->toString();
         $locale = Locale::tryFrom(app()->getLocale()) ?? Locale::English;
 
+        // Threads every log entry, persisted QueryRun, and error response from this request so a
+        // user-reported failure can be traced back to its logs without their slug (failures never
+        // persist a row, so the slug isn't available on the error path).
+        $correlationId = Str::random(self::CORRELATION_ID_LENGTH);
+        Log::withContext(['correlation_id' => $correlationId]);
+
         try {
             $result = $action->execute($prompt, $locale);
         } catch (RateLimitException $e) {
             return response()->json([
                 'error' => __('query.errors.rate_limited', ['seconds' => $e->retryAfterSeconds]),
+                'correlationId' => $correlationId,
             ], 429);
         } catch (QueryExecutionException $e) {
             $serialisedPlan = PlanPresenter::toArray($e->plan);
@@ -82,6 +96,7 @@ final class QueryController extends Controller
                 'url' => $e->url,
                 // Raw upstream body may carry internal detail; only expose in debug.
                 'responseBody' => (bool) config('app.debug') ? $e->responseBody : null,
+                'correlationId' => $correlationId,
             ], $e->isTransient ? 504 : 422);
         } catch (InvalidArgumentException $e) {
             // Plan validation errors reference internal field names; return the localized fallback.
@@ -89,18 +104,21 @@ final class QueryController extends Controller
 
             return response()->json([
                 'error' => __('query.errors.malformed'),
+                'correlationId' => $correlationId,
             ], 422);
         } catch (RdwException $e) {
             Log::warning('RDW package error', ['message' => $e->getMessage()]);
 
             return response()->json([
                 'error' => __('query.errors.rejected'),
+                'correlationId' => $correlationId,
             ], 422);
         } catch (Throwable $e) {
             report($e);
 
             return response()->json([
                 'error' => __('query.errors.unexpected'),
+                'correlationId' => $correlationId,
             ], 500);
         }
 
@@ -121,10 +139,12 @@ final class QueryController extends Controller
             estimatedCost: $result->estimatedCost,
             steps: $steps,
             presentation: $presentation,
+            correlationId: $correlationId,
         );
 
         return response()->json([
             'slug' => $run->slug,
+            'correlationId' => $correlationId,
             'plan' => PlanPresenter::toArray($result->plan),
             'soql' => $result->soql,
             'url' => $result->url,
@@ -174,6 +194,7 @@ final class QueryController extends Controller
 
         return [
             'slug' => $run->slug,
+            'correlationId' => $run->correlation_id,
             'prompt' => $run->prompt,
             'locale' => $run->locale,
             'plan' => PlanPresenter::normalisePersisted($run->plan),

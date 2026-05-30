@@ -5,18 +5,14 @@ export type GetInitialsFn = (fullName: string) => string;
 export function useInitials(): GetInitialsFn {
     return useCallback((fullName: string): string => {
         const names = fullName.trim().split(' ');
+        const first = names[0];
 
-        if (names.length === 0) {
+        if (first === undefined || first === '') {
             return '';
         }
 
-        if (names.length === 1) {
-            return names[0].charAt(0).toUpperCase();
-        }
+        const last = names[names.length - 1] ?? first;
 
-        const firstInitial = names[0].charAt(0);
-        const lastInitial = names[names.length - 1].charAt(0);
-
-        return `${firstInitial}${lastInitial}`.toUpperCase();
+        return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
     }, []);
 }

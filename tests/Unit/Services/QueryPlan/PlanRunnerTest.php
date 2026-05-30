@@ -9,11 +9,15 @@ use App\Services\QueryPlan\AggregateClause;
 use App\Services\QueryPlan\AggregateFn;
 use App\Services\QueryPlan\Bucket;
 use App\Services\QueryPlan\DisplayHint;
+use App\Services\QueryPlan\FieldCaster;
 use App\Services\QueryPlan\GroupKey;
 use App\Services\QueryPlan\OrderClause;
 use App\Services\QueryPlan\OrderDirection;
 use App\Services\QueryPlan\Plan;
 use App\Services\QueryPlan\PlanRunner;
+use App\Services\QueryPlan\QueryAssembler;
+use App\Services\QueryPlan\ResultNormalizer;
+use App\Services\QueryPlan\SocrataStorageTypes;
 use App\Services\QueryPlan\TargetDataset;
 use App\Services\QueryPlan\WhereClause;
 use App\Services\QueryPlan\WhereOp;
@@ -26,6 +30,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Request as Psr7Request;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Cache\ArrayStore;
+use Illuminate\Cache\NullStore;
 use Illuminate\Cache\Repository;
 use InvalidArgumentException;
 use NiekNijland\RDW\Datasets\DatasetId;
@@ -141,7 +146,7 @@ final class PlanRunnerTest extends TestCase
         self::assertStringContainsString('/resource/8ys7-d773.json', $result->url);
     }
 
-    public function test_decimal_compare_on_text_stored_fuel_column_wraps_in_to_number(): void
+    public function test_decimal_compare_on_text_stored_fuel_column_casts_with_number(): void
     {
         $runner = $this->runnerReturning([]);
 
@@ -158,7 +163,7 @@ final class PlanRunnerTest extends TestCase
         );
 
         $soql = $runner->run($plan)->soql;
-        self::assertSame('to_number(nettomaximumvermogen) > 150', $soql['$where']);
+        self::assertSame('nettomaximumvermogen::number > 150', $soql['$where']);
         self::assertStringContainsString('count(distinct kenteken) AS n', $soql['$select']);
     }
 
@@ -222,12 +227,12 @@ final class PlanRunnerTest extends TestCase
             explanation: '',
         ))->soql['$where'];
 
-        self::assertSame('to_number(nettomaximumvermogen) > 150.5', $where);
+        self::assertSame('nettomaximumvermogen::number > 150.5', $where);
     }
 
     public function test_non_numeric_value_on_text_stored_fuel_comparison_is_rejected_before_reaching_soql(): void
     {
-        // Defence against SoQL injection: the to_number(...) path interpolates the value verbatim,
+        // Defence against SoQL injection: the ::number cast path interpolates the value verbatim,
         // so a non-numeric string must never reach it.
         $runner = $this->runnerReturning([]);
 
@@ -247,7 +252,7 @@ final class PlanRunnerTest extends TestCase
         ));
     }
 
-    public function test_in_op_on_text_stored_fuel_column_wraps_each_value_in_to_number(): void
+    public function test_in_op_on_text_stored_fuel_column_casts_each_value_with_number(): void
     {
         $runner = $this->runnerReturning([]);
 
@@ -264,7 +269,7 @@ final class PlanRunnerTest extends TestCase
         );
 
         self::assertSame(
-            'to_number(nettomaximumvermogen) IN (150, 200, 250)',
+            'nettomaximumvermogen::number IN (150, 200, 250)',
             $runner->run($plan)->soql['$where'],
         );
     }
@@ -289,10 +294,10 @@ final class PlanRunnerTest extends TestCase
         ));
     }
 
-    public function test_decimal_compare_on_vehicles_dataset_does_not_wrap_in_to_number(): void
+    public function test_decimal_compare_on_vehicles_dataset_does_not_cast_with_number(): void
     {
-        // Lock-in for the per-column allowlist: CatalogPrice lives on RegisteredVehicles (stored as
-        // a real number), so the to_number wrap must never be applied.
+        // Lock-in for the storage-type lookup: CatalogPrice lives on RegisteredVehicles (stored as
+        // a real number), so the ::number cast must never be applied.
         $runner = $this->runnerReturning([]);
 
         $where = $runner->run(new Plan(
@@ -308,7 +313,98 @@ final class PlanRunnerTest extends TestCase
         ))->soql['$where'];
 
         self::assertSame('catalogusprijs > 50000', $where);
-        self::assertStringNotContainsString('to_number', $where);
+        self::assertStringNotContainsString('::number', $where);
+    }
+
+    public function test_avg_on_text_stored_fuel_column_casts_the_column_to_number(): void
+    {
+        // avg() on a text-stored numeric is rejected by Socrata (HTTP 400) unless the column is
+        // first cast with ::number.
+        $runner = $this->runnerReturning([]);
+
+        $plan = new Plan(
+            where: [],
+            select: [],
+            groupBy: [],
+            aggregates: [new AggregateClause(AggregateFn::Avg, 'NetMaximumPower', 'avg_power')],
+            orderBy: [],
+            limit: null,
+            display: DisplayHint::Stats,
+            explanation: '',
+            dataset: TargetDataset::RegisteredVehicleFuels,
+        );
+
+        self::assertSame(
+            'avg(nettomaximumvermogen::number) AS avg_power',
+            $runner->run($plan)->soql['$select'],
+        );
+    }
+
+    public function test_max_on_text_stored_fuel_column_casts_to_number_to_avoid_lexicographic_order(): void
+    {
+        // Without the cast, max() compares "99" > "100" lexicographically and returns the wrong row.
+        $runner = $this->runnerReturning([]);
+
+        $plan = new Plan(
+            where: [],
+            select: [],
+            groupBy: [],
+            aggregates: [new AggregateClause(AggregateFn::Max, 'NetMaximumPower', 'max_power')],
+            orderBy: [],
+            limit: null,
+            display: DisplayHint::Stats,
+            explanation: '',
+            dataset: TargetDataset::RegisteredVehicleFuels,
+        );
+
+        self::assertSame(
+            'max(nettomaximumvermogen::number) AS max_power',
+            $runner->run($plan)->soql['$select'],
+        );
+    }
+
+    public function test_orderby_on_text_stored_fuel_column_casts_to_number(): void
+    {
+        $runner = $this->runnerReturning([]);
+
+        $plan = new Plan(
+            where: [],
+            select: ['LicensePlate', 'NetMaximumPower'],
+            groupBy: [],
+            aggregates: [],
+            orderBy: [new OrderClause('NetMaximumPower', OrderDirection::Desc)],
+            limit: 1,
+            display: DisplayHint::Table,
+            explanation: '',
+            dataset: TargetDataset::RegisteredVehicleFuels,
+        );
+
+        $soql = $runner->run($plan)->soql;
+        self::assertStringContainsString('nettomaximumvermogen::number DESC', $soql['$order']);
+        // The null-skip guard still applies so the extreme row is never an empty cell.
+        self::assertStringContainsString('nettomaximumvermogen IS NOT NULL', $soql['$where']);
+    }
+
+    public function test_avg_on_real_numeric_vehicles_column_does_not_cast_with_number(): void
+    {
+        // CatalogPrice on RegisteredVehicles is a real number; casting it would be wasted work.
+        $runner = $this->runnerReturning([]);
+
+        $plan = new Plan(
+            dataset: TargetDataset::RegisteredVehicles,
+            where: [],
+            select: [],
+            groupBy: [],
+            aggregates: [new AggregateClause(AggregateFn::Avg, 'CatalogPrice', 'avg_price')],
+            orderBy: [],
+            limit: null,
+            display: DisplayHint::Stats,
+            explanation: '',
+        );
+
+        $select = $runner->run($plan)->soql['$select'];
+        self::assertStringContainsString('avg(catalogusprijs) AS avg_price', $select);
+        self::assertStringNotContainsString('::number', $select);
     }
 
     public function test_in_op_emits_a_soql_in_clause_with_normalised_plates(): void
@@ -679,14 +775,14 @@ final class PlanRunnerTest extends TestCase
     public function test_unsupported_display_short_circuits_without_hitting_rdw(): void
     {
         // No response queued: any RDW call would make the MockHandler throw.
-        $mock = new MockHandler();
+        $mock = new MockHandler;
         $stack = HandlerStack::create($mock);
         $guzzle = new GuzzleClient([
             'base_uri' => 'https://opendata.rdw.nl/',
             'handler' => $stack,
         ]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
-        $runner = new PlanRunner($rdw);
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        $runner = self::makeRunner($rdw);
 
         $result = $runner->run(new Plan(
             dataset: TargetDataset::RegisteredVehicles,
@@ -772,7 +868,7 @@ final class PlanRunnerTest extends TestCase
         // Higher-level test (cache_key_distinguishes_datasets_for_identical_soql) compares URLs;
         // this one asserts at the store level so a regression in cacheKey() can't hide behind a
         // matching URL after a refactor.
-        $store = new class() extends ArrayStore
+        $store = new class extends ArrayStore
         {
             /** @var list<string> */
             public array $keys = [];
@@ -790,9 +886,9 @@ final class PlanRunnerTest extends TestCase
             new Psr7Response(200, ['Content-Type' => 'application/json'], '[]'),
         ]));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
 
-        $runner = new PlanRunner($rdw, cache: new Repository($store), retryBackoffMs: 0);
+        $runner = self::makeRunner($rdw, cache: new Repository($store), retryBackoffMs: 0);
 
         $aggregate = [new AggregateClause(AggregateFn::Count, null, 'n')];
         $runner->run(new Plan(
@@ -820,8 +916,8 @@ final class PlanRunnerTest extends TestCase
 
         self::assertCount(2, $store->keys);
         self::assertNotSame($store->keys[0], $store->keys[1]);
-        self::assertStringContainsString(':' . DatasetId::RegisteredVehicles->value . ':', $store->keys[0]);
-        self::assertStringContainsString(':' . DatasetId::RegisteredVehicleFuels->value . ':', $store->keys[1]);
+        self::assertStringContainsString(':'.DatasetId::RegisteredVehicles->value.':', $store->keys[0]);
+        self::assertStringContainsString(':'.DatasetId::RegisteredVehicleFuels->value.':', $store->keys[1]);
     }
 
     public function test_identical_soql_is_served_from_cache_without_a_second_rdw_call(): void
@@ -833,9 +929,9 @@ final class PlanRunnerTest extends TestCase
             ], JSON_THROW_ON_ERROR)),
         ]));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
 
-        $runner = new PlanRunner($rdw, cache: new Repository(new ArrayStore()), retryBackoffMs: 0);
+        $runner = self::makeRunner($rdw, cache: new Repository(new ArrayStore), retryBackoffMs: 0);
 
         $first = $runner->run($this->colorCountPlan());
         $second = $runner->run($this->colorCountPlan());
@@ -849,7 +945,7 @@ final class PlanRunnerTest extends TestCase
     public function test_cache_key_is_scoped_by_dataset_and_day_and_ttl_is_tiered_by_cost(): void
     {
         // Capture the (key, ttl) handed to the store on each miss.
-        $store = new class() extends ArrayStore
+        $store = new class extends ArrayStore
         {
             /** @var list<array{key: string, ttl: int}> */
             public array $puts = [];
@@ -871,9 +967,9 @@ final class PlanRunnerTest extends TestCase
             ], JSON_THROW_ON_ERROR)),
         ]));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
 
-        $runner = new PlanRunner($rdw, cache: new Repository($store), retryBackoffMs: 0);
+        $runner = self::makeRunner($rdw, cache: new Repository($store), retryBackoffMs: 0);
 
         // Aggregate path → long (daily) TTL.
         $runner->run($this->colorCountPlan());
@@ -909,7 +1005,7 @@ final class PlanRunnerTest extends TestCase
     {
         // A full page means "there may be more" so the runner fetches the next; a short page ends it.
         $page1 = array_map(
-            static fn (int $i): array => ['eerste_kleur' => 'C' . $i, 'n' => (string) $i],
+            static fn (int $i): array => ['eerste_kleur' => 'C'.$i, 'n' => (string) $i],
             range(1, 1000),
         );
         $page2 = [
@@ -924,8 +1020,8 @@ final class PlanRunnerTest extends TestCase
         ]));
         $stack->push(Middleware::history($transactions));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
-        $runner = new PlanRunner($rdw, cache: new Repository(new ArrayStore()), retryBackoffMs: 0);
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        $runner = self::makeRunner($rdw, cache: new Repository(new ArrayStore), retryBackoffMs: 0);
 
         $result = $runner->run(new Plan(
             dataset: TargetDataset::RegisteredVehicles,
@@ -957,7 +1053,7 @@ final class PlanRunnerTest extends TestCase
     {
         // An explicit limit is an intentional bound, so it stays a single request.
         $rows = array_map(
-            static fn (int $i): array => ['eerste_kleur' => 'C' . $i, 'n' => (string) $i],
+            static fn (int $i): array => ['eerste_kleur' => 'C'.$i, 'n' => (string) $i],
             range(1, 1000),
         );
         $runner = $this->runnerForQueue([
@@ -985,7 +1081,7 @@ final class PlanRunnerTest extends TestCase
         // With the ceiling at 2500 the runner takes three full pages (3000 rows) and stops.
         $fullPage = static fn (string $tag): string => json_encode(
             array_map(
-                static fn (int $i): array => ['eerste_kleur' => $tag . $i, 'n' => (string) $i],
+                static fn (int $i): array => ['eerste_kleur' => $tag.$i, 'n' => (string) $i],
                 range(1, 1000),
             ),
             JSON_THROW_ON_ERROR,
@@ -997,10 +1093,10 @@ final class PlanRunnerTest extends TestCase
             new Psr7Response(200, ['Content-Type' => 'application/json'], $fullPage('C')),
         ]));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
-        $runner = new PlanRunner(
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        $runner = self::makeRunner(
             $rdw,
-            cache: new Repository(new ArrayStore()),
+            cache: new Repository(new ArrayStore),
             retryBackoffMs: 0,
             maxProjectionRows: 2500,
         );
@@ -1036,7 +1132,7 @@ final class PlanRunnerTest extends TestCase
     }
 
     /**
-     * @param list<array<string, mixed>> $rows
+     * @param  list<array<string, mixed>>  $rows
      */
     private function runnerReturning(array $rows): PlanRunner
     {
@@ -1046,7 +1142,7 @@ final class PlanRunnerTest extends TestCase
     }
 
     /**
-     * @param list<Psr7Response|Throwable> $queue
+     * @param  list<Psr7Response|Throwable>  $queue
      */
     private function runnerForQueue(array $queue): PlanRunner
     {
@@ -1056,9 +1152,36 @@ final class PlanRunnerTest extends TestCase
             'handler' => $stack,
         ]);
 
-        $socrata = new SocrataClient(new RdwConfiguration(), $guzzle);
+        $socrata = new SocrataClient(new RdwConfiguration, $guzzle);
         $rdw = new Rdw(http: $socrata);
 
-        return new PlanRunner($rdw, maxAttempts: 2, retryBackoffMs: 0);
+        return self::makeRunner($rdw, maxAttempts: 2, retryBackoffMs: 0);
+    }
+
+    private static function makeRunner(
+        Rdw $rdw,
+        ?Repository $cache = null,
+        int $maxAttempts = 1,
+        int $retryBackoffMs = 0,
+        ?int $maxProjectionRows = null,
+    ): PlanRunner {
+        $storageTypes = new SocrataStorageTypes($rdw->schemas());
+        $assembler = new QueryAssembler($rdw, $storageTypes, new FieldCaster($rdw->schemas()));
+        $normalizer = new ResultNormalizer($rdw->schemas());
+
+        return $maxProjectionRows !== null
+            ? new PlanRunner(
+                $rdw, $assembler, $normalizer,
+                cache: $cache ?? new Repository(new NullStore),
+                maxAttempts: $maxAttempts,
+                retryBackoffMs: $retryBackoffMs,
+                maxProjectionRows: $maxProjectionRows,
+            )
+            : new PlanRunner(
+                $rdw, $assembler, $normalizer,
+                cache: $cache ?? new Repository(new NullStore),
+                maxAttempts: $maxAttempts,
+                retryBackoffMs: $retryBackoffMs,
+            );
     }
 }

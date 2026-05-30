@@ -45,9 +45,10 @@ export function LanguageSwitcher() {
         const pathSegments = window.location.pathname
             .split('/')
             .filter(Boolean);
+        const firstSegment = pathSegments[0];
         const hasLocalePrefix =
-            pathSegments.length > 0 &&
-            supportedLocales.includes(pathSegments[0]);
+            firstSegment !== undefined &&
+            supportedLocales.includes(firstSegment);
 
         if (!hasLocalePrefix) {
             // No locale in the URL: do a full Inertia POST so the backend can

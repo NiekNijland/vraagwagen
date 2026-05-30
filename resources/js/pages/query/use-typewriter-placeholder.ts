@@ -3,9 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 function shuffleArray<T>(input: readonly T[]): T[] {
     const out = [...input];
 
+    // In-bounds indices by construction; the `!` keeps tsc quiet under noUncheckedIndexedAccess.
     for (let i = out.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [out[i], out[j]] = [out[j], out[i]];
+        [out[i], out[j]] = [out[j]!, out[i]!];
     }
 
     return out;
@@ -45,7 +46,7 @@ export function useTypewriterPlaceholder(
             return;
         }
 
-        const current = shuffled[index % shuffled.length];
+        const current = shuffled[index % shuffled.length] ?? '';
         let delay: number;
 
         if (phase === 'typing') {
@@ -84,7 +85,7 @@ export function useTypewriterPlaceholder(
         return fallback;
     }
 
-    const current = shuffled[index % shuffled.length];
+    const current = shuffled[index % shuffled.length] ?? '';
 
     return current.slice(0, count) + '▍';
 }

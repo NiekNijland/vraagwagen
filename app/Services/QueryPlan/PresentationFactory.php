@@ -9,8 +9,8 @@ use InvalidArgumentException;
 final class PresentationFactory
 {
     /**
-     * @param array<string, mixed> $data
-     * @param list<string> $queryIds
+     * @param  array<string, mixed>  $data
+     * @param  list<string>  $queryIds
      */
     public function fromArray(array $data, array $queryIds): Presentation
     {
@@ -44,7 +44,7 @@ final class PresentationFactory
     }
 
     /**
-     * @param list<string> $queryIds
+     * @param  list<string>  $queryIds
      */
     private function parseDerive(mixed $raw, array $queryIds): ?Derive
     {
@@ -81,12 +81,17 @@ final class PresentationFactory
     }
 
     /**
-     * @param list<string> $queryIds
+     * @param  list<string>  $queryIds
      */
     private function requireQueryRef(mixed $raw, string $field, array $queryIds): string
     {
         $ref = (string) ($raw ?? '');
-        if (! in_array($ref, $queryIds, true)) {
+
+        // The model often references a query's column ("q1.n", "q2.electric_count"); the derive only
+        // needs the query id, so strip any trailing ".field" before validating.
+        $id = str_contains($ref, '.') ? substr($ref, 0, (int) strpos($ref, '.')) : $ref;
+
+        if (! in_array($id, $queryIds, true)) {
             throw new InvalidArgumentException(sprintf(
                 '%s "%s" is not one of the program queries [%s].',
                 $field,
@@ -95,7 +100,7 @@ final class PresentationFactory
             ));
         }
 
-        return $ref;
+        return $id;
     }
 
     private function parseDisplay(mixed $raw): DisplayHint

@@ -6,7 +6,12 @@ namespace Tests\Feature\Rdw;
 
 use App\Actions\Rdw\RunNaturalLanguageQuery;
 use App\Ai\Agents\QueryProgramAgent;
+use App\Models\QueryRun;
+use App\Services\QueryPlan\FieldCaster;
 use App\Services\QueryPlan\PlanRunner;
+use App\Services\QueryPlan\QueryAssembler;
+use App\Services\QueryPlan\ResultNormalizer;
+use App\Services\QueryPlan\SocrataStorageTypes;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
@@ -32,6 +37,32 @@ final class QueryControllerTest extends TestCase
         $this->get(route('home'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('query/index'));
+    }
+
+    public function test_index_exposes_authoritative_prompt_bounds_to_the_page(): void
+    {
+        config()->set('rdwai.prompt.min_length', 5);
+        config()->set('rdwai.prompt.max_length', 1234);
+
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('promptMinLength', 5)
+                ->where('promptMaxLength', 1234)
+            );
+    }
+
+    public function test_index_serializes_the_shared_runs_correlation_id(): void
+    {
+        $run = QueryRun::factory()->create([
+            'correlation_id' => 'abc1234567',
+        ]);
+
+        $this->get(route('rdw.query.shared', ['locale' => 'en', 'slug' => $run->slug]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('sharedRun.correlationId', 'abc1234567')
+            );
     }
 
     public function test_run_returns_plan_rows_and_soql_for_a_well_formed_response(): void
@@ -275,17 +306,54 @@ final class QueryControllerTest extends TestCase
 
     public function test_run_validates_prompt_length(): void
     {
+        $maxLength = (int) config('rdwai.prompt.max_length', 2000);
+
         $this->postJson(route('rdw.query.run'), ['prompt' => 'no'])
             ->assertStatus(422)
             ->assertJsonValidationErrors('prompt');
 
-        $this->postJson(route('rdw.query.run'), ['prompt' => str_repeat('x', 501)])
+        $this->postJson(route('rdw.query.run'), ['prompt' => str_repeat('x', $maxLength + 1)])
             ->assertStatus(422)
             ->assertJsonValidationErrors('prompt');
 
         $this->postJson(route('rdw.query.run'), [])
             ->assertStatus(422)
             ->assertJsonValidationErrors('prompt');
+    }
+
+    public function test_run_returns_a_correlation_id_on_success_and_persists_it(): void
+    {
+        $this->fakeQueryPlan([
+            'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => 'VOLKSWAGEN']],
+            'select' => [], 'groupBy' => [],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'orderBy' => [], 'limit' => 10, 'display' => 'count', 'explanation' => '',
+        ]);
+        $this->fakeRdwWithRows([['n' => '42']]);
+
+        $response = $this->postJson(route('rdw.query.run'), ['prompt' => 'How many VWs'])
+            ->assertOk();
+
+        $correlationId = $response->json('correlationId');
+        self::assertIsString($correlationId);
+        self::assertNotSame('', $correlationId);
+
+        $run = QueryRun::query()->where('slug', $response->json('slug'))->first();
+        self::assertInstanceOf(QueryRun::class, $run);
+        self::assertSame($correlationId, $run->correlation_id);
+    }
+
+    public function test_run_returns_a_correlation_id_on_validation_error(): void
+    {
+        $this->fakeQueryPlan([
+            'where' => [['field' => 'NotAField', 'op' => 'eq', 'value' => 'x']],
+            'select' => [], 'groupBy' => [], 'aggregates' => [], 'orderBy' => [],
+            'limit' => 10, 'display' => 'table', 'explanation' => '',
+        ]);
+
+        $this->postJson(route('rdw.query.run'), ['prompt' => 'broken query'])
+            ->assertStatus(422)
+            ->assertJsonStructure(['correlationId']);
     }
 
     public function test_run_returns_422_with_malformed_message_when_plan_validation_fails(): void
@@ -393,7 +461,7 @@ final class QueryControllerTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $plan
+     * @param  array<string, mixed>  $plan
      */
     private function fakeQueryPlan(array $plan, ?Usage $usage = null, string $model = 'fake'): void
     {
@@ -409,7 +477,7 @@ final class QueryControllerTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $program
+     * @param  array<string, mixed>  $program
      */
     private function fakeProgram(array $program, ?Usage $usage = null, string $model = 'fake'): void
     {
@@ -417,14 +485,14 @@ final class QueryControllerTest extends TestCase
             new StructuredTextResponse(
                 $program,
                 json_encode($program, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage(),
+                $usage ?? new Usage,
                 new Meta('openai', $model),
             ),
         ]);
     }
 
     /**
-     * @param list<array<string, mixed>> $rows
+     * @param  list<array<string, mixed>>  $rows
      */
     private function fakeRdwWithRows(array $rows): void
     {
@@ -444,7 +512,7 @@ final class QueryControllerTest extends TestCase
     }
 
     /**
-     * @param list<Psr7Response|Throwable> $queue
+     * @param  list<Psr7Response|Throwable>  $queue
      */
     private function fakeRdwWithQueue(array $queue): void
     {
@@ -455,8 +523,14 @@ final class QueryControllerTest extends TestCase
             'handler' => $stack,
         ]);
 
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
         $this->app->instance(Rdw::class, $rdw);
-        $this->app->instance(PlanRunner::class, new PlanRunner($rdw, maxAttempts: 2, retryBackoffMs: 0));
+        $storageTypes = new SocrataStorageTypes($rdw->schemas());
+        $assembler = new QueryAssembler($rdw, $storageTypes, new FieldCaster($rdw->schemas()));
+        $normalizer = new ResultNormalizer($rdw->schemas());
+        $this->app->instance(
+            PlanRunner::class,
+            new PlanRunner($rdw, $assembler, $normalizer, maxAttempts: 2, retryBackoffMs: 0),
+        );
     }
 }

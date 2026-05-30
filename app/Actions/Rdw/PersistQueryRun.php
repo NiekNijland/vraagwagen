@@ -22,10 +22,10 @@ final class PersistQueryRun
     private const int DUPLICATE_KEY_CODE = 11000;
 
     /**
-     * @param list<array<string, mixed>> $rows
-     * @param array<string, string> $soql
-     * @param list<array<string, mixed>> $steps
-     * @param array<string, mixed>|null $presentation
+     * @param  list<array<string, mixed>>  $rows
+     * @param  array<string, string>  $soql
+     * @param  list<array<string, mixed>>  $steps
+     * @param  array<string, mixed>|null  $presentation
      */
     public function execute(
         string $prompt,
@@ -40,8 +40,10 @@ final class PersistQueryRun
         ?float $estimatedCost,
         array $steps = [],
         ?array $presentation = null,
+        ?string $correlationId = null,
     ): QueryRun {
         $attributes = [
+            'correlation_id' => $correlationId,
             'prompt' => $prompt,
             'locale' => $locale,
             'plan' => PlanPresenter::toArray($plan),

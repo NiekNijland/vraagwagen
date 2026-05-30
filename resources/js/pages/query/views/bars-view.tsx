@@ -13,9 +13,16 @@ import {
     ChartTooltipContent,
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
+import { useCountUp } from '@/hooks/use-count-up';
 
 import { findNumericKey, formatBucketLabel, formatNumber } from '../format';
 import type { Bucket, Plan, QueryRow } from '../types';
+
+// Each bar reads comfortably at this row height; the plot height scales with the
+// bar count so a handful of categories doesn't sit in a half-empty 360px box.
+const ROW_HEIGHT = 44;
+const MIN_CHART_HEIGHT = 160;
+const MAX_CHART_HEIGHT = 560;
 
 export function BarsView({
     rows,
@@ -54,6 +61,20 @@ export function BarsView({
         .sort((a, b) => b.value - a.value)
         .slice(0, 25);
 
+    // A single category has nothing to compare against, so a lone bar in a tall
+    // plot just reads as empty space. Show it as a headline figure instead.
+    if (data.length === 1) {
+        const sole = data[0]!;
+
+        return (
+            <SingleValue
+                label={sole.label}
+                value={sole.value}
+                locale={locale}
+            />
+        );
+    }
+
     const config = {
         value: {
             label: plan.aggregates[0]?.alias ?? 'count',
@@ -61,16 +82,17 @@ export function BarsView({
         },
     } satisfies ChartConfig;
 
-    // Single-bar charts stretch the bar to the full plot width, which pushes a
-    // `position="right"` label off the chart; render it inside the bar instead.
-    const labelPosition = data.length === 1 ? 'insideRight' : 'right';
-    const labelClass =
-        data.length === 1
-            ? 'fill-primary-foreground text-xs font-medium'
-            : 'fill-foreground text-xs';
+    const chartHeight = Math.min(
+        MAX_CHART_HEIGHT,
+        Math.max(MIN_CHART_HEIGHT, data.length * ROW_HEIGHT),
+    );
 
     return (
-        <ChartContainer config={config} className="h-[360px] w-full">
+        <ChartContainer
+            config={config}
+            className="w-full"
+            style={{ height: chartHeight }}
+        >
             <BarChart
                 data={data}
                 layout="vertical"
@@ -97,12 +119,33 @@ export function BarsView({
                 >
                     <LabelList
                         dataKey="value"
-                        position={labelPosition}
-                        className={labelClass}
+                        position="right"
+                        className="fill-foreground text-xs"
                         formatter={(v) => formatNumber(v, locale)}
                     />
                 </Bar>
             </BarChart>
         </ChartContainer>
+    );
+}
+
+function SingleValue({
+    label,
+    value,
+    locale,
+}: {
+    label: string;
+    value: number;
+    locale: string;
+}) {
+    const animated = useCountUp(value, 900, true);
+
+    return (
+        <div className="flex flex-col items-center py-6 text-center">
+            <div className="text-5xl font-semibold tracking-[-0.03em] text-[var(--rdw-orange)] tabular-nums">
+                {formatNumber(Math.round(animated), locale)}
+            </div>
+            <div className="mt-1 text-sm text-muted-foreground">{label}</div>
+        </div>
     );
 }

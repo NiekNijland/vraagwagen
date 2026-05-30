@@ -14,7 +14,12 @@ final class RunQueryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'prompt' => ['required', 'string', 'min:3', 'max:500'],
+            'prompt' => [
+                'required',
+                'string',
+                'min:'.(int) config('rdwai.prompt.min_length', 3),
+                'max:'.(int) config('rdwai.prompt.max_length', 2000),
+            ],
         ];
     }
 }

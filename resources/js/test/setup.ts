@@ -10,11 +10,14 @@ afterEach(() => {
 });
 
 // jsdom ships none of the layout/observer APIs the chart and theme code touch.
-// Stub them once here so component tests don't each have to.
+// Stub them once here so component tests don't each have to. Report
+// `prefers-reduced-motion: reduce` as a match so count-ups and the typewriter
+// resolve to their final value synchronously — tests assert outcomes, not
+// animation frames, and this keeps them off real-timer waits.
 if (typeof window.matchMedia !== 'function') {
     window.matchMedia = (query: string) =>
         ({
-            matches: false,
+            matches: query.includes('prefers-reduced-motion'),
             media: query,
             onchange: null,
             addListener: vi.fn(),

@@ -190,7 +190,14 @@ export function formatBucketLabel(
     // would parse as UTC midnight and shift a day earlier west of UTC.
     const [year, month, day] = value.slice(0, 10).split('-').map(Number);
 
-    if (![year, month, day].every(Number.isFinite)) {
+    if (
+        year === undefined ||
+        month === undefined ||
+        day === undefined ||
+        !Number.isFinite(year) ||
+        !Number.isFinite(month) ||
+        !Number.isFinite(day)
+    ) {
         return value;
     }
 
@@ -273,9 +280,13 @@ export function fillTimeBuckets(
         valueByDay.set(point.x.slice(0, 10), point.value);
     }
 
+    // length ≥ 2 guarantees first and last exist; the assertions keep tsc happy
+    // under noUncheckedIndexedAccess without runtime ceremony.
+    const first = points[0]!;
+    const last = points[points.length - 1]!;
     const keys = enumerateBuckets(
-        points[0].x.slice(0, 10),
-        points[points.length - 1].x.slice(0, 10),
+        first.x.slice(0, 10),
+        last.x.slice(0, 10),
         granularity,
     );
 
@@ -301,7 +312,15 @@ function enumerateBuckets(
     const [fy, fm, fd] = first.split('-').map(Number);
     const [ly, lm, ld] = last.split('-').map(Number);
 
-    if ([fy, fm, fd, ly, lm, ld].some((n) => !Number.isFinite(n))) {
+    if (
+        fy === undefined ||
+        fm === undefined ||
+        fd === undefined ||
+        ly === undefined ||
+        lm === undefined ||
+        ld === undefined ||
+        [fy, fm, fd, ly, lm, ld].some((n) => !Number.isFinite(n))
+    ) {
         return [];
     }
 

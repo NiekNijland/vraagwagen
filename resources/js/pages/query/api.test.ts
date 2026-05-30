@@ -28,7 +28,8 @@ describe('postJson', () => {
         await postJson('/api/query', { prompt: 'hi' }, signal);
 
         expect(fetchMock).toHaveBeenCalledTimes(1);
-        const [path, options] = fetchMock.mock.calls[0];
+        const call = fetchMock.mock.calls[0]!;
+        const [path, options] = call;
         expect(path).toBe('/api/query');
         expect(options.method).toBe('POST');
         expect(options.body).toBe(JSON.stringify({ prompt: 'hi' }));
@@ -42,14 +43,14 @@ describe('postJson', () => {
 
         await postJson('/api/query', {});
 
-        const options = fetchMock.mock.calls[0][1];
+        const options = fetchMock.mock.calls[0]![1];
         expect(options.headers['X-CSRF-TOKEN']).toBe('tok-123');
     });
 
     it('omits the CSRF header when no meta tag exists', async () => {
         await postJson('/api/query', {});
 
-        const options = fetchMock.mock.calls[0][1];
+        const options = fetchMock.mock.calls[0]![1];
         expect(options.headers['X-CSRF-TOKEN']).toBeUndefined();
     });
 });

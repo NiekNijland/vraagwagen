@@ -105,6 +105,7 @@
     "pages.query.url": "Verzoek-URL",
     "pages.query.model": "Model",
     "pages.query.rdwResponse": "RDW antwoord",
+    "pages.query.referenceId": "Referentie-ID",
     "pages.query.noRows": "Geen voertuigen gevonden voor deze zoekopdracht.",
     "pages.query.tableTruncated": "De eerste :shown van :total rijen worden getoond.",
     "pages.query.matchingVehicles": "overeenkomende voertuigen",

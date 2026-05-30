@@ -26,7 +26,7 @@ export function CountView({
             raw.trim() !== '' &&
             Number.isFinite(Number(raw)));
     const target = isNumeric ? Number(raw) : 0;
-    const animated = useCountUp(target, 900);
+    const animated = useCountUp(target, 900, true);
 
     const display = isNumeric
         ? Math.round(animated).toLocaleString(localeTag(locale))

@@ -7,6 +7,8 @@ namespace Tests\Unit\Services\QueryPlan;
 use App\Enums\Locale;
 use App\Services\QueryPlan\DisplayHint;
 use App\Services\QueryPlan\PromptBuilder;
+use App\Services\QueryPlan\TargetDataset;
+use NiekNijland\RDW\Datasets\DatasetId;
 use NiekNijland\RDW\Schema\SchemaRegistry;
 use PHPUnit\Framework\TestCase;
 
@@ -150,7 +152,9 @@ final class PromptBuilderTest extends TestCase
         // The worked kW example threads both datasets through a percentage derive.
         self::assertStringContainsString('What percentage of cars have more than 150 kW', $prompt);
         self::assertStringContainsString('q1 (dataset: RegisteredVehicleFuels)', $prompt);
-        self::assertStringContainsString('derive percentage(numerator q1.n, denominator q2.n)', $prompt);
+        // Derive operands are bare query ids, matching the schema (the engine reads each query's
+        // single aggregate); the factory still tolerates a "q1.n" column ref defensively.
+        self::assertStringContainsString('derive percentage(numerator q1, denominator q2)', $prompt);
     }
 
     public function test_prompt_documents_cross_dataset_filtering_via_in_op(): void
@@ -167,6 +171,76 @@ final class PromptBuilderTest extends TestCase
         self::assertStringContainsString('Toyotas over 150 kW', $prompt);
     }
 
+    public function test_prompt_steers_extreme_single_vehicle_to_orderby_not_a_max_aggregate(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        // "the most expensive car" must order + limit 1, never a min/max aggregate over a unique key.
+        self::assertStringContainsString('Which car is the most expensive?', $prompt);
+        self::assertStringContainsString('do **not** use a `min`/`max` aggregate', $prompt);
+    }
+
+    public function test_prompt_refuses_questions_that_need_data_neither_dataset_holds(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        // Gender/demographic questions ("most popular among women") have no backing column.
+        self::assertStringContainsString('neither dataset contains', $prompt);
+        self::assertStringContainsString('silently drop the unanswerable part', $prompt);
+    }
+
+    public function test_prompt_places_fuel_type_on_the_fuels_dataset(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('fuel type / brandstofsoort', $prompt);
+        self::assertStringContainsString('FuelDescription', $prompt);
+    }
+
+    public function test_prompt_documents_the_title_case_fuel_description_values(): void
+    {
+        // The package ships no vocabulary for brandstof_omschrijving, so the exact Title-Case values
+        // are spelled out — `eq BENZINE` silently matches zero rows.
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('Benzine, Diesel, Elektriciteit', $prompt);
+        self::assertStringContainsString('fuel descriptions are Title Case', $prompt);
+    }
+
+    public function test_prompt_does_not_present_hybrid_as_a_fuel_description_value(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        // "hybrid" is not a FuelDescription value; filtering FuelDescription eq Hybride matches zero rows.
+        self::assertStringNotContainsString('diesel, hybrid', $prompt);
+        self::assertStringContainsString('not** a `FuelDescription` value', $prompt);
+        self::assertStringContainsString('more than one fuel row', $prompt);
+    }
+
+    public function test_prompt_states_the_one_to_four_query_cap(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        // The schema caps a program at 4 queries; the prose must say so too.
+        self::assertStringContainsString('1 to 4', $prompt);
+    }
+
+    public function test_prompt_refusal_limit_matches_what_the_factory_emits(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        // PlanFactory rebuilds an unsupported plan with limit: 1, so the prompt must not tell the
+        // model to emit limit: null for a refusal — that contradiction confuses the model.
+        self::assertStringContainsString('`orderBy` empty, `limit: 1`', $prompt);
+    }
+
+    public function test_prompt_requires_a_group_share_derive_for_percentage_questions(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('never** answer a percentage question with a bare breakdown', $prompt);
+    }
+
     public function test_prompt_picks_explanation_language_from_locale(): void
     {
         $builder = $this->builder();
@@ -181,8 +255,69 @@ final class PromptBuilderTest extends TestCase
         );
     }
 
+    public function test_every_field_named_in_the_prompt_still_exists_in_the_schema(): void
+    {
+        // Prose mentions of field-style names inside the prompt that the LLM is expected to copy
+        // verbatim into a plan. If one of these is renamed in the RDW schema (or removed) without
+        // a matching prompt update, model output starts referencing fields PlanFactory will reject.
+        $vehiclesFields = [
+            'Brand', 'CommercialName', 'PrimaryColor', 'VehicleType', 'LicensePlate',
+            'RegistrationDate', 'FirstAdmissionDate', 'FirstNetherlandsRegistrationDate',
+            'ApkExpiryDate', 'TachographExpiryDate', 'BpmDepreciationApprovalDate',
+            'EmptyMass', 'PowerToReadyMassRatio',
+        ];
+        $fuelsFields = ['LicensePlate', 'NetMaximumPower', 'FuelDescription'];
+
+        $schemas = new SchemaRegistry;
+        $vehicles = $schemas->get(DatasetId::RegisteredVehicles);
+        $fuels = $schemas->get(DatasetId::RegisteredVehicleFuels);
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        foreach ($vehiclesFields as $field) {
+            self::assertArrayHasKey(
+                $field,
+                $vehicles->byEnumCase,
+                "Prompt names `{$field}` on RegisteredVehicles but that field is no longer in the schema.",
+            );
+            self::assertStringContainsString(
+                $field,
+                $prompt,
+                "Expected the system prompt to mention RegisteredVehicles.{$field}.",
+            );
+        }
+
+        foreach ($fuelsFields as $field) {
+            self::assertArrayHasKey(
+                $field,
+                $fuels->byEnumCase,
+                "Prompt names `{$field}` on RegisteredVehicleFuels but that field is no longer in the schema.",
+            );
+            self::assertStringContainsString(
+                $field,
+                $prompt,
+                "Expected the system prompt to mention RegisteredVehicleFuels.{$field}.",
+            );
+        }
+    }
+
+    public function test_both_dataset_names_in_the_prompt_match_the_target_dataset_enum(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('RegisteredVehicles', $prompt);
+        self::assertStringContainsString('RegisteredVehicleFuels', $prompt);
+        // If a dataset is renamed in the TargetDataset enum the prompt's examples become invalid.
+        foreach (TargetDataset::cases() as $dataset) {
+            self::assertStringContainsString(
+                $dataset->value,
+                $prompt,
+                "Prompt should mention dataset `{$dataset->value}` from TargetDataset enum.",
+            );
+        }
+    }
+
     private function builder(): PromptBuilder
     {
-        return new PromptBuilder(new SchemaRegistry());
+        return new PromptBuilder(new SchemaRegistry);
     }
 }

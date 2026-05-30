@@ -72,7 +72,7 @@ export function splitPlateLines(formatted: string): [string, string] {
         return [formatted, ''];
     }
 
-    return [groups.slice(0, -1).join('-'), groups[groups.length - 1]];
+    return [groups.slice(0, -1).join('-'), groups[groups.length - 1] ?? ''];
 }
 
 // A plate has at most three groups, so it can span at most three

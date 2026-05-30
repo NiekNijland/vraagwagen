@@ -81,6 +81,7 @@ export type TokenUsage = {
 
 export type QueryResult = {
     slug?: string;
+    correlationId?: string;
     prompt: string;
     plan: Plan;
     soql: Record<string, string>;
@@ -98,6 +99,7 @@ export type QueryResult = {
 
 export type SharedRun = {
     slug: string;
+    correlationId?: string;
     prompt: string;
     locale: string;
     plan: Plan;
@@ -116,6 +118,7 @@ export type SharedRun = {
 
 export type RunResponse = {
     slug: string;
+    correlationId: string;
     plan: Plan;
     soql: Record<string, string>;
     url: string;
@@ -130,6 +133,7 @@ export type RunResponse = {
 
 export type ErrorResponse = {
     error?: string;
+    correlationId?: string;
     plan?: Plan;
     soql?: Record<string, string>;
     url?: string;
@@ -138,7 +142,15 @@ export type ErrorResponse = {
 
 export type QueryError = {
     message: string;
+    correlationId?: string;
     soql?: Record<string, string>;
     url?: string;
     responseBody?: string | null;
+};
+
+/** Per-session telemetry shown in the footer strip. */
+export type SessionStats = {
+    runs: number;
+    lastLatencyMs: number | null;
+    lastTokens: number | null;
 };

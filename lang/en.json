@@ -105,6 +105,7 @@
     "pages.query.url": "Request URL",
     "pages.query.model": "Model",
     "pages.query.rdwResponse": "RDW response",
+    "pages.query.referenceId": "Reference ID",
     "pages.query.noRows": "No rows matched this query.",
     "pages.query.tableTruncated": "Showing the first :shown of :total rows.",
     "pages.query.matchingVehicles": "matching vehicles",

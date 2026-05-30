@@ -263,7 +263,8 @@ const DISCOVER_VIZ_ORDER: readonly DiscoverViz[] = [
 export function pickDiscoverItems(locale: string): DiscoverItem[] {
     return DISCOVER_VIZ_ORDER.map((viz) => {
         const pool = DISCOVER_POOL[viz];
-        const entry = pool[Math.floor(Math.random() * pool.length)];
+        // Pools are statically defined and non-empty, but tsc needs the fallback to the head entry.
+        const entry = pool[Math.floor(Math.random() * pool.length)] ?? pool[0]!;
 
         return {
             viz,

@@ -21,7 +21,7 @@ function countPlan(): Plan {
 }
 
 describe('CountView', () => {
-    it('renders the aggregate value with locale grouping and a label', () => {
+    it('renders the aggregate value with locale grouping and a label', async () => {
         renderWithI18n(
             <CountView
                 rows={[{ count: 72184 }]}
@@ -30,11 +30,12 @@ describe('CountView', () => {
             />,
         );
 
-        expect(screen.getByText('72,184')).toBeInTheDocument();
+        // Reduced motion is on under test, so the final figure renders immediately.
+        expect(await screen.findByText('72,184')).toBeInTheDocument();
         expect(screen.getByText('matching vehicles')).toBeInTheDocument();
     });
 
-    it('groups the number with Dutch separators under the nl locale', () => {
+    it('groups the number with Dutch separators under the nl locale', async () => {
         renderWithI18n(
             <CountView
                 rows={[{ count: 72184 }]}
@@ -44,6 +45,6 @@ describe('CountView', () => {
             { locale: 'nl' },
         );
 
-        expect(screen.getByText('72.184')).toBeInTheDocument();
+        expect(await screen.findByText('72.184')).toBeInTheDocument();
     });
 });

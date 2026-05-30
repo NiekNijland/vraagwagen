@@ -58,6 +58,7 @@ export function ResultView({
                     url={result.url}
                     model={result.model}
                     steps={result.steps}
+                    correlationId={result.correlationId}
                 />
             )}
         </div>
@@ -181,9 +182,16 @@ export function ErrorView({ error }: { error: QueryError }) {
                 <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-[var(--rdw-orange-faint)] text-[var(--rdw-orange)]">
                     <Wrench className="h-4 w-4" />
                 </span>
-                <p className="text-sm leading-relaxed text-[var(--rdw-orange)]">
-                    {error.message}
-                </p>
+                <div className="flex flex-col gap-1">
+                    <p className="text-sm leading-relaxed text-[var(--rdw-orange)]">
+                        {error.message}
+                    </p>
+                    {error.correlationId && (
+                        <p className="font-mono text-[11px] text-muted-foreground">
+                            ID: {error.correlationId}
+                        </p>
+                    )}
+                </div>
             </div>
             <QueryDebugPanel
                 soql={error.soql}

@@ -94,7 +94,7 @@ describe('ResultBody', () => {
         expect(screen.getByText('50%')).toBeInTheDocument();
     });
 
-    it('routes the count hint to the big-number view', () => {
+    it('routes the count hint to the big-number view', async () => {
         renderWithI18n(
             <ResultBody
                 result={result({
@@ -105,7 +105,10 @@ describe('ResultBody', () => {
             />,
         );
 
-        expect(screen.getByText('50')).toBeInTheDocument();
+        // The big number counts up from zero, so wait for the final figure.
+        expect(
+            await screen.findByText('50', undefined, { timeout: 2000 }),
+        ).toBeInTheDocument();
         expect(screen.getByText('matching vehicles')).toBeInTheDocument();
     });
 
