@@ -254,7 +254,7 @@
     "pages.query.rationale.fn.max": "Hoogste :field",
     "pages.query.rationale.direction.asc": ":expr (oplopend)",
     "pages.query.rationale.direction.desc": ":expr (aflopend)",
-    "pages.query.followUps.title": "Vervolgvragen",
+    "pages.query.followUps.title": "Vraag ook eens",
     "pages.dashboard.title": "Dashboard",
     "pages.dashboard.breadcrumb": "Dashboard",
     "pages.auth.login.title": "Inloggen",
