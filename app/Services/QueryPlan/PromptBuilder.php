@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\QueryPlan;
 
 use App\Enums\Locale;
+use Carbon\CarbonImmutable;
 use NiekNijland\RDW\Datasets\DatasetId;
 use NiekNijland\RDW\Schema\CastType;
 use NiekNijland\RDW\Schema\DatasetSchema;
@@ -213,6 +214,13 @@ PROMPT;
         $fuelsCatalog = $this->renderFieldCatalog($fuelsSchema);
         $vocabulary = $this->renderVocabulary($vehiclesSchema);
 
+        $today = CarbonImmutable::now('Europe/Amsterdam');
+        $todayDate = $today->toDateString();
+        $thisMonthStart = $today->startOfMonth()->toDateString();
+        $nextMonthStart = $today->startOfMonth()->addMonth()->toDateString();
+        $thisYearStart = $today->startOfYear()->toDateString();
+        $nextYearStart = $today->startOfYear()->addYear()->toDateString();
+
         return <<<MANUAL
 # Available fields
 
@@ -305,6 +313,16 @@ In the examples below, `groupBy: FirstAdmissionDate (year)` means `{field: First
 # Dates
 
 Date fields end in `*Date`. Pass `YYYY-MM-DD` strings. For "in 2017" emit two clauses: `gte 2017-01-01` AND `lt 2018-01-01`. For "in February 2017": `gte 2017-02-01` AND `lt 2017-03-01`.
+
+## Today and relative dates
+
+Today's date is **{$todayDate}** (Europe/Amsterdam). Resolve every relative phrase against this date — never guess a year or month.
+
+- "this month" / "deze maand" → `gte {$thisMonthStart}` AND `lt {$nextMonthStart}`.
+- "this year" / "dit jaar" → `gte {$thisYearStart}` AND `lt {$nextYearStart}`.
+- "last month", "last year", "last 30 days", "since <date>", "so far this year", etc. → compute the explicit `YYYY-MM-DD` range relative to {$todayDate}, always as a half-open interval (`gte` start AND `lt` end).
+
+A bare "this month" is **not** ambiguous — it resolves to the range above. Only refuse as `ambiguous` when no date field or range can be determined at all.
 
 ## Choosing the right date field
 

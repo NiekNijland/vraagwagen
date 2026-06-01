@@ -9,6 +9,7 @@ use App\Services\QueryPlan\DisplayHint;
 use App\Services\QueryPlan\PromptBuilder;
 use App\Services\QueryPlan\RefusalReason;
 use App\Services\QueryPlan\TargetDataset;
+use Carbon\CarbonImmutable;
 use NiekNijland\RDW\Datasets\DatasetId;
 use NiekNijland\RDW\Schema\SchemaRegistry;
 use PHPUnit\Framework\TestCase;
@@ -79,6 +80,22 @@ final class PromptBuilderTest extends TestCase
         self::assertStringContainsString('overgeschreven', $prompt);
         self::assertStringContainsString('FirstNetherlandsRegistrationDate', $prompt);
         self::assertStringContainsString('FirstAdmissionDate', $prompt);
+    }
+
+    public function test_prompt_anchors_today_so_relative_dates_resolve(): void
+    {
+        CarbonImmutable::setTestNow('2026-06-15 10:00:00');
+
+        try {
+            $prompt = $this->builder()->systemPrompt(Locale::English);
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+
+        // The frozen "today" is stated, and "this month" resolves to a concrete half-open range.
+        self::assertStringContainsString("Today's date is **2026-06-15**", $prompt);
+        self::assertStringContainsString('`gte 2026-06-01` AND `lt 2026-07-01`', $prompt);
+        self::assertStringContainsString('`gte 2026-01-01` AND `lt 2027-01-01`', $prompt);
     }
 
     public function test_prompt_forbids_license_plate_in_timeseries_group_by(): void
