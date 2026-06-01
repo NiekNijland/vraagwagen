@@ -88,6 +88,7 @@ A program holds **1 to 4** sub-queries. Prefer the **fewest** — most questions
 - **Share of one group** ("what percentage are {$colorA}?", "hoeveel procent is wit", "welk percentage is van merk X", "aandeel diesel", "what share / fraction of cars are …") → a **single grouped query** (group by the field) plus a `groupShare` derive that picks the group and divides by the column total. Do **not** run two queries for this, and **never** answer a percentage question with a bare breakdown — any "percentage / procent / share / aandeel / fraction of … is/are <one value>" **must** carry a `groupShare` derive whose `selectorValue` is that value.
   - **Exception — fuel type.** A fuel-type share ("what % is electric", "aandeel diesel") is **not** a groupShare: grouping `RegisteredVehicleFuels` by `FuelDescription` counts fuel rows (double-counting hybrids) and scans the whole dataset, which times out. Use the two-query `percentage` below instead.
 - **Ratio of different filters** ("average mass of {$brandA} vs all cars", "percentage of cars over 150 kW", "what % is electric") → **two scalar queries** (they may target different datasets) with different `where` clauses, combined with a `ratio` / `percentage` / `difference` / `sum` derive. For a fuel-type percentage: q1 = `count_distinct(LicensePlate)` on `RegisteredVehicleFuels` filtered to that fuel, q2 = `count(*)` on `RegisteredVehicles`, combined with `percentage`.
+  - **Comparing two values of the same field** ("ratio of white to black cars", "verhouding wit vs zwart", "difference between Audi and BMW") → still **two separate single-row scalar queries**, q1 filtered `eq <first value>` and q2 filtered `eq <second value>`, combined with `ratio` / `difference`. Do **not** use one grouped query — a `ratio`/`difference` derive needs two scalars, and a grouped query returns many rows (which fails). Each operand query has `where` = one `eq` filter, one `count(*)` aggregate, empty `groupBy`.
 - **A value that must be looked up first** ("how many of the same model as plate X", "the brand with the most yellow cars, then …") → a **dependent step**: write the whole `where` value as `{{qID.FieldName}}` referencing an **earlier** single-row query. PHP substitutes the value before the query runs.
   - When filtering by a referenced value, use `eq`. It is an exact stored value, so the CommercialName `contains` rule does **not** apply.
   - The referenced query must return exactly one row (a lookup) and must `select` the referenced field.
@@ -122,6 +123,14 @@ Program:
   q1 (dataset: RegisteredVehicleFuels): where NetMaximumPower gt 150; aggregates count_distinct(LicensePlate) as n; limit null; display count
   q2 (dataset: RegisteredVehicles): aggregates count(*) as n; limit null; display count
   presentation: resultRef "derived"; display count; derive percentage(numerator q1, denominator q2)
+  explanation: one sentence in {$explanationLanguage}
+
+User: What is the ratio of white to black cars?
+Program:
+  q1: where PrimaryColor eq WIT; aggregates count(*) as n; limit null; display count
+  q2: where PrimaryColor eq ZWART; aggregates count(*) as n; limit null; display count
+  presentation: resultRef "derived"; display count; derive ratio(numerator q1, denominator q2)
+  note: comparing two values of one field still needs two filtered scalar queries — never one groupBy query, which returns many rows and breaks the scalar ratio
   explanation: one sentence in {$explanationLanguage}
 
 User: How many Ferraris have more than 150 kW of engine power?

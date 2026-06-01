@@ -25,6 +25,7 @@ use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response as Psr7Response;
+use InvalidArgumentException;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredTextResponse;
@@ -162,9 +163,11 @@ final class RunNaturalLanguageQueryTest extends TestCase
         self::assertEqualsWithDelta(10000000.0, $result->derived->denominator, 1e-3);
     }
 
-    public function test_falls_back_to_unsupported_when_a_step_reference_cannot_resolve(): void
+    public function test_treats_an_unresolvable_step_reference_as_a_malformed_program(): void
     {
         // q1 returns no rows, so {{q1.Brand}} has no value to substitute → StepReferenceException.
+        // The question is usually answerable and the model just botched the program, so this surfaces
+        // as a malformed-program error (the controller's "try rephrasing" 422), not a fake refusal.
         $this->fakeProgram([
             'queries' => [
                 [
@@ -194,12 +197,11 @@ final class RunNaturalLanguageQueryTest extends TestCase
 
         $action = $this->actionFor([[]]);
 
-        $result = $action->execute('Same brand as NOPLATE?', Locale::English);
+        // A genuine refusal carries a reason + suggestions; a botched derive/reference is a malformed
+        // program, so it raises rather than masquerading as a confident "out of scope" answer.
+        $this->expectException(InvalidArgumentException::class);
 
-        self::assertSame(DisplayHint::Unsupported, $result->plan->display);
-        self::assertSame([], $result->rows);
-        // Steps before the failure still appear in the ledger so the debug panel can show progress.
-        self::assertCount(1, $result->steps);
+        $action->execute('Same brand as NOPLATE?', Locale::English);
     }
 
     public function test_maps_a_cross_dataset_overflow_to_a_too_broad_refusal(): void

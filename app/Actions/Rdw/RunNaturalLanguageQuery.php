@@ -30,6 +30,7 @@ use App\Services\QueryPlan\StepReferenceResolver;
 use App\Services\QueryPlan\TargetDataset;
 use App\Services\QueryPlan\TokenUsage;
 use App\Services\QueryPlan\WhereOp;
+use InvalidArgumentException;
 
 class RunNaturalLanguageQuery
 {
@@ -81,8 +82,12 @@ class RunNaturalLanguageQuery
                 is_string($tooBroad) ? $tooBroad : null,
                 new Refusal(RefusalReason::TooBroad),
             );
-        } catch (StepReferenceException|DerivationException) {
-            return $this->unsupported($ledger, $locale, $model, $tokens, $estimatedCost);
+        } catch (StepReferenceException|DerivationException $e) {
+            // A malformed multi-query program: a derive operand that wasn't a scalar, a reference
+            // that resolved to the wrong shape, etc. The question itself is usually answerable
+            // ("what % of Teslas are white?") — the model just botched the program — so surface the
+            // controller's "try rephrasing" path rather than a confident, misleading refusal.
+            throw new InvalidArgumentException($e->getMessage(), previous: $e);
         }
     }
 
