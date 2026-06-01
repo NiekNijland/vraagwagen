@@ -1,10 +1,3 @@
-import { ChevronDown, HelpCircle } from 'lucide-react';
-
-import {
-    Collapsible,
-    CollapsibleContent,
-    CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { useTranslation } from '@/hooks/use-translation';
 
 import { translateColumn } from '../format';
@@ -22,10 +15,11 @@ type TFn = (key: string, params?: Record<string, string | number>) => string;
 /**
  * "Why this result?" — a plain-language breakdown of the structured plan so
  * users can see *why* the system answered the way it did without reading
- * SoQL. The LLM's free-form explanation already sits above this; this panel
- * deconstructs the plan itself.
+ * SoQL. The LLM's free-form explanation already sits above this; this body
+ * deconstructs the plan itself. The disclosure trigger lives in the caller so
+ * it can share a row with the SoQL toggle.
  */
-export function PlanRationale({
+export function PlanRationaleBody({
     plan,
     steps,
     locale,
@@ -38,20 +32,13 @@ export function PlanRationale({
     const isMultiStep = steps !== undefined && steps.length > 1;
 
     return (
-        <Collapsible>
-            <CollapsibleTrigger className="group inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12.5px] text-muted-foreground transition hover:text-foreground">
-                <HelpCircle className="h-3 w-3" />
-                <span>{t('pages.query.rationale.title')}</span>
-                <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-3 rounded-[12px] border bg-[color:color-mix(in_oklab,var(--background)_60%,transparent)] p-3.5 text-xs">
-                {isMultiStep ? (
-                    <MultiStepRationale steps={steps} t={t} locale={locale} />
-                ) : (
-                    <SinglePlanRationale plan={plan} t={t} locale={locale} />
-                )}
-            </CollapsibleContent>
-        </Collapsible>
+        <div className="rounded-[12px] border bg-[color:color-mix(in_oklab,var(--background)_60%,transparent)] p-3.5 text-xs">
+            {isMultiStep ? (
+                <MultiStepRationale steps={steps} t={t} locale={locale} />
+            ) : (
+                <SinglePlanRationale plan={plan} t={t} locale={locale} />
+            )}
+        </div>
     );
 }
 

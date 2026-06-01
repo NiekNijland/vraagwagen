@@ -89,6 +89,8 @@ export type Presentation = {
     derived: Derived | null;
     refusal?: Refusal | null;
     explanation: string;
+    /** Model-suggested next questions, each a complete prompt the user can re-run. */
+    followUps?: string[];
 };
 
 export type TokenUsage = {

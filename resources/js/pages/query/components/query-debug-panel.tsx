@@ -19,23 +19,44 @@ function soqlToString(soql: Record<string, string>): string {
         .join('\n');
 }
 
-export function QueryDebugPanel({
-    soql,
-    url,
-    model,
-    responseBody,
-    steps,
-    correlationId,
-    defaultOpen = false,
-}: {
+type QueryDebugProps = {
     soql?: Record<string, string>;
     url?: string;
     model?: string;
     responseBody?: string | null;
     steps?: Step[];
     correlationId?: string;
-    defaultOpen?: boolean;
-}) {
+};
+
+/**
+ * Returns whether there is any query detail worth disclosing, so callers can
+ * decide whether to render the toggle at all.
+ */
+export function hasQueryDetail({
+    soql,
+    url,
+    model,
+    responseBody,
+    steps,
+    correlationId,
+}: QueryDebugProps): boolean {
+    return (
+        soql !== undefined ||
+        url !== undefined ||
+        (responseBody !== undefined && responseBody !== null) ||
+        (model !== undefined && model !== '') ||
+        (steps !== undefined && steps.length > 0) ||
+        (correlationId !== undefined && correlationId !== '')
+    );
+}
+
+/**
+ * The disclosure trigger lives in the caller (see ResultView) so it can share a
+ * row with the rationale toggle; ErrorView still uses the self-contained
+ * {@link QueryDebugPanel} below.
+ */
+export function QueryDebugBody(props: QueryDebugProps) {
+    const { soql, url, model, responseBody, steps, correlationId } = props;
     const { t } = useTranslation();
     const [, copy] = useClipboard();
     const hasResponseBody = responseBody !== undefined && responseBody !== null;
@@ -46,109 +67,125 @@ export function QueryDebugPanel({
     // a single query is already covered by the SoQL section below.
     const multiStep = steps !== undefined && steps.length > 1;
 
-    if (
-        soql === undefined &&
-        url === undefined &&
-        !hasResponseBody &&
-        !hasModel &&
-        !hasCorrelationId
-    ) {
+    if (!hasQueryDetail(props)) {
         return null;
     }
 
     const soqlString = soql === undefined ? '' : soqlToString(soql);
 
     return (
+        <div className="space-y-3 rounded-[12px] border bg-[color:color-mix(in_oklab,var(--background)_60%,transparent)] p-3.5 text-xs">
+            {hasModel && (
+                <DebugSection label={t('pages.query.model')}>
+                    <code className="block rounded bg-background/80 p-2 font-mono text-[11px]">
+                        {model}
+                    </code>
+                </DebugSection>
+            )}
+            {multiStep && (
+                <DebugSection label={t('pages.query.steps')}>
+                    <div className="space-y-3">
+                        {steps.map((step) => (
+                            <div key={step.id} className="space-y-1.5">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[10px] font-semibold">
+                                        {step.id}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground tabular-nums">
+                                        {step.rowCount}
+                                    </span>
+                                    <GetBadge />
+                                    <span className="ml-auto inline-flex items-center gap-1.5">
+                                        <UrlActions
+                                            url={step.url}
+                                            copy={copy}
+                                        />
+                                    </span>
+                                </div>
+                                <pre className="overflow-x-auto rounded bg-background/80 p-2.5 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap">
+                                    <SoQLHighlight
+                                        value={soqlToString(step.soql)}
+                                    />
+                                </pre>
+                                <UrlBox url={step.url} />
+                            </div>
+                        ))}
+                    </div>
+                </DebugSection>
+            )}
+            {soql && !multiStep && (
+                <DebugSection
+                    label={t('pages.query.soql')}
+                    actions={
+                        <CopyChip
+                            onCopy={() => copy(soqlString)}
+                            label="Copy"
+                        />
+                    }
+                >
+                    <pre className="overflow-x-auto rounded bg-background/80 p-2.5 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap">
+                        <SoQLHighlight value={soqlString} />
+                    </pre>
+                </DebugSection>
+            )}
+            {url !== undefined && !multiStep && (
+                <DebugSection
+                    label={t('pages.query.url')}
+                    meta={<GetBadge />}
+                    actions={<UrlActions url={url} copy={copy} />}
+                >
+                    <UrlBox url={url} />
+                </DebugSection>
+            )}
+            {hasResponseBody && (
+                <DebugSection label={t('pages.query.rdwResponse')}>
+                    <pre className="overflow-x-auto rounded bg-background/80 p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                        {formatResponseBody(responseBody)}
+                    </pre>
+                </DebugSection>
+            )}
+            {hasCorrelationId && (
+                <DebugSection
+                    label={t('pages.query.referenceId')}
+                    actions={
+                        <CopyChip
+                            onCopy={() => copy(correlationId ?? '')}
+                            label="Copy"
+                        />
+                    }
+                >
+                    <code className="block rounded bg-background/80 p-2 font-mono text-[11px]">
+                        {correlationId}
+                    </code>
+                </DebugSection>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Self-contained disclosure used by ErrorView: trigger plus body in one
+ * Collapsible. ResultView instead drives {@link QueryDebugBody} from a shared
+ * trigger row.
+ */
+export function QueryDebugPanel({
+    defaultOpen = false,
+    ...props
+}: QueryDebugProps & { defaultOpen?: boolean }) {
+    const { t } = useTranslation();
+
+    if (!hasQueryDetail(props)) {
+        return null;
+    }
+
+    return (
         <Collapsible defaultOpen={defaultOpen}>
-            <CollapsibleTrigger className="group inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12.5px] text-muted-foreground transition hover:text-foreground">
+            <CollapsibleTrigger className="group -ml-2 inline-flex w-fit items-center gap-1.5 rounded-md px-2 py-1.5 text-[12.5px] text-muted-foreground transition hover:text-foreground">
                 <span>{t('pages.query.showQuery')}</span>
                 <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
             </CollapsibleTrigger>
-            <CollapsibleContent className="mt-3 space-y-3 rounded-[12px] border bg-[color:color-mix(in_oklab,var(--background)_60%,transparent)] p-3.5 text-xs">
-                {hasModel && (
-                    <DebugSection label={t('pages.query.model')}>
-                        <code className="block rounded bg-background/80 p-2 font-mono text-[11px]">
-                            {model}
-                        </code>
-                    </DebugSection>
-                )}
-                {multiStep && (
-                    <DebugSection label={t('pages.query.steps')}>
-                        <div className="space-y-3">
-                            {steps.map((step) => (
-                                <div key={step.id} className="space-y-1.5">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <span className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[10px] font-semibold">
-                                            {step.id}
-                                        </span>
-                                        <span className="text-[11px] text-muted-foreground tabular-nums">
-                                            {step.rowCount}
-                                        </span>
-                                        <GetBadge />
-                                        <span className="ml-auto inline-flex items-center gap-1.5">
-                                            <UrlActions
-                                                url={step.url}
-                                                copy={copy}
-                                            />
-                                        </span>
-                                    </div>
-                                    <pre className="overflow-x-auto rounded bg-background/80 p-2.5 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap">
-                                        <SoQLHighlight
-                                            value={soqlToString(step.soql)}
-                                        />
-                                    </pre>
-                                    <UrlBox url={step.url} />
-                                </div>
-                            ))}
-                        </div>
-                    </DebugSection>
-                )}
-                {soql && !multiStep && (
-                    <DebugSection
-                        label={t('pages.query.soql')}
-                        actions={
-                            <CopyChip
-                                onCopy={() => copy(soqlString)}
-                                label="Copy"
-                            />
-                        }
-                    >
-                        <pre className="overflow-x-auto rounded bg-background/80 p-2.5 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap">
-                            <SoQLHighlight value={soqlString} />
-                        </pre>
-                    </DebugSection>
-                )}
-                {url !== undefined && !multiStep && (
-                    <DebugSection
-                        label={t('pages.query.url')}
-                        meta={<GetBadge />}
-                        actions={<UrlActions url={url} copy={copy} />}
-                    >
-                        <UrlBox url={url} />
-                    </DebugSection>
-                )}
-                {hasResponseBody && (
-                    <DebugSection label={t('pages.query.rdwResponse')}>
-                        <pre className="overflow-x-auto rounded bg-background/80 p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
-                            {formatResponseBody(responseBody)}
-                        </pre>
-                    </DebugSection>
-                )}
-                {hasCorrelationId && (
-                    <DebugSection
-                        label={t('pages.query.referenceId')}
-                        actions={
-                            <CopyChip
-                                onCopy={() => copy(correlationId ?? '')}
-                                label="Copy"
-                            />
-                        }
-                    >
-                        <code className="block rounded bg-background/80 p-2 font-mono text-[11px]">
-                            {correlationId}
-                        </code>
-                    </DebugSection>
-                )}
+            <CollapsibleContent className="mt-3">
+                <QueryDebugBody {...props} />
             </CollapsibleContent>
         </Collapsible>
     );

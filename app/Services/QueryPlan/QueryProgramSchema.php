@@ -73,6 +73,10 @@ final class QueryProgramSchema
             'explanation' => $schema->string()
                 ->description('One short sentence in the system-prompt language. For an answer, summarise it (never include computed numbers). For an unsupported question, state plainly why it cannot be answered.')
                 ->required(),
+            'followUps' => $schema->array()
+                ->items($schema->string())
+                ->description('2-3 natural next questions the user is likely to ask after seeing THIS answer, each a complete standalone question in the system-prompt language that the registry can answer. They must build directly on the same subject (e.g. for "How many Porsche 911s?": "How many Porsche 911s are electric?", "Porsche 911 registrations per year", "Average engine power of the Porsche 911"). Empty for an unsupported question (the refusal carries suggestions instead).')
+                ->required(),
         ]);
 
         return [

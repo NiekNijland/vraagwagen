@@ -85,6 +85,7 @@ final class PlanPresenter
             'derived' => $derived?->toArray(),
             'refusal' => $presentation->refusal?->toArray(),
             'explanation' => $presentation->explanation,
+            'followUps' => $presentation->followUps,
         ];
     }
 

@@ -144,6 +144,7 @@ class RunNaturalLanguageQuery
             derive: $presentation->derive,
             explanation: $presentation->explanation,
             refusal: $presentation->refusal,
+            followUps: $presentation->followUps,
         );
 
         return new QueryResult(

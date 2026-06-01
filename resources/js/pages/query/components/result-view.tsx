@@ -1,5 +1,11 @@
-import { Download, Share2, Wrench } from 'lucide-react';
-import { useMemo } from 'react';
+import {
+    ChevronDown,
+    Download,
+    HelpCircle,
+    Share2,
+    Wrench,
+} from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -7,15 +13,18 @@ import { useClipboard } from '@/hooks/use-clipboard';
 import { useTranslation } from '@/hooks/use-translation';
 import { downloadRows } from '@/lib/export-rows';
 
-import { suggestFollowUps } from '../follow-ups';
 import { localeTag } from '../format';
 import { buildShareUrl } from '../share-url';
 import type { QueryError, QueryResult, Rating } from '../types';
 import { ResultBody } from '../views/result-body';
 import { FeedbackPanel } from './feedback-panel';
 import { FollowUpChips } from './follow-up-chips';
-import { PlanRationale } from './plan-rationale';
-import { QueryDebugPanel } from './query-debug-panel';
+import { PlanRationaleBody } from './plan-rationale';
+import {
+    hasQueryDetail,
+    QueryDebugBody,
+    QueryDebugPanel,
+} from './query-debug-panel';
 
 export function ResultView({
     result,
@@ -31,12 +40,8 @@ export function ResultView({
     }) => void;
     onPickFollowUp?: (prompt: string) => void;
 }) {
-    const { t } = useTranslation();
     const isUnsupported = result.displayHint === 'unsupported';
-    const followUps = useMemo(
-        () => suggestFollowUps(result.plan, t),
-        [result.plan, t],
-    );
+    const followUps = result.presentation?.followUps ?? [];
 
     // The presentation carries the authoritative one-line summary (the refusal "why" for an
     // unsupported question, the answer summary otherwise); fall back to the plan's copy.
@@ -55,7 +60,7 @@ export function ResultView({
             </div>
 
             {/* A refusal renders its model-supplied alternatives inside ResultBody, so pass the
-                picker through; an answered query gets the heuristic follow-up chips below. */}
+                picker through; an answered query gets the model's follow-up chips below. */}
             <ResultBody
                 result={result}
                 locale={locale}
@@ -79,22 +84,90 @@ export function ResultView({
             )}
 
             {!isUnsupported && (
-                <div className="flex flex-wrap items-center gap-1">
-                    <PlanRationale
-                        plan={result.plan}
-                        steps={result.steps}
-                        locale={locale}
-                    />
-                    <QueryDebugPanel
-                        soql={result.soql}
-                        url={result.url}
-                        model={result.model}
-                        steps={result.steps}
-                        correlationId={result.correlationId}
-                    />
-                </div>
+                <ResultDisclosures result={result} locale={locale} />
             )}
         </div>
+    );
+}
+
+/**
+ * The "why this result?" and "show query" toggles share one row so neither
+ * wastes vertical space when collapsed; the opened panels stack full-width
+ * below.
+ */
+function ResultDisclosures({
+    result,
+    locale,
+}: {
+    result: QueryResult;
+    locale: string;
+}) {
+    const { t } = useTranslation();
+    const [showRationale, setShowRationale] = useState(false);
+    const [showQuery, setShowQuery] = useState(false);
+    const queryProps = {
+        soql: result.soql,
+        url: result.url,
+        model: result.model,
+        steps: result.steps,
+        correlationId: result.correlationId,
+    };
+    const canShowQuery = hasQueryDetail(queryProps);
+
+    return (
+        <div className="flex flex-col gap-3">
+            <div className="-ml-2 flex flex-wrap items-center gap-1">
+                <DisclosureToggle
+                    icon={<HelpCircle className="h-3 w-3" />}
+                    label={t('pages.query.rationale.title')}
+                    open={showRationale}
+                    onToggle={() => setShowRationale((v) => !v)}
+                />
+                {canShowQuery && (
+                    <DisclosureToggle
+                        label={t('pages.query.showQuery')}
+                        open={showQuery}
+                        onToggle={() => setShowQuery((v) => !v)}
+                    />
+                )}
+            </div>
+
+            {showRationale && (
+                <PlanRationaleBody
+                    plan={result.plan}
+                    steps={result.steps}
+                    locale={locale}
+                />
+            )}
+            {showQuery && canShowQuery && <QueryDebugBody {...queryProps} />}
+        </div>
+    );
+}
+
+function DisclosureToggle({
+    icon,
+    label,
+    open,
+    onToggle,
+}: {
+    icon?: React.ReactNode;
+    label: string;
+    open: boolean;
+    onToggle: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12.5px] text-muted-foreground transition hover:text-foreground"
+        >
+            {icon}
+            <span>{label}</span>
+            <ChevronDown
+                className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`}
+            />
+        </button>
     );
 }
 

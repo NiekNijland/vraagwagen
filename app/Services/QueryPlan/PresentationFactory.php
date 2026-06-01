@@ -10,6 +10,8 @@ final class PresentationFactory
 {
     private const int MAX_SUGGESTIONS = 3;
 
+    private const int MAX_FOLLOW_UPS = 3;
+
     /**
      * @param  array<string, mixed>  $data
      * @param  list<string>  $queryIds
@@ -56,7 +58,36 @@ final class PresentationFactory
             display: $display,
             derive: $derive,
             explanation: $explanation,
+            followUps: $this->parseFollowUps($data['followUps'] ?? null),
         );
+    }
+
+    /**
+     * Trimmed, de-duplicated and capped next-step questions. String-coerced defensively against a
+     * non-compliant payload, mirroring how refusal suggestions are sanitised.
+     *
+     * @return list<string>
+     */
+    private function parseFollowUps(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $followUps = [];
+        foreach ($raw as $followUp) {
+            $text = trim((string) $followUp);
+            if ($text === '' || in_array($text, $followUps, true)) {
+                continue;
+            }
+
+            $followUps[] = $text;
+            if (count($followUps) === self::MAX_FOLLOW_UPS) {
+                break;
+            }
+        }
+
+        return $followUps;
     }
 
     /**

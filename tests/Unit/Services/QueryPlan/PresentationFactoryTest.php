@@ -29,6 +29,41 @@ final class PresentationFactoryTest extends TestCase
         self::assertFalse($presentation->isDerived());
     }
 
+    public function test_parses_trimmed_deduplicated_and_capped_follow_ups(): void
+    {
+        $presentation = (new PresentationFactory)->fromArray([
+            'resultRef' => 'q1',
+            'display' => 'count',
+            'derive' => null,
+            'explanation' => 'How many.',
+            'followUps' => [
+                '  Porsche 911 per year ',
+                '',
+                'Porsche 911 per year',
+                'Average power of the Porsche 911',
+                'Electric Porsche 911s',
+                'Fourth question',
+            ],
+        ], ['q1']);
+
+        self::assertSame(
+            ['Porsche 911 per year', 'Average power of the Porsche 911', 'Electric Porsche 911s'],
+            $presentation->followUps,
+        );
+    }
+
+    public function test_follow_ups_default_to_empty_when_missing(): void
+    {
+        $presentation = (new PresentationFactory)->fromArray([
+            'resultRef' => 'q1',
+            'display' => 'count',
+            'derive' => null,
+            'explanation' => 'How many.',
+        ], ['q1']);
+
+        self::assertSame([], $presentation->followUps);
+    }
+
     public function test_rejects_a_result_ref_outside_the_program(): void
     {
         $this->expectException(InvalidArgumentException::class);

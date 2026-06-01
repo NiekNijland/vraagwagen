@@ -1,4 +1,3 @@
-import { useCountUp } from '@/hooks/use-count-up';
 import { useTranslation } from '@/hooks/use-translation';
 import { cn } from '@/lib/utils';
 
@@ -31,7 +30,7 @@ export function Hero({ compact }: { compact: boolean }) {
             >
                 {before}
                 <span className="pr-[0.15em] font-bold text-[var(--rdw-orange)] italic">
-                    <AnimatedAccent text={accent} />
+                    {accent}
                 </span>
                 {after}
             </h1>
@@ -41,30 +40,5 @@ export function Hero({ compact }: { compact: boolean }) {
                 </p>
             )}
         </header>
-    );
-}
-
-// Counts the leading number in the hero accent up from zero on load
-// ("16 miljoen" → animates the 16, keeps the word). Falls back to the raw text
-// when there's no leading number to animate.
-function AnimatedAccent({ text }: { text: string }) {
-    const match = text.match(/^([\d.,\s]+)(.*)$/);
-    const numericPart = match?.[1];
-    const target = numericPart
-        ? Number(numericPart.replace(/[^\d]/g, ''))
-        : NaN;
-    const animated = useCountUp(target, 1100, true);
-
-    if (!Number.isFinite(target)) {
-        return <>{text}</>;
-    }
-
-    const suffix = (match?.[2] ?? '').trim();
-
-    return (
-        <>
-            {Math.round(animated).toLocaleString()}
-            {suffix !== '' ? ` ${suffix}` : ''}
-        </>
     );
 }

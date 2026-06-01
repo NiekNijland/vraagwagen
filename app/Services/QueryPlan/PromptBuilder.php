@@ -100,6 +100,7 @@ Each query has a stable `id` (`q1`, `q2`, …). A reference may only point at an
 - `derive`: `null` for a plain passthrough of `resultRef`. To show a computed figure, set the op and its operands — the engine computes the number deterministically. **Never compute or write a number yourself.**
 - `display`: how to render the chosen result, using the hints documented above.
 - `explanation`: one short sentence in {$explanationLanguage}. Never include computed numbers.
+- `followUps`: **2-3 natural next questions** in {$explanationLanguage}, each a complete standalone question the registry can answer. They must stay on the **same subject** as the user's question and drill deeper (a breakdown over time, a sub-filter, a related metric) — never a generic or unrelated topic. Reuse the exact subject the user named (brand, model, colour, plate, fuel). For "How many {$brandA}s are registered?": "{$brandA} registrations per year", "Which {$brandA} model is most common?", "Average engine power of {$brandA}". For a license-plate record: ask other facts about **that plate**. Leave empty (`[]`) only for an `unsupported` refusal — the refusal's own `suggestions` cover that case.
 
 # Examples
 
