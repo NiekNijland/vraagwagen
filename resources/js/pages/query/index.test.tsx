@@ -79,7 +79,7 @@ describe('QueryPage', () => {
 
         const composer = screen.getByRole('textbox');
         await userEvent.type(composer, 'How many Teslas?');
-        await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+        await userEvent.keyboard('{Enter}');
 
         // Result count is rendered with locale grouping (reduced motion is on
         // under test, so the final figure renders without an animation wait).
@@ -109,7 +109,7 @@ describe('QueryPage', () => {
         renderWithI18n(<QueryPage sharedRun={null} />);
 
         await userEvent.type(screen.getByRole('textbox'), 'How many Teslas?');
-        await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+        await userEvent.keyboard('{Enter}');
 
         // The panel is collapsed by default; the id only needs to be reachable,
         // not visible, so expand it before asserting.
@@ -134,7 +134,7 @@ describe('QueryPage', () => {
         renderWithI18n(<QueryPage sharedRun={null} />);
 
         await userEvent.type(screen.getByRole('textbox'), 'broken query');
-        await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+        await userEvent.keyboard('{Enter}');
 
         expect(
             await screen.findByText('The generated query was rejected.'),
@@ -146,7 +146,7 @@ describe('QueryPage', () => {
         renderWithI18n(<QueryPage sharedRun={null} />);
 
         await userEvent.type(screen.getByRole('textbox'), 'no');
-        await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+        await userEvent.keyboard('{Enter}');
 
         // Two characters never leaves the client, so no request is made.
         expect(fetchMock).not.toHaveBeenCalled();

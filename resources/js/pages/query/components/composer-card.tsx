@@ -53,8 +53,10 @@ export function ComposerCard({
         staticPlaceholder,
     );
 
+    // Questions are short (a sentence or two), so plain Enter submits;
+    // Shift+Enter still inserts a newline for the rare multi-line prompt.
     const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             onSubmit();
         }
@@ -104,12 +106,9 @@ export function ComposerCard({
                                 />
                             ) : (
                                 <>
-                                    <span className="inline-flex items-center gap-1">
-                                        <kbd className="rdw-kbd">⌘</kbd>
-                                        <kbd className="rdw-kbd">
-                                            <CornerDownLeft className="h-3 w-3" />
-                                        </kbd>
-                                    </span>
+                                    <kbd className="rdw-kbd">
+                                        <CornerDownLeft className="h-3 w-3" />
+                                    </kbd>
                                     <span className="hidden sm:inline">
                                         {t('pages.query.submitAction')}
                                     </span>
