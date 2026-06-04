@@ -20,7 +20,7 @@ export function DiscoverCards({
     return (
         <div className="mt-6 flex w-full max-w-[880px] flex-col gap-2.5">
             <div className="flex items-baseline justify-between gap-3 px-0.5">
-                <span className="text-[11px] font-semibold tracking-[0.18em] text-[var(--rdw-orange)] uppercase">
+                <span className="font-mono text-[11px] font-semibold tracking-[0.18em] text-[var(--rdw-orange)] uppercase">
                     {t('pages.query.popular')}
                 </span>
                 <span className="inline-flex items-center gap-1.5 text-[11.5px] whitespace-nowrap text-muted-foreground/70">
@@ -69,25 +69,25 @@ function DiscoverCard({
             onClick={() => onPick(question)}
             className={cn(
                 'group text-left',
-                'flex min-h-[132px] flex-col gap-2.5 rounded-[18px] border bg-card px-3.5 pt-3.5 pb-3 text-card-foreground',
+                'flex min-h-[132px] flex-col gap-2.5 rounded-[4px] border bg-card px-3.5 pt-3.5 pb-3 text-card-foreground',
                 'transition-all duration-200',
-                'hover:-translate-y-0.5 hover:border-[var(--rdw-orange)] hover:bg-card/80 hover:shadow-[0_12px_28px_-14px_var(--rdw-orange-glow)]',
+                'hover:-translate-y-0.5 hover:border-[var(--rdw-orange)] hover:bg-card/80 hover:shadow-[0_10px_24px_-14px_var(--rdw-orange-glow)]',
             )}
         >
             <div className="flex h-12 items-center">
                 {viz === 'kpi' && (
                     <div className="flex items-baseline gap-1">
-                        <span className="text-[26px] font-bold tracking-tight text-[var(--rdw-orange)] tabular-nums">
+                        <span className="font-mono text-[24px] font-bold tracking-tight text-[var(--rdw-orange)] tabular-nums">
                             72.184
                         </span>
                     </div>
                 )}
                 {viz === 'bars' && (
                     <div className="flex w-full flex-col gap-1">
-                        <span className="h-1.5 [width:92%] rounded-sm bg-[var(--rdw-orange)]" />
-                        <span className="h-1.5 [width:64%] rounded-sm bg-[var(--rdw-orange)] opacity-[0.78]" />
-                        <span className="h-1.5 [width:44%] rounded-sm bg-[var(--rdw-orange)] opacity-[0.56]" />
-                        <span className="h-1.5 [width:28%] rounded-sm bg-[var(--rdw-orange)] opacity-[0.35]" />
+                        <span className="h-1.5 [width:92%] bg-[var(--rdw-orange)]" />
+                        <span className="h-1.5 [width:64%] bg-[var(--rdw-orange)] opacity-[0.78]" />
+                        <span className="h-1.5 [width:44%] bg-[var(--rdw-orange)] opacity-[0.56]" />
+                        <span className="h-1.5 [width:28%] bg-[var(--rdw-orange)] opacity-[0.35]" />
                     </div>
                 )}
                 {viz === 'spark' && (
@@ -117,7 +117,7 @@ function DiscoverCard({
             <span className="line-clamp-2 text-[13px] leading-snug font-medium text-foreground">
                 {question}
             </span>
-            <span className="mt-auto text-[10.5px] tracking-[0.06em] text-muted-foreground/80 uppercase">
+            <span className="mt-auto font-mono text-[10.5px] tracking-[0.08em] text-muted-foreground/80 uppercase">
                 {t(VIZ_LABEL_KEYS[viz])}
             </span>
         </button>

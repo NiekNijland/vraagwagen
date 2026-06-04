@@ -50,7 +50,7 @@ export function FeedbackPanel({
     };
 
     return (
-        <div className="flex flex-col gap-2 rounded-[12px] border bg-card/40 p-3 text-xs">
+        <div className="flex flex-col gap-2 rounded-[4px] border bg-card/40 p-3 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-muted-foreground">
                     {t('pages.query.feedbackPrompt')}

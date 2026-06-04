@@ -51,8 +51,8 @@ final class QueryController extends Controller
             'sharedRun' => $sharedRun,
             // Authoritative prompt bounds so the composer's client-side limits can't drift from
             // the server-side validation in RunQueryRequest.
-            'promptMinLength' => (int) config('rdwai.prompt.min_length', 3),
-            'promptMaxLength' => (int) config('rdwai.prompt.max_length', 2000),
+            'promptMinLength' => (int) config('vraagwagen.prompt.min_length', 3),
+            'promptMaxLength' => (int) config('vraagwagen.prompt.max_length', 2000),
         ]);
     }
 

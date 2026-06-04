@@ -285,7 +285,7 @@ export function ErrorView({ error }: { error: QueryError }) {
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-start gap-3">
-                <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-[var(--rdw-orange-faint)] text-[var(--rdw-orange)]">
+                <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[4px] bg-[var(--rdw-orange-faint)] text-[var(--rdw-orange)]">
                     <Wrench className="h-4 w-4" />
                 </span>
                 <div className="flex flex-col gap-1">

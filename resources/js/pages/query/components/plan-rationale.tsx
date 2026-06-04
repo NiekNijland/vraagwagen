@@ -32,7 +32,7 @@ export function PlanRationaleBody({
     const isMultiStep = steps !== undefined && steps.length > 1;
 
     return (
-        <div className="rounded-[12px] border bg-[color:color-mix(in_oklab,var(--background)_60%,transparent)] p-3.5 text-xs">
+        <div className="rounded-[4px] border bg-[color:color-mix(in_oklab,var(--background)_60%,transparent)] p-3.5 text-xs">
             {isMultiStep ? (
                 <MultiStepRationale steps={steps} t={t} locale={locale} />
             ) : (
@@ -145,7 +145,7 @@ function RationaleRow({
 }) {
     return (
         <>
-            <dt className="text-[10.5px] font-semibold tracking-[0.12em] whitespace-nowrap text-[var(--rdw-orange)] uppercase">
+            <dt className="font-mono text-[10.5px] font-semibold tracking-[0.12em] whitespace-nowrap text-[var(--rdw-orange)] uppercase">
                 {label}
             </dt>
             <dd className="text-[12.5px] text-foreground">{children}</dd>

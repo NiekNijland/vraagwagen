@@ -23,8 +23,7 @@ final class QueryProgramAgent implements Agent, HasStructuredOutput
     public function __construct(
         private readonly PromptBuilder $promptBuilder,
         private readonly Locale $locale = Locale::English,
-    ) {
-    }
+    ) {}
 
     public function ask(string $question): StructuredAgentResponse
     {
@@ -57,6 +56,6 @@ final class QueryProgramAgent implements Agent, HasStructuredOutput
 
     public function model(): string
     {
-        return (string) config('rdwai.llm_model', 'gpt-4.1-mini');
+        return (string) config('vraagwagen.llm_model', 'gpt-4.1-mini');
     }
 }

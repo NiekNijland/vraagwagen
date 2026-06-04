@@ -1,4 +1,4 @@
-const RECENT_QUERIES_KEY = 'rdwai:recent-queries';
+const RECENT_QUERIES_KEY = 'vraagwagen:recent-queries';
 const RECENT_QUERIES_MAX = 6;
 
 // Module-level cache so useSyncExternalStore sees a stable reference when

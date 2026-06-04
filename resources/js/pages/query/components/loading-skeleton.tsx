@@ -49,7 +49,7 @@ export function LoadingSkeleton() {
                     <span
                         key={i}
                         className={cn(
-                            'h-1 flex-1 rounded-full transition-colors duration-300',
+                            'h-1 flex-1 transition-colors duration-300',
                             i <= stageIndex
                                 ? 'bg-[var(--rdw-orange)]'
                                 : 'bg-border',

@@ -48,7 +48,7 @@ function RecentChip({
         <button
             type="button"
             onClick={() => onPick(question)}
-            className="group inline-flex items-center gap-1.5 rounded-full border bg-card/60 px-3 py-1.5 text-[12.5px] text-muted-foreground transition hover:border-[var(--rdw-orange)] hover:bg-[var(--rdw-orange-faint)] hover:text-foreground"
+            className="group inline-flex items-center gap-1.5 rounded-[3px] border bg-card/60 px-3 py-1.5 text-[12.5px] text-muted-foreground transition hover:border-[var(--rdw-orange)] hover:bg-[var(--rdw-orange-faint)] hover:text-foreground"
         >
             <Plus className="h-3 w-3 text-[var(--rdw-orange)]" />
             {question}

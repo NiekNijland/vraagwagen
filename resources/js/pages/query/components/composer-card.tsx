@@ -13,7 +13,7 @@ import { PlateChip } from './plate-chip';
 
 // Fallback prompt bounds for when the page doesn't pass server-config values (e.g. component
 // tests). In the app these are overridden by `promptMinLength` / `promptMaxLength` page props,
-// which carry the authoritative values from config/rdwai.php so the two can't drift.
+// which carry the authoritative values from config/vraagwagen.php so the two can't drift.
 export const MIN_PROMPT_LENGTH = 3;
 export const PROMPT_MAX_LENGTH = 2000;
 
@@ -85,16 +85,16 @@ export function ComposerCard({
                         onKeyDown={handleKey}
                         placeholder={animate ? typed : staticPlaceholder}
                         rows={1}
-                        // Authoritative cap comes from config/rdwai.php via page props. The browser
+                        // Authoritative cap comes from config/vraagwagen.php via page props. The browser
                         // stops accepting input at the cap so the user can't paste a wall of text
                         // and watch the request 422 a second later.
                         maxLength={maxLength}
                         aria-label={staticPlaceholder}
                         className={cn(
-                            'min-h-0 resize-none border-0 bg-transparent p-0 leading-relaxed shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent',
+                            'min-h-0 resize-none border-0 bg-transparent p-0 font-mono leading-relaxed shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent',
                             compact
-                                ? 'text-[15.5px]'
-                                : 'text-[17px] md:text-[18px]',
+                                ? 'text-[14.5px]'
+                                : 'text-[16px] md:text-[17px]',
                         )}
                     />
                     <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
@@ -138,8 +138,8 @@ export function ComposerCard({
                                     busy || value.trim().length < minLength
                                 }
                                 className={cn(
-                                    'gap-2 rounded-[12px] bg-[var(--rdw-orange)] text-white hover:bg-[#ff6c37]',
-                                    'shadow-[0_1px_0_rgba(255,255,255,0.18)_inset,0_-1px_0_rgba(0,0,0,0.12)_inset,0_8px_20px_-6px_var(--rdw-orange-glow)]',
+                                    'gap-2 rounded-[3px] bg-[var(--rdw-orange)] text-white hover:bg-[#ff6c37]',
+                                    'shadow-[0_6px_16px_-6px_var(--rdw-orange-glow)]',
                                     'focus-visible:ring-[var(--rdw-orange)]/40',
                                 )}
                             >

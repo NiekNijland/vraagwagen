@@ -24,8 +24,8 @@ class AppServiceProvider extends ServiceProvider
     {
         // Generous timeout: unfiltered group-bys over the ~16M-row dataset are slow on a cold Socrata cache.
         $this->app->singleton(Rdw::class, static fn (): Rdw => new Rdw(new RdwConfiguration(
-            appToken: config('rdwai.rdw_app_token'),
-            userAgent: 'rdwai/0.1 (laravel)',
+            appToken: config('vraagwagen.rdw_app_token'),
+            userAgent: 'vraagwagen/0.1 (laravel)',
             timeoutSeconds: 25.0,
         )));
 
@@ -36,9 +36,9 @@ class AppServiceProvider extends ServiceProvider
         // share one instance so that work happens once per process, not once per query request.
         $this->app->singleton(SocrataStorageTypes::class);
 
-        // Bind (not singleton) so a post-boot config()->set('rdwai.model_prices') is honoured.
+        // Bind (not singleton) so a post-boot config()->set('vraagwagen.model_prices') is honoured.
         $this->app->bind(CostEstimator::class, static fn (): CostEstimator => new CostEstimator(
-            (array) config('rdwai.model_prices', []),
+            (array) config('vraagwagen.model_prices', []),
         ));
     }
 
@@ -54,13 +54,13 @@ class AppServiceProvider extends ServiceProvider
     protected function configureRateLimiting(): void
     {
         RateLimiter::for('rdw-query', fn (Request $request): array => [
-            Limit::perMinute((int) config('rdwai.rate_limit.per_minute'))->by((string) $request->ip()),
-            Limit::perDay((int) config('rdwai.rate_limit.per_day_ip'))->by('rdw-query:ip:'.$request->ip()),
-            Limit::perDay((int) config('rdwai.rate_limit.per_day_global'))->by('rdw-query:global'),
+            Limit::perMinute((int) config('vraagwagen.rate_limit.per_minute'))->by((string) $request->ip()),
+            Limit::perDay((int) config('vraagwagen.rate_limit.per_day_ip'))->by('rdw-query:ip:'.$request->ip()),
+            Limit::perDay((int) config('vraagwagen.rate_limit.per_day_global'))->by('rdw-query:global'),
         ]);
 
         RateLimiter::for('rdw-feedback', fn (Request $request): array => [
-            Limit::perMinute((int) config('rdwai.rate_limit.feedback_per_minute'))->by((string) $request->ip()),
+            Limit::perMinute((int) config('vraagwagen.rate_limit.feedback_per_minute'))->by((string) $request->ip()),
         ]);
     }
 

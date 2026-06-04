@@ -130,7 +130,7 @@ export function RecordView({
                                 key === 'identification' && 'md:col-span-2',
                             )}
                         >
-                            <h3 className="mb-3 text-[11px] font-semibold tracking-wide text-neutral-500 uppercase dark:text-neutral-400">
+                            <h3 className="mb-3 font-mono text-[11px] font-semibold tracking-wide text-neutral-500 uppercase dark:text-neutral-400">
                                 {t(`pages.query.recordSections.${key}`)}
                             </h3>
                             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">

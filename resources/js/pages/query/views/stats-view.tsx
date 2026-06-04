@@ -73,7 +73,7 @@ function StatsGrid({
                     key={tile.alias}
                     className="flex flex-col gap-1 rounded-lg border border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-4 dark:border-neutral-800 dark:from-neutral-950 dark:to-neutral-900"
                 >
-                    <div className="text-[11px] tracking-wide text-neutral-500 uppercase dark:text-neutral-400">
+                    <div className="font-mono text-[11px] tracking-wide text-neutral-500 uppercase dark:text-neutral-400">
                         {tile.label}
                     </div>
                     <div className="text-2xl font-semibold tabular-nums sm:text-3xl">

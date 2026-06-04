@@ -136,7 +136,7 @@ final class QueryFeedbackTest extends TestCase
     public function test_feedback_is_rate_limited(): void
     {
         QueryRun::factory()->createOne(['slug' => 'fbslug6666']);
-        config()->set('rdwai.rate_limit.feedback_per_minute', 2);
+        config()->set('vraagwagen.rate_limit.feedback_per_minute', 2);
 
         // Stable client token so this asserts the rate limiter, not ownership.
         $this->withCredentials()->withCookie('rdw_client', 'client-rate-limit');

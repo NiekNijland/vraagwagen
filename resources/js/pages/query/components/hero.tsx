@@ -29,7 +29,7 @@ export function Hero({ compact }: { compact: boolean }) {
                 )}
             >
                 {before}
-                <span className="pr-[0.15em] font-bold text-[var(--rdw-orange)] italic">
+                <span className="font-mono font-bold tracking-[-0.06em] text-[var(--rdw-orange)]">
                     {accent}
                 </span>
                 {after}

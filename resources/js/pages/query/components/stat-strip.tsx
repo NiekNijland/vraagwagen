@@ -70,7 +70,7 @@ export function StatStrip({
                 </a>
                 <span className="text-muted-foreground/40">·</span>
                 <a
-                    href="https://github.com/NiekNijland/rdwai"
+                    href="https://github.com/NiekNijland/vraagwagen"
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="GitHub"
@@ -87,7 +87,7 @@ export function StatStrip({
 function StatItem({ value, label }: { value: string; label: string }) {
     return (
         <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
-            <span className="text-[13px] font-semibold text-foreground tabular-nums">
+            <span className="font-mono text-[12.5px] font-semibold text-foreground tabular-nums">
                 {value}
             </span>
             <span className="text-[11.5px] text-muted-foreground/70">

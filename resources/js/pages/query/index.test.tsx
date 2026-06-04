@@ -88,7 +88,9 @@ describe('QueryPage', () => {
         // The recent-queries store is hooked up to localStorage, so the submit
         // should have persisted the prompt.
         await waitFor(() => {
-            const stored = window.localStorage.getItem('rdwai:recent-queries');
+            const stored = window.localStorage.getItem(
+                'vraagwagen:recent-queries',
+            );
             expect(stored).toContain('How many Teslas?');
         });
 

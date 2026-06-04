@@ -10,7 +10,7 @@ import {
 
 // Implementation detail, but stable — asserting it proves we persist across
 // reloads rather than only updating the in-memory cache.
-const STORAGE_KEY = 'rdwai:recent-queries';
+const STORAGE_KEY = 'vraagwagen:recent-queries';
 
 function stored(): unknown {
     const raw = window.localStorage.getItem(STORAGE_KEY);

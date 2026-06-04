@@ -26,31 +26,31 @@ export function ResultPanel({
                     >
                         ↳
                     </span>
-                    <span className="text-[10.5px] font-semibold tracking-[0.14em] whitespace-nowrap text-muted-foreground/70 uppercase">
+                    <span className="font-mono text-[10.5px] font-semibold tracking-[0.14em] whitespace-nowrap text-muted-foreground/70 uppercase">
                         {t('pages.query.youAsked')}
                     </span>
                     {onEditPrompt !== undefined ? (
                         <button
                             type="button"
                             onClick={onEditPrompt}
-                            className="flex-1 cursor-text rounded-md text-left text-foreground italic decoration-[var(--rdw-orange)]/50 decoration-dotted underline-offset-[3px] transition-colors hover:text-[var(--rdw-orange)] hover:underline focus-visible:ring-2 focus-visible:ring-[var(--rdw-orange)]/40 focus-visible:outline-none"
+                            className="flex-1 cursor-text rounded-sm text-left font-mono text-[13px] text-foreground decoration-[var(--rdw-orange)]/50 decoration-dotted underline-offset-[3px] transition-colors hover:text-[var(--rdw-orange)] hover:underline focus-visible:ring-2 focus-visible:ring-[var(--rdw-orange)]/40 focus-visible:outline-none"
                         >
                             "{trimmed}"
                         </button>
                     ) : (
-                        <span className="flex-1 text-foreground italic">
+                        <span className="flex-1 font-mono text-[13px] text-foreground">
                             "{trimmed}"
                         </span>
                     )}
                     {live === true && (
-                        <Badge className="rounded-full border-emerald-500/30 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-500 hover:bg-emerald-500/15">
+                        <Badge className="rounded-[3px] border-emerald-500/30 bg-emerald-500/15 px-2.5 py-1 font-mono text-[10.5px] font-semibold text-emerald-500 hover:bg-emerald-500/15">
                             <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
                             {t('pages.query.liveData')}
                         </Badge>
                     )}
                 </div>
             )}
-            <div className="relative overflow-hidden rounded-[22px] border bg-card px-6 py-5 text-left text-card-foreground shadow-[0_20px_50px_-20px_rgba(0,0,0,0.4)]">
+            <div className="relative overflow-hidden rounded-[6px] border bg-card px-6 py-5 text-left text-card-foreground shadow-[0_16px_40px_-20px_rgba(0,0,0,0.4)]">
                 <span className="rdw-accent-line" aria-hidden="true" />
                 {children}
             </div>

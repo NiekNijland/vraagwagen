@@ -19,7 +19,7 @@ export function downloadRows(
             .toLowerCase()
             .replace(/[^a-z0-9-_]+/g, '-')
             .replace(/^-+|-+$/g, '')
-            .slice(0, 60) || 'rdwai-result';
+            .slice(0, 60) || 'vraagwagen-result';
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `${safeBase}-${stamp}.${format}`;
 

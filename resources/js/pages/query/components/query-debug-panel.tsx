@@ -74,7 +74,7 @@ export function QueryDebugBody(props: QueryDebugProps) {
     const soqlString = soql === undefined ? '' : soqlToString(soql);
 
     return (
-        <div className="space-y-3 rounded-[12px] border bg-[color:color-mix(in_oklab,var(--background)_60%,transparent)] p-3.5 text-xs">
+        <div className="space-y-3 rounded-[4px] border bg-[color:color-mix(in_oklab,var(--background)_60%,transparent)] p-3.5 text-xs">
             {hasModel && (
                 <DebugSection label={t('pages.query.model')}>
                     <code className="block rounded bg-background/80 p-2 font-mono text-[11px]">
@@ -245,7 +245,7 @@ function DebugSection({
     return (
         <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-3">
-                <span className="text-[10.5px] font-semibold tracking-[0.12em] whitespace-nowrap text-[var(--rdw-orange)] uppercase">
+                <span className="font-mono text-[10.5px] font-semibold tracking-[0.12em] whitespace-nowrap text-[var(--rdw-orange)] uppercase">
                     {label}
                 </span>
                 {meta}

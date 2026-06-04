@@ -33,7 +33,7 @@ const TimeseriesView = lazy(() =>
 function ChartFallback() {
     return (
         <div
-            className="rdw-skel h-[220px] w-full rounded-[12px]"
+            className="rdw-skel h-[220px] w-full rounded-[4px]"
             aria-hidden="true"
         />
     );

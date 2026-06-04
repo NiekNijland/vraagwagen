@@ -10,7 +10,7 @@ export function EyebrowChip({ compact }: { compact: boolean }) {
     return (
         <div
             className={cn(
-                'inline-flex items-center gap-2 rounded-full border bg-card/60 px-3.5 py-1.5 text-[12.5px] font-medium text-muted-foreground backdrop-blur',
+                'inline-flex items-center gap-2 rounded-[3px] border bg-card/60 px-3.5 py-1.5 font-mono text-[11.5px] font-medium text-muted-foreground backdrop-blur',
                 compact ? 'mb-2.5' : 'mb-5',
             )}
         >

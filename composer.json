@@ -1,6 +1,6 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "nieknijland/rdwai",
+    "name": "nieknijland/vraagwagen",
     "type": "project",
     "description": "Natural-language queries over the Dutch RDW vehicle registry.",
     "keywords": [

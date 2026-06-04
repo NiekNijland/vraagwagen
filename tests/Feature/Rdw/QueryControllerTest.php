@@ -41,8 +41,8 @@ final class QueryControllerTest extends TestCase
 
     public function test_index_exposes_authoritative_prompt_bounds_to_the_page(): void
     {
-        config()->set('rdwai.prompt.min_length', 5);
-        config()->set('rdwai.prompt.max_length', 1234);
+        config()->set('vraagwagen.prompt.min_length', 5);
+        config()->set('vraagwagen.prompt.max_length', 1234);
 
         $this->get(route('home'))
             ->assertOk()
@@ -88,7 +88,7 @@ final class QueryControllerTest extends TestCase
             ['eerste_kleur' => 'ZWART', 'n' => '17'],
         ]);
 
-        config()->set('rdwai.model_prices', [
+        config()->set('vraagwagen.model_prices', [
             'gpt-4.1-nano' => ['input' => 0.10, 'cached_input' => 0.025, 'output' => 0.40],
         ]);
 
@@ -307,7 +307,7 @@ final class QueryControllerTest extends TestCase
 
     public function test_run_validates_prompt_length(): void
     {
-        $maxLength = (int) config('rdwai.prompt.max_length', 2000);
+        $maxLength = (int) config('vraagwagen.prompt.max_length', 2000);
 
         $this->postJson(route('rdw.query.run'), ['prompt' => 'no'])
             ->assertStatus(422)

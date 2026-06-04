@@ -305,7 +305,7 @@ final class RunNaturalLanguageQueryTest extends TestCase
 
     public function test_estimates_cost_from_response_usage(): void
     {
-        config()->set('rdwai.model_prices', [
+        config()->set('vraagwagen.model_prices', [
             'gpt-4.1-nano' => ['input' => 0.10, 'cached_input' => 0.025, 'output' => 0.40],
         ]);
 
@@ -357,7 +357,7 @@ final class RunNaturalLanguageQueryTest extends TestCase
 
         return new RunNaturalLanguageQuery(
             planRunner: new PlanRunner($rdw, $assembler, $normalizer, retryBackoffMs: 0),
-            costEstimator: new CostEstimator((array) config('rdwai.model_prices', [])),
+            costEstimator: new CostEstimator((array) config('vraagwagen.model_prices', [])),
             programFactory: new QueryProgramFactory(
                 new PlanFactory($schemas),
                 new PresentationFactory,

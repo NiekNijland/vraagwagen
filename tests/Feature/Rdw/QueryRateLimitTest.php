@@ -46,8 +46,8 @@ final class QueryRateLimitTest extends TestCase
 
     public function test_per_minute_burst_returns_429_after_threshold(): void
     {
-        config()->set('rdwai.rate_limit.per_minute', 3);
-        config()->set('rdwai.rate_limit.per_day_global', 1000);
+        config()->set('vraagwagen.rate_limit.per_minute', 3);
+        config()->set('vraagwagen.rate_limit.per_day_global', 1000);
 
         for ($i = 0; $i < 3; $i++) {
             $this->postJson(route('rdw.query.run'), ['prompt' => 'count vehicles'])
@@ -60,8 +60,8 @@ final class QueryRateLimitTest extends TestCase
 
     public function test_global_daily_cap_returns_429_even_across_different_ips(): void
     {
-        config()->set('rdwai.rate_limit.per_minute', 1000);
-        config()->set('rdwai.rate_limit.per_day_global', 2);
+        config()->set('vraagwagen.rate_limit.per_minute', 1000);
+        config()->set('vraagwagen.rate_limit.per_day_global', 2);
 
         $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.1'])
             ->postJson(route('rdw.query.run'), ['prompt' => 'count vehicles'])

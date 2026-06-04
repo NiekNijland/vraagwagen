@@ -17,8 +17,8 @@ final class RunQueryRequest extends FormRequest
             'prompt' => [
                 'required',
                 'string',
-                'min:'.(int) config('rdwai.prompt.min_length', 3),
-                'max:'.(int) config('rdwai.prompt.max_length', 2000),
+                'min:'.(int) config('vraagwagen.prompt.min_length', 3),
+                'max:'.(int) config('vraagwagen.prompt.max_length', 2000),
             ],
         ];
     }
