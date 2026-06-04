@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 
 import { useTranslation } from '@/hooks/use-translation';
 
+import { filterPresentationRows } from '../format';
 import type { QueryResult } from '../types';
 import { CountView } from './count-view';
 import { DerivedView } from './derived-view';
@@ -49,6 +50,7 @@ export function ResultBody({
 }) {
     const { t } = useTranslation();
     const { rows, displayHint, plan } = result;
+    const presentationRows = filterPresentationRows(rows, plan);
 
     // Unsupported is a refusal, not a data shortage — show it before the empty
     // check so an off-topic question doesn't render as "no rows matched".
@@ -70,7 +72,7 @@ export function ResultBody({
         return <DerivedView derived={derived} locale={locale} />;
     }
 
-    if (rows.length === 0) {
+    if (presentationRows.length === 0) {
         return (
             <p className="text-sm text-neutral-500">
                 {t('pages.query.noRows')}
@@ -78,18 +80,32 @@ export function ResultBody({
         );
     }
 
-    const table = <TableView rows={rows} plan={plan} locale={locale} />;
+    const table = (
+        <TableView rows={presentationRows} plan={plan} locale={locale} />
+    );
 
     switch (displayHint) {
         case 'count':
-            return <CountView rows={rows} plan={plan} locale={locale} />;
+            return (
+                <CountView
+                    rows={presentationRows}
+                    plan={plan}
+                    locale={locale}
+                />
+            );
         case 'stats':
-            return <StatsView rows={rows} plan={plan} locale={locale} />;
+            return (
+                <StatsView
+                    rows={presentationRows}
+                    plan={plan}
+                    locale={locale}
+                />
+            );
         case 'bars':
             return (
                 <Suspense fallback={<ChartFallback />}>
                     <BarsView
-                        rows={rows}
+                        rows={presentationRows}
                         plan={plan}
                         locale={locale}
                         fallback={table}
@@ -100,7 +116,7 @@ export function ResultBody({
             return (
                 <Suspense fallback={<ChartFallback />}>
                     <StackedBarsView
-                        rows={rows}
+                        rows={presentationRows}
                         plan={plan}
                         locale={locale}
                         fallback={table}
@@ -111,7 +127,7 @@ export function ResultBody({
             return (
                 <Suspense fallback={<ChartFallback />}>
                     <PieView
-                        rows={rows}
+                        rows={presentationRows}
                         plan={plan}
                         locale={locale}
                         fallback={table}
@@ -122,7 +138,7 @@ export function ResultBody({
             return (
                 <Suspense fallback={<ChartFallback />}>
                     <HistogramView
-                        rows={rows}
+                        rows={presentationRows}
                         plan={plan}
                         locale={locale}
                         fallback={table}
@@ -133,7 +149,7 @@ export function ResultBody({
             return (
                 <Suspense fallback={<ChartFallback />}>
                     <TimeseriesView
-                        rows={rows}
+                        rows={presentationRows}
                         plan={plan}
                         locale={locale}
                         fallback={table}
@@ -141,7 +157,7 @@ export function ResultBody({
                 </Suspense>
             );
         case 'record':
-            return <RecordView rows={rows} locale={locale} />;
+            return <RecordView rows={presentationRows} locale={locale} />;
         case 'table':
         default:
             return table;

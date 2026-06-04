@@ -4,6 +4,7 @@ import {
     bucketForColumn,
     chartColor,
     detectTimeGranularity,
+    filterPresentationRows,
     fillTimeBuckets,
     findNumericKey,
     formatBucketLabel,
@@ -239,6 +240,58 @@ describe('bucketForColumn', () => {
         const plan = planWithGroupBy([{ field: 'datum', bucket: 'month' }]);
 
         expect(bucketForColumn(plan, 'merk')).toBeNull();
+    });
+});
+
+describe('filterPresentationRows', () => {
+    it('drops non-informative categorical groups from breakdowns', () => {
+        const filtered = filterPresentationRows(
+            [
+                { PrimaryColor: 'N.v.t.', n: 6037403 },
+                { PrimaryColor: 'DIVERSEN', n: 646 },
+                { PrimaryColor: 'Niet geregistreerd', n: 2481 },
+                { PrimaryColor: 'WIT', n: 1632538 },
+                { PrimaryColor: 'ZWART', n: 2628438 },
+            ],
+            planWithGroupBy([{ field: 'PrimaryColor', bucket: 'none' }]),
+        );
+
+        expect(filtered).toEqual([
+            { PrimaryColor: 'WIT', n: 1632538 },
+            { PrimaryColor: 'ZWART', n: 2628438 },
+        ]);
+    });
+
+    it('keeps date buckets and raw tables untouched', () => {
+        expect(
+            filterPresentationRows(
+                [{ FirstAdmissionDate: '2020-01-01T00:00:00.000', n: 12 }],
+                planWithGroupBy([
+                    { field: 'FirstAdmissionDate', bucket: 'year' },
+                ]),
+            ),
+        ).toEqual([{ FirstAdmissionDate: '2020-01-01T00:00:00.000', n: 12 }]);
+
+        expect(
+            filterPresentationRows(
+                [{ PrimaryColor: 'N.v.t.', LicensePlate: '12-AB-34' }],
+                planWithGroupBy([]),
+            ),
+        ).toEqual([{ PrimaryColor: 'N.v.t.', LicensePlate: '12-AB-34' }]);
+    });
+
+    it('falls back to the original rows when every group would be filtered out', () => {
+        const rows = [
+            { PrimaryColor: 'N.v.t.', n: 6037403 },
+            { PrimaryColor: 'DIVERSEN', n: 646 },
+        ];
+
+        expect(
+            filterPresentationRows(
+                rows,
+                planWithGroupBy([{ field: 'PrimaryColor', bucket: 'none' }]),
+            ),
+        ).toEqual(rows);
     });
 });
 

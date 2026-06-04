@@ -1,5 +1,15 @@
 import type { Bucket, Plan, QueryRow } from './types';
 
+const NON_INFORMATIVE_GROUP_LABELS = new Set([
+    'diversen',
+    'na',
+    'nietbekend',
+    'nietgeregistreerd',
+    'nvt',
+    'onbekend',
+    'unknown',
+]);
+
 export function localeTag(locale: string): string {
     return locale === 'nl' ? 'nl-NL' : 'en-US';
 }
@@ -164,6 +174,49 @@ export function bucketForColumn(plan: Plan, column: string): Bucket | null {
     const key = plan.groupBy.find((k) => k.field === column);
 
     return key === undefined ? null : key.bucket;
+}
+
+function normalizeGroupLabel(value: string): string {
+    return value
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/gi, '')
+        .toLowerCase();
+}
+
+function isNonInformativeGroupValue(value: unknown): boolean {
+    if (value === null || value === undefined) {
+        return true;
+    }
+
+    if (typeof value !== 'string') {
+        return false;
+    }
+
+    const normalized = normalizeGroupLabel(value);
+
+    return normalized === '' || NON_INFORMATIVE_GROUP_LABELS.has(normalized);
+}
+
+export function filterPresentationRows(
+    rows: QueryRow[],
+    plan: Plan,
+): QueryRow[] {
+    const categoricalGroupFields = plan.groupBy
+        .filter((key) => key.bucket === 'none')
+        .map((key) => key.field);
+
+    if (categoricalGroupFields.length === 0) {
+        return rows;
+    }
+
+    const filtered = rows.filter((row) =>
+        categoricalGroupFields.every(
+            (field) => !isNonInformativeGroupValue(row[field]),
+        ),
+    );
+
+    return filtered.length > 0 ? filtered : rows;
 }
 
 // Format a group-by value using the bucket from the query plan, so date-truncated
