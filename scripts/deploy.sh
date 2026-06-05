@@ -118,10 +118,28 @@ link_shared()
     fi
 }
 
+prepare_writable_shared_storage()
+{
+    mkdir -p \
+        storage/framework/cache/data \
+        storage/framework/sessions \
+        storage/framework/testing \
+        storage/framework/views \
+        storage/logs
+
+    touch storage/logs/laravel.log
+    chmod -R ug+rwX storage/framework storage/logs
+}
+
 if [[ -d "$SHARED_DIR" ]]; then
     run_step 'Link shared .env' link_shared "${SHARED_DIR}/.env" "$(pwd)/.env"
     run_step 'Link shared storage' link_shared "${SHARED_DIR}/storage" "$(pwd)/storage"
 fi
+
+# Shared storage can lose Laravel's runtime directories or writable bits
+# between releases. Repair them before the first artisan boot so Blade can
+# compile views and Monolog can append to the file logger.
+run_step 'Prepare writable shared storage' prepare_writable_shared_storage
 
 run_step 'Enable maintenance mode' php artisan down --retry=60
 MAINTENANCE_MODE=1
