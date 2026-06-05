@@ -147,6 +147,15 @@ final class PromptBuilderTest extends TestCase
         self::assertStringContainsString('leading x trailing', $wrapped);
     }
 
+    public function test_user_prompt_strips_dutch_apostrophe_s_from_model_names(): void
+    {
+        $wrapped = $this->builder()->userPrompt("Hoeveel suzuki GSX-R's en yamaha MT-07’s zijn er?");
+
+        self::assertStringContainsString('Hoeveel suzuki GSX-R en yamaha MT-07 zijn er?', $wrapped);
+        self::assertStringNotContainsString("GSX-R's", $wrapped);
+        self::assertStringNotContainsString('MT-07’s', $wrapped);
+    }
+
     public function test_prompt_tells_the_model_to_leave_limit_null_on_complete_breakdowns(): void
     {
         $prompt = $this->builder()->systemPrompt(Locale::English);
@@ -308,7 +317,7 @@ final class PromptBuilderTest extends TestCase
         ];
         $fuelsFields = ['LicensePlate', 'NetMaximumPower', 'FuelDescription'];
 
-        $schemas = new SchemaRegistry();
+        $schemas = new SchemaRegistry;
         $vehicles = $schemas->get(DatasetId::RegisteredVehicles);
         $fuels = $schemas->get(DatasetId::RegisteredVehicleFuels);
         $prompt = $this->builder()->systemPrompt(Locale::English);
@@ -390,6 +399,15 @@ final class PromptBuilderTest extends TestCase
         self::assertStringContainsString('Never pack a comma-joined string into `value`', $prompt);
     }
 
+    public function test_prompt_says_where_clauses_must_emit_only_the_relevant_value_carrier(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('emit only the value carrier that actually applies', $prompt);
+        self::assertStringContainsString('set `value` and omit `values`', $prompt);
+        self::assertStringContainsString('set `values` and omit `value`', $prompt);
+    }
+
     public function test_prompt_refuses_motorcycle_colour_questions(): void
     {
         $prompt = $this->builder()->systemPrompt(Locale::English);
@@ -421,6 +439,6 @@ final class PromptBuilderTest extends TestCase
 
     private function builder(): PromptBuilder
     {
-        return new PromptBuilder(new SchemaRegistry());
+        return new PromptBuilder(new SchemaRegistry);
     }
 }

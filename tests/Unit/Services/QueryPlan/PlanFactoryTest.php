@@ -640,9 +640,33 @@ final class PlanFactoryTest extends TestCase
         self::assertSame([], $plan->where[0]->values);
     }
 
+    public function test_rejects_corrupted_scalar_value_with_structural_garbage(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('contains malformed structured-output debris');
+
+        $this->factory()->fromArray([
+            'where' => [['field' => 'VehicleType', 'op' => 'eq', 'value' => 'Motorfiets},{']],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'display' => 'count',
+        ], TargetDataset::RegisteredVehicles);
+    }
+
+    public function test_rejects_unknown_literal_for_exhaustive_vocabulary_field(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('must use an exact vocabulary value');
+
+        $this->factory()->fromArray([
+            'where' => [['field' => 'VehicleType', 'op' => 'eq', 'value' => 'Motorcycle']],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'display' => 'count',
+        ], TargetDataset::RegisteredVehicles);
+    }
+
     private function factory(): PlanFactory
     {
-        return new PlanFactory(new SchemaRegistry());
+        return new PlanFactory(new SchemaRegistry);
     }
 
     private function planWithLimit(PlanFactory $factory, ?int $limit): Plan

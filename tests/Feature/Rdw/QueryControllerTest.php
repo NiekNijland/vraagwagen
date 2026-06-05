@@ -399,6 +399,44 @@ final class QueryControllerTest extends TestCase
             ->assertJsonPath('error', 'The generated query was malformed. Try rephrasing your question.');
     }
 
+    public function test_run_returns_422_when_ai_planner_leaks_structural_garbage_into_a_where_value(): void
+    {
+        $this->fakeQueryPlan([
+            'where' => [['field' => 'VehicleType', 'op' => 'eq', 'value' => 'Motorfiets},{']],
+            'select' => [],
+            'groupBy' => [],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'orderBy' => [],
+            'limit' => null,
+            'display' => 'count',
+            'explanation' => '',
+        ]);
+
+        $response = $this->postJson(route('rdw.query.run'), ['prompt' => 'test prompt']);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error', 'The generated query was malformed. Try rephrasing your question.');
+    }
+
+    public function test_run_returns_422_when_ai_planner_leaks_structural_garbage_into_a_brand_value(): void
+    {
+        $this->fakeQueryPlan([
+            'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => 'SUZUKI},{']],
+            'select' => [],
+            'groupBy' => [],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'orderBy' => [],
+            'limit' => null,
+            'display' => 'count',
+            'explanation' => '',
+        ]);
+
+        $response = $this->postJson(route('rdw.query.run'), ['prompt' => "Hoeveel suzuki GSX-R's zijn er?"]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error', 'The generated query was malformed. Try rephrasing your question.');
+    }
+
     public function test_run_returns_422_with_rejected_message_and_debug_payload_when_rdw_rejects_the_query(): void
     {
         $this->fakeQueryPlan([
@@ -523,7 +561,7 @@ final class QueryControllerTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $plan
+     * @param  array<string, mixed>  $plan
      */
     private function fakeQueryPlan(array $plan, ?Usage $usage = null, string $model = 'fake'): void
     {
@@ -539,7 +577,7 @@ final class QueryControllerTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $program
+     * @param  array<string, mixed>  $program
      */
     private function fakeProgram(array $program, ?Usage $usage = null, string $model = 'fake'): void
     {
@@ -547,14 +585,14 @@ final class QueryControllerTest extends TestCase
             new StructuredTextResponse(
                 $program,
                 json_encode($program, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage(),
+                $usage ?? new Usage,
                 new Meta('openai', $model),
             ),
         ]);
     }
 
     /**
-     * @param list<array<string, mixed>> $rows
+     * @param  list<array<string, mixed>>  $rows
      */
     private function fakeRdwWithRows(array $rows): void
     {
@@ -574,7 +612,7 @@ final class QueryControllerTest extends TestCase
     }
 
     /**
-     * @param list<Psr7Response|Throwable> $queue
+     * @param  list<Psr7Response|Throwable>  $queue
      */
     private function fakeRdwWithQueue(array $queue): void
     {
@@ -585,7 +623,7 @@ final class QueryControllerTest extends TestCase
             'handler' => $stack,
         ]);
 
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
         $this->app->instance(Rdw::class, $rdw);
         $storageTypes = new SocrataStorageTypes($rdw->schemas());
         $assembler = new QueryAssembler($rdw, $storageTypes, new FieldCaster($rdw->schemas()));

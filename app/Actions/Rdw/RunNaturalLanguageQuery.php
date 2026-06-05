@@ -32,6 +32,7 @@ use App\Services\QueryPlan\TargetDataset;
 use App\Services\QueryPlan\TokenUsage;
 use App\Services\QueryPlan\WhereOp;
 use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
@@ -46,14 +47,13 @@ class RunNaturalLanguageQuery
         private readonly StepReferenceResolver $referenceResolver,
         private readonly Derivation $derivation,
         private readonly Repository $cache,
-    ) {
-    }
+    ) {}
 
     public function execute(string $userPrompt, Locale $locale): QueryResult
     {
         [$program, $model, $tokens, $estimatedCost] = $this->resolveProgram($userPrompt, $locale);
 
-        $ledger = new QueryLedger();
+        $ledger = new QueryLedger;
 
         // A refusal must short-circuit before anything runs: the model sometimes attaches real
         // queries to an unsupported presentation, and presenting their rows next to a refusal
@@ -125,19 +125,43 @@ class RunNaturalLanguageQuery
             && isset($cached['program'])
             && is_array($cached['program'])
         ) {
-            return [
-                $this->programFactory->fromArray($cached['program']),
-                is_string($cached['model'] ?? null) ? $cached['model'] : '',
-                new TokenUsage(prompt: 0, completion: 0, cacheRead: 0, thought: 0),
-                null,
-            ];
+            try {
+                return [
+                    $this->programFactory->fromArray($cached['program']),
+                    is_string($cached['model'] ?? null) ? $cached['model'] : '',
+                    new TokenUsage(prompt: 0, completion: 0, cacheRead: 0, thought: 0),
+                    null,
+                ];
+            } catch (InvalidArgumentException $e) {
+                $this->cache->forget($cacheKey);
+
+                Log::warning('Discarded invalid cached RDW query program', [
+                    'locale' => $locale->value,
+                    'cacheKey' => $cacheKey,
+                    'message' => $e->getMessage(),
+                    'program' => $cached['program'],
+                ]);
+            }
         }
 
         $response = QueryProgramAgent::make(locale: $locale)->ask($userPrompt);
 
         /** @var array<string, mixed> $raw */
         $raw = $response->structured;
-        $program = $this->programFactory->fromArray($raw);
+        try {
+            $program = $this->programFactory->fromArray($raw);
+        } catch (InvalidArgumentException $e) {
+            Log::warning('AI planner produced an invalid RDW query program', [
+                'locale' => $locale->value,
+                'message' => $e->getMessage(),
+                'structured' => $raw,
+                'text' => $response->text,
+                'model' => $response->meta->model ?? '',
+            ]);
+
+            throw $e;
+        }
+
         $model = $response->meta->model ?? '';
 
         $this->cache->put(
@@ -246,7 +270,7 @@ class RunNaturalLanguageQuery
      * value from the executed step ("{{q1.Brand}}" → "KAWASAKI"). A follow-up whose token cannot
      * be resolved is dropped — leaking a raw template token to the user is worse than one fewer chip.
      *
-     * @param list<string> $followUps
+     * @param  list<string>  $followUps
      * @return list<string>
      */
     private function resolveFollowUps(array $followUps, QueryLedger $ledger): array

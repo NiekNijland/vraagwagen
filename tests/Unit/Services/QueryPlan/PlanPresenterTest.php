@@ -178,4 +178,27 @@ final class PlanPresenterTest extends TestCase
 
         self::assertSame('RegisteredVehicles', $normalised['dataset']);
     }
+
+    public function test_to_array_omits_empty_value_for_literal_in_clauses(): void
+    {
+        $plan = new Plan(
+            dataset: TargetDataset::RegisteredVehicles,
+            where: [new WhereClause('Brand', WhereOp::In, '', ['HONDA', 'YAMAHA'])],
+            select: [],
+            groupBy: [],
+            aggregates: [new AggregateClause(AggregateFn::Count, null, 'n')],
+            orderBy: [],
+            limit: null,
+            display: DisplayHint::Count,
+            explanation: 'Counts motorcycles.',
+        );
+
+        $array = PlanPresenter::toArray($plan);
+
+        self::assertSame([
+            'field' => 'Brand',
+            'op' => 'in',
+            'values' => ['HONDA', 'YAMAHA'],
+        ], $array['where'][0]);
+    }
 }

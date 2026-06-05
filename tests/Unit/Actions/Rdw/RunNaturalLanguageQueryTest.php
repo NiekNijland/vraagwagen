@@ -496,7 +496,7 @@ final class RunNaturalLanguageQueryTest extends TestCase
             ),
         ])->preventStrayPrompts();
 
-        $cache = new Repository(new ArrayStore());
+        $cache = new Repository(new ArrayStore);
         $action = $this->actionFor([[['n' => '1']], [['n' => '1']]], $cache);
 
         $first = $action->execute('How many vehicles are there?', Locale::English);
@@ -508,8 +508,64 @@ final class RunNaturalLanguageQueryTest extends TestCase
         self::assertNull($second->estimatedCost);
     }
 
+    public function test_discards_an_invalid_cached_program_and_replans_the_query(): void
+    {
+        QueryProgramAgent::fake([
+            new StructuredTextResponse(
+                [
+                    'queries' => [[
+                        'id' => 'q1',
+                        'dataset' => 'RegisteredVehicles',
+                        'where' => [['field' => 'VehicleType', 'op' => 'eq', 'value' => 'Motorfiets']],
+                        'select' => [], 'groupBy' => [],
+                        'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+                        'orderBy' => [], 'limit' => null, 'display' => 'count', 'explanation' => '',
+                    ]],
+                    'presentation' => [
+                        'resultRef' => 'q1',
+                        'display' => 'count',
+                        'derive' => null,
+                        'explanation' => '',
+                    ],
+                ],
+                json_encode(['fresh' => true], JSON_THROW_ON_ERROR),
+                new Usage(promptTokens: 700, completionTokens: 70),
+                new Meta('openai', 'gpt-4.1-mini'),
+            ),
+        ])->preventStrayPrompts();
+
+        $cache = new Repository(new ArrayStore);
+        $cache->put('rdw:query-program:en:'.sha1('how many motorcycles are there?'), [
+            'program' => [
+                'queries' => [[
+                    'id' => 'q1',
+                    'dataset' => 'RegisteredVehicles',
+                    'where' => [['field' => 'VehicleType', 'op' => 'eq', 'value' => 'Motorfiets},{']],
+                    'select' => [], 'groupBy' => [],
+                    'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+                    'orderBy' => [], 'limit' => null, 'display' => 'count', 'explanation' => '',
+                ]],
+                'presentation' => [
+                    'resultRef' => 'q1',
+                    'display' => 'count',
+                    'derive' => null,
+                    'explanation' => '',
+                ],
+            ],
+            'model' => 'cached-bad-model',
+        ], 86400);
+
+        $action = $this->actionFor([[['n' => '12']]], $cache);
+
+        $result = $action->execute('How many motorcycles are there?', Locale::English);
+
+        self::assertSame(700, $result->tokens->prompt);
+        self::assertSame('Motorfiets', $result->plan->where[0]->value);
+        self::assertSame('gpt-4.1-mini', $result->model);
+    }
+
     /**
-     * @param list<list<array<string, mixed>>> $rdwResponses one rows-array per executed Plan
+     * @param  list<list<array<string, mixed>>>  $rdwResponses  one rows-array per executed Plan
      */
     private function actionFor(array $rdwResponses, ?Repository $cache = null): RunNaturalLanguageQuery
     {
@@ -524,8 +580,8 @@ final class RunNaturalLanguageQueryTest extends TestCase
 
         $stack = HandlerStack::create(new MockHandler($queue));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
-        $schemas = new SchemaRegistry();
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        $schemas = new SchemaRegistry;
         $storageTypes = new SocrataStorageTypes($schemas);
         $assembler = new QueryAssembler($rdw, $storageTypes, new FieldCaster($schemas));
         $normalizer = new ResultNormalizer($schemas);
@@ -535,16 +591,16 @@ final class RunNaturalLanguageQueryTest extends TestCase
             costEstimator: new CostEstimator((array) config('vraagwagen.model_prices', [])),
             programFactory: new QueryProgramFactory(
                 new PlanFactory($schemas),
-                new PresentationFactory(),
+                new PresentationFactory,
             ),
-            referenceResolver: new StepReferenceResolver(),
-            derivation: new Derivation(),
-            cache: $cache ?? new Repository(new ArrayStore()),
+            referenceResolver: new StepReferenceResolver,
+            derivation: new Derivation,
+            cache: $cache ?? new Repository(new ArrayStore),
         );
     }
 
     /**
-     * @param array<string, mixed> $program
+     * @param  array<string, mixed>  $program
      */
     private function fakeProgram(array $program, ?Usage $usage = null, string $model = 'fake'): void
     {
@@ -552,7 +608,7 @@ final class RunNaturalLanguageQueryTest extends TestCase
             new StructuredTextResponse(
                 $program,
                 json_encode($program, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage(),
+                $usage ?? new Usage,
                 new Meta('openai', $model),
             ),
         ]);

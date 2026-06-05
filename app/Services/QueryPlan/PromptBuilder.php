@@ -6,6 +6,7 @@ namespace App\Services\QueryPlan;
 
 use App\Enums\Locale;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Str;
 use NiekNijland\RDW\Datasets\DatasetId;
 use NiekNijland\RDW\Schema\CastType;
 use NiekNijland\RDW\Schema\DatasetSchema;
@@ -43,8 +44,14 @@ final readonly class PromptBuilder
         'Bus',
     ];
 
-    public function __construct(private SchemaRegistry $schemas)
+    public function __construct(private SchemaRegistry $schemas) {}
+
+    /**
+     * @return list<string>
+     */
+    public static function vehicleTypeValues(): array
     {
+        return self::VEHICLE_TYPE_VALUES;
     }
 
     /**
@@ -53,6 +60,11 @@ final readonly class PromptBuilder
     public function userPrompt(string $userPrompt): string
     {
         $sanitised = (string) preg_replace(self::USER_QUESTION_TAG_PATTERN, '', $userPrompt);
+        // Dutch plural/possessive apostrophes in model names (GSX-R's, MT-07's) repeatedly cause
+        // the planner to leak structured-output fragments into string literals. Drop only the
+        // apostrophe-s suffix so the model still sees the intended make/model tokens.
+        $sanitised = (string) Str::of($sanitised)
+            ->replaceMatches("/(\p{L}[\p{L}\p{N}\-]*)['’]s\b/u", '$1');
 
         return "<user_question>\n{$sanitised}\n</user_question>";
     }
@@ -241,7 +253,8 @@ Program:
 
 # Output rules
 
-- Fill every plan field on every query; use empty arrays for parts that don't apply.
+- Fill every query-level plan field (`where`, `select`, `groupBy`, `aggregates`, `orderBy`, `limit`, `display`, `explanation`) on every query; use empty arrays for query sections that don't apply.
+- Inside each `where` clause, emit only the value carrier that actually applies: for scalar operators (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `startsWith`) set `value` and omit `values`; for a literal `in [...]` list set `values` and omit `value`; for `in {{qID.Field}}` set `value` and omit `values`.
 - Set `limit` to a number **only** when the answer is a bounded set of rows: a fixed-size row list (`table`), a single record (`record` → 1), or an explicit top-N ranking (`bars` → 1 for "most common", else the N asked for / 25). For every complete breakdown (`timeseries`, `histogram`, `stacked_bars`, `pie`) and for `count` / `stats`, set `limit: null` — a cap there silently drops rows, leaving the answer incomplete. RDW returns at most 1000 rows when `limit` is null, which is all the protection a breakdown needs.
 - Use the smallest number of queries that answers the question.
 - `explanation` is one short sentence, written in {$explanationLanguage}, and never contains a computed number.
