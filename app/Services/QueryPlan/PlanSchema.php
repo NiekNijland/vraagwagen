@@ -118,7 +118,7 @@ final class PlanSchema
 
     private static function valueDescription(DatasetSchema $schema): string
     {
-        $lines = ['Comparison value. String comparisons are case-sensitive and casing differs per field (e.g. "Personenauto" but "GEEL", "TOYOTA") — copy the exact casing listed below. Booleans as "true"/"false". Dates as YYYY-MM-DD.'];
+        $lines = ['Comparison value. String comparisons are case-sensitive and casing differs per field (e.g. "Personenauto" but "GEEL", "TOYOTA") — copy the exact casing listed below. Booleans as "true"/"false". Dates as YYYY-MM-DD. For colour filters, use the live RDW value `ROSE` for pink.'];
 
         foreach ($schema->fieldsWithVocabulary() as $field) {
             $vocabulary = $field->vocabulary;

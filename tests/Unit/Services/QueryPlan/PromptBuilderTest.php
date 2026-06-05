@@ -56,6 +56,15 @@ final class PromptBuilderTest extends TestCase
         self::assertStringContainsString('GEEL', $prompt);
     }
 
+    public function test_prompt_documents_the_live_pink_colour_alias(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('ROSE', $prompt);
+        self::assertStringContainsString('ROZE', $prompt);
+        self::assertStringContainsString('pink colour is stored as `ROSE`', $prompt);
+    }
+
     public function test_prompt_shows_a_mixed_casing_example_query(): void
     {
         $prompt = $this->builder()->systemPrompt(Locale::English);

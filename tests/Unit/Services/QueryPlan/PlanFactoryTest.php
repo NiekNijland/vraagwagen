@@ -64,6 +64,24 @@ final class PlanFactoryTest extends TestCase
         self::assertSame('Counts white VWs.', $plan->explanation);
     }
 
+    public function test_normalises_pink_colour_filters_to_the_live_rdw_value(): void
+    {
+        $plan = $this->factory()->fromArray([
+            'where' => [
+                ['field' => 'PrimaryColor', 'op' => 'eq', 'value' => 'ROZE'],
+            ],
+            'select' => [],
+            'groupBy' => [],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'orderBy' => [],
+            'limit' => null,
+            'display' => 'count',
+            'explanation' => 'Counts pink vehicles.',
+        ], TargetDataset::RegisteredVehicles);
+
+        self::assertSame('ROSE', $plan->where[0]->value);
+    }
+
     public function test_drops_spurious_select_fields_for_count_display(): void
     {
         $factory = $this->factory();

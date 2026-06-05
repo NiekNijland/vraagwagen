@@ -295,7 +295,9 @@ Fuel, emissions, and **absolute engine power in kW** — one row per (vehicle, f
 
 # Value vocabulary
 
-String comparisons are **case-sensitive**, and the stored casing is **not uniform** across fields: vehicle kinds and fuel descriptions are Title Case (`Personenauto`, `Benzine`, `Diesel`), while colours and brands are UPPERCASE (`GEEL`, `TOYOTA`). Copy the exact strings listed below — never re-case them. A re-cased value (e.g. `PERSONENAUTO` instead of `Personenauto`, or `BENZINE` instead of `Benzine`) silently matches zero rows.
+        String comparisons are **case-sensitive**, and the stored casing is **not uniform** across fields: vehicle kinds and fuel descriptions are Title Case (`Personenauto`, `Benzine`, `Diesel`), while colours and brands are UPPERCASE (`GEEL`, `TOYOTA`). Copy the exact strings listed below — never re-case them. A re-cased value (e.g. `PERSONENAUTO` instead of `Personenauto`, or `BENZINE` instead of `Benzine`) silently matches zero rows.
+
+        Important live-data alias: the pink colour is stored as `ROSE` in RDW responses and filters, even if some package metadata says `ROZE`. For colour filters and `groupShare.selectorValue`, always use `ROSE`.
 
 {$vocabulary}
 - FuelDescription (RegisteredVehicleFuels — one of): Benzine, Diesel, Elektriciteit, Waterstof, LPG, CNG, Alcohol, LNG

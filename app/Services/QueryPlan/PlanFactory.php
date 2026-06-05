@@ -223,6 +223,7 @@ final class PlanFactory
         // the op-specific assertions below still reject the malformed clause with a clear message.
         $rawValue = $clause['value'] ?? '';
         $value = is_array($rawValue) ? '' : (string) $rawValue;
+        $value = ValueAliases::canonicalWhereValue($dataset, $field, $op, $value);
 
         $this->assertCommercialNameUsesContains($field, $op, $value);
         $this->assertScalarWhereValueIsNotCorrupted($field, $op, $value, $dataset);

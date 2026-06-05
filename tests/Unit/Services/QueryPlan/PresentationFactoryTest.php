@@ -17,7 +17,7 @@ final class PresentationFactoryTest extends TestCase
 {
     public function test_builds_a_plain_presentation_pointing_at_a_query(): void
     {
-        $presentation = (new PresentationFactory())->fromArray([
+        $presentation = (new PresentationFactory)->fromArray([
             'resultRef' => 'q2',
             'display' => 'count',
             'derive' => null,
@@ -31,7 +31,7 @@ final class PresentationFactoryTest extends TestCase
 
     public function test_parses_trimmed_deduplicated_and_capped_follow_ups(): void
     {
-        $presentation = (new PresentationFactory())->fromArray([
+        $presentation = (new PresentationFactory)->fromArray([
             'resultRef' => 'q1',
             'display' => 'count',
             'derive' => null,
@@ -54,7 +54,7 @@ final class PresentationFactoryTest extends TestCase
 
     public function test_follow_ups_default_to_empty_when_missing(): void
     {
-        $presentation = (new PresentationFactory())->fromArray([
+        $presentation = (new PresentationFactory)->fromArray([
             'resultRef' => 'q1',
             'display' => 'count',
             'derive' => null,
@@ -68,14 +68,14 @@ final class PresentationFactoryTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        (new PresentationFactory())->fromArray([
+        (new PresentationFactory)->fromArray([
             'resultRef' => 'q9', 'display' => 'count', 'derive' => null, 'explanation' => 'x',
         ], ['q1']);
     }
 
     public function test_builds_a_percentage_derive(): void
     {
-        $presentation = (new PresentationFactory())->fromArray([
+        $presentation = (new PresentationFactory)->fromArray([
             'resultRef' => Presentation::DERIVED_REF,
             'display' => 'count',
             'derive' => ['op' => 'percentage', 'numerator' => 'q1', 'denominator' => 'q2'],
@@ -97,7 +97,7 @@ final class PresentationFactoryTest extends TestCase
     {
         // The model commonly writes "q1.n"/"q2.electric_count"; only the query id is needed, so the
         // trailing ".field" is stripped rather than rejected.
-        $presentation = (new PresentationFactory())->fromArray([
+        $presentation = (new PresentationFactory)->fromArray([
             'resultRef' => Presentation::DERIVED_REF,
             'display' => 'count',
             'derive' => ['op' => 'percentage', 'numerator' => 'q1.electric_count', 'denominator' => 'q2.n'],
@@ -114,7 +114,7 @@ final class PresentationFactoryTest extends TestCase
 
     public function test_a_group_share_source_tolerates_a_trailing_column_reference(): void
     {
-        $presentation = (new PresentationFactory())->fromArray([
+        $presentation = (new PresentationFactory)->fromArray([
             'resultRef' => Presentation::DERIVED_REF,
             'display' => 'count',
             'derive' => [
@@ -136,7 +136,7 @@ final class PresentationFactoryTest extends TestCase
         // Stripping the column must not mask a genuinely wrong query id.
         $this->expectException(InvalidArgumentException::class);
 
-        (new PresentationFactory())->fromArray([
+        (new PresentationFactory)->fromArray([
             'resultRef' => Presentation::DERIVED_REF,
             'display' => 'count',
             'derive' => ['op' => 'ratio', 'numerator' => 'q1.n', 'denominator' => 'q9.n'],
@@ -148,7 +148,7 @@ final class PresentationFactoryTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        (new PresentationFactory())->fromArray([
+        (new PresentationFactory)->fromArray([
             'resultRef' => 'q1',
             'display' => 'count',
             'derive' => ['op' => 'percentage', 'numerator' => 'q1', 'denominator' => 'q2'],
@@ -160,7 +160,7 @@ final class PresentationFactoryTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        (new PresentationFactory())->fromArray([
+        (new PresentationFactory)->fromArray([
             'resultRef' => Presentation::DERIVED_REF,
             'display' => 'count',
             'derive' => ['op' => 'ratio', 'numerator' => 'q1', 'denominator' => 'q9'],
@@ -170,7 +170,7 @@ final class PresentationFactoryTest extends TestCase
 
     public function test_builds_a_group_share_derive(): void
     {
-        $presentation = (new PresentationFactory())->fromArray([
+        $presentation = (new PresentationFactory)->fromArray([
             'resultRef' => Presentation::DERIVED_REF,
             'display' => 'count',
             'derive' => [
@@ -190,11 +190,30 @@ final class PresentationFactoryTest extends TestCase
         self::assertSame('GEEL', $derive->selectorValue);
     }
 
+    public function test_normalises_a_pink_group_share_selector_to_the_live_rdw_value(): void
+    {
+        $presentation = (new PresentationFactory)->fromArray([
+            'resultRef' => Presentation::DERIVED_REF,
+            'display' => 'count',
+            'derive' => [
+                'op' => 'groupShare', 'source' => 'q1',
+                'selectorColumn' => 'PrimaryColor', 'selectorValue' => 'ROZE',
+            ],
+            'explanation' => 'Pink share.',
+        ], ['q1']);
+
+        $derive = $presentation->derive;
+        self::assertInstanceOf(Derive::class, $derive);
+
+        /** @var Derive $derive */
+        self::assertSame('ROSE', $derive->selectorValue);
+    }
+
     public function test_group_share_requires_a_selector(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        (new PresentationFactory())->fromArray([
+        (new PresentationFactory)->fromArray([
             'resultRef' => Presentation::DERIVED_REF,
             'display' => 'count',
             'derive' => ['op' => 'groupShare', 'source' => 'q1', 'selectorColumn' => '', 'selectorValue' => ''],
@@ -206,7 +225,7 @@ final class PresentationFactoryTest extends TestCase
     {
         // A refusal program carries no real result, so resultRef/derive are not validated against
         // the query ids; the reason + alternative questions come through, trimmed and capped at 3.
-        $presentation = (new PresentationFactory())->fromArray([
+        $presentation = (new PresentationFactory)->fromArray([
             'resultRef' => 'q1',
             'display' => 'unsupported',
             'derive' => null,
@@ -228,7 +247,7 @@ final class PresentationFactoryTest extends TestCase
 
     public function test_an_unsupported_display_without_a_refusal_defaults_to_out_of_scope(): void
     {
-        $presentation = (new PresentationFactory())->fromArray([
+        $presentation = (new PresentationFactory)->fromArray([
             'resultRef' => 'q1',
             'display' => 'unsupported',
             'derive' => null,
@@ -245,7 +264,7 @@ final class PresentationFactoryTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        (new PresentationFactory())->fromArray([
+        (new PresentationFactory)->fromArray([
             'resultRef' => 'q1',
             'display' => 'unsupported',
             'derive' => null,
@@ -256,7 +275,7 @@ final class PresentationFactoryTest extends TestCase
 
     public function test_rejects_an_invalid_op_and_display(): void
     {
-        $factory = new PresentationFactory();
+        $factory = new PresentationFactory;
 
         try {
             $factory->fromArray([

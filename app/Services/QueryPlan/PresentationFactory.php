@@ -13,8 +13,8 @@ final class PresentationFactory
     private const int MAX_FOLLOW_UPS = 3;
 
     /**
-     * @param array<string, mixed> $data
-     * @param list<string> $queryIds
+     * @param  array<string, mixed>  $data
+     * @param  list<string>  $queryIds
      */
     public function fromArray(array $data, array $queryIds): Presentation
     {
@@ -122,7 +122,7 @@ final class PresentationFactory
     }
 
     /**
-     * @param list<string> $queryIds
+     * @param  list<string>  $queryIds
      */
     private function parseDerive(mixed $raw, array $queryIds): ?Derive
     {
@@ -150,6 +150,12 @@ final class PresentationFactory
             throw new InvalidArgumentException('A groupShare derive requires selectorColumn and selectorValue.');
         }
 
+        $selectorValue = ValueAliases::canonicalSelectorValue(
+            TargetDataset::RegisteredVehicles,
+            $selectorColumn,
+            $selectorValue,
+        );
+
         return new Derive(
             op: $op,
             source: $source,
@@ -159,7 +165,7 @@ final class PresentationFactory
     }
 
     /**
-     * @param list<string> $queryIds
+     * @param  list<string>  $queryIds
      */
     private function requireQueryRef(mixed $raw, string $field, array $queryIds): string
     {
