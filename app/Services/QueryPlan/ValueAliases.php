@@ -6,25 +6,28 @@ namespace App\Services\QueryPlan;
 
 final class ValueAliases
 {
+    private const string SCOPE_WHERE_EQ = 'where:eq';
+
+    private const string SCOPE_GROUP_SHARE_SELECTOR = 'derive:groupShare:selector';
+
     /**
      * Live RDW stores the pink colour as `ROSE`, while the package vocabulary exposes `ROZE`.
-     * Normalise planner output to the stored value so generated queries match live data.
+     * Keep these live-data deviations in one scoped registry so new aliases can be added without
+     * touching prompt text or spreading ad-hoc conditionals through planners and presenters.
      */
-    private const array REGISTERED_VEHICLES_WHERE_EQ_ALIASES = [
-        'PrimaryColor' => [
-            'ROZE' => 'ROSE',
-        ],
-        'SecondaryColor' => [
-            'ROZE' => 'ROSE',
-        ],
-    ];
+    private const array REGISTERED_VEHICLES_COLOUR_ALIASES = ['ROZE' => 'ROSE'];
 
-    private const array REGISTERED_VEHICLES_GROUP_SHARE_ALIASES = [
-        'PrimaryColor' => [
-            'ROZE' => 'ROSE',
-        ],
-        'SecondaryColor' => [
-            'ROZE' => 'ROSE',
+    /** @var array<string, array<string, array<string, array<string, string>>>> */
+    private const array ALIASES = [
+        'RegisteredVehicles' => [
+            self::SCOPE_WHERE_EQ => [
+                'PrimaryColor' => self::REGISTERED_VEHICLES_COLOUR_ALIASES,
+                'SecondaryColor' => self::REGISTERED_VEHICLES_COLOUR_ALIASES,
+            ],
+            self::SCOPE_GROUP_SHARE_SELECTOR => [
+                'PrimaryColor' => self::REGISTERED_VEHICLES_COLOUR_ALIASES,
+                'SecondaryColor' => self::REGISTERED_VEHICLES_COLOUR_ALIASES,
+            ],
         ],
     ];
 
@@ -34,10 +37,7 @@ final class ValueAliases
             return $value;
         }
 
-        return match ($dataset) {
-            TargetDataset::RegisteredVehicles => self::REGISTERED_VEHICLES_WHERE_EQ_ALIASES[$field][$value] ?? $value,
-            TargetDataset::RegisteredVehicleFuels => $value,
-        };
+        return self::canonical(self::SCOPE_WHERE_EQ, $dataset, $field, $value);
     }
 
     public static function canonicalSelectorValue(TargetDataset $dataset, string $field, string $value): string
@@ -46,9 +46,11 @@ final class ValueAliases
             return $value;
         }
 
-        return match ($dataset) {
-            TargetDataset::RegisteredVehicles => self::REGISTERED_VEHICLES_GROUP_SHARE_ALIASES[$field][$value] ?? $value,
-            TargetDataset::RegisteredVehicleFuels => $value,
-        };
+        return self::canonical(self::SCOPE_GROUP_SHARE_SELECTOR, $dataset, $field, $value);
+    }
+
+    private static function canonical(string $scope, TargetDataset $dataset, string $field, string $value): string
+    {
+        return self::ALIASES[$dataset->value][$scope][$field][$value] ?? $value;
     }
 }

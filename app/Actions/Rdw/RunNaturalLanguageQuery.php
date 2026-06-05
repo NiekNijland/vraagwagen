@@ -40,7 +40,7 @@ class RunNaturalLanguageQuery
 {
     private const int PROGRAM_CACHE_TTL_SECONDS = 86_400;
 
-    private const string PROGRAM_CACHE_VERSION = 'v2';
+    private const string PROGRAM_CACHE_VERSION = 'v3';
 
     public function __construct(
         private readonly PlanRunner $planRunner,
@@ -49,13 +49,14 @@ class RunNaturalLanguageQuery
         private readonly StepReferenceResolver $referenceResolver,
         private readonly Derivation $derivation,
         private readonly Repository $cache,
-    ) {}
+    ) {
+    }
 
     public function execute(string $userPrompt, Locale $locale): QueryResult
     {
         [$program, $model, $tokens, $estimatedCost] = $this->resolveProgram($userPrompt, $locale);
 
-        $ledger = new QueryLedger;
+        $ledger = new QueryLedger();
 
         // A refusal must short-circuit before anything runs: the model sometimes attaches real
         // queries to an unsupported presentation, and presenting their rows next to a refusal
@@ -273,7 +274,7 @@ class RunNaturalLanguageQuery
      * value from the executed step ("{{q1.Brand}}" → "KAWASAKI"). A follow-up whose token cannot
      * be resolved is dropped — leaking a raw template token to the user is worse than one fewer chip.
      *
-     * @param  list<string>  $followUps
+     * @param list<string> $followUps
      * @return list<string>
      */
     private function resolveFollowUps(array $followUps, QueryLedger $ledger): array

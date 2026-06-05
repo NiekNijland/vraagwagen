@@ -29,7 +29,8 @@ final readonly class GetPlatformStats
     public function __construct(
         private Rdw $rdw,
         private Repository $cache,
-    ) {}
+    ) {
+    }
 
     /**
      * @return array{vehicles: int|null, datasets: int, queriesAnswered: int}
@@ -77,12 +78,15 @@ final readonly class GetPlatformStats
 
     private function queryCount(): int
     {
-        $count = $this->cache->remember(
-            'platform-stats:queries-answered',
-            self::QUERY_COUNT_TTL_SECONDS,
-            static fn (): int => (int) QueryRun::count(),
-        );
+        // Redis returns cached ints as strings, so validate instead of trusting remember()'s generic.
+        $cached = $this->cache->get('platform-stats:queries-answered');
+        if (is_numeric($cached)) {
+            return (int) $cached;
+        }
 
-        return (int) $count;
+        $count = QueryRun::count();
+        $this->cache->put('platform-stats:queries-answered', $count, self::QUERY_COUNT_TTL_SECONDS);
+
+        return $count;
     }
 }

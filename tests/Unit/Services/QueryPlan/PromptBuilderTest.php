@@ -191,11 +191,122 @@ final class PromptBuilderTest extends TestCase
         // The IN operator is documented, including the 1000-plate cap.
         self::assertStringContainsString('`in`', $prompt);
         self::assertStringContainsString('1000', $prompt);
-        // Worked example covers a low-cardinality brand.
-        self::assertStringContainsString('How many Ferraris have more than 150 kW', $prompt);
+        // Worked example covers a brand that genuinely fits under the cap.
+        self::assertStringContainsString('How many Bugattis have more than 150 kW', $prompt);
         self::assertStringContainsString('LicensePlate in {{q1.LicensePlate}}', $prompt);
         // High-cardinality brands are called out as refusals.
         self::assertStringContainsString('Toyotas over 150 kW', $prompt);
+    }
+
+    public function test_prompt_marks_ferrari_and_lamborghini_as_over_the_join_cap(): void
+    {
+        // Ferrari holds ~4,900 plates and Lamborghini ~1,400 — both over the 1000-plate lookup
+        // cap. The old prompt listed them as "low-cardinality" and its own Ferrari example could
+        // never succeed, so the model refused it; the example brand must stay under the cap.
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('Ferrari holds ~4,900 plates', $prompt);
+        self::assertStringContainsString('Bugatti ~115 plates', $prompt);
+        self::assertStringNotContainsString('low-cardinality brands (Ferrari', $prompt);
+        self::assertStringNotContainsString('How many Ferraris have more than 150 kW', $prompt);
+    }
+
+    public function test_prompt_warns_about_the_tesla_motors_brand_spelling(): void
+    {
+        // Early Teslas are stored under brand `TESLA MOTORS`; `eq TESLA` misses them
+        // (2015 registrations: 1 vs 926).
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('TESLA MOTORS', $prompt);
+        self::assertStringContainsString('Brand contains TESLA', $prompt);
+    }
+
+    public function test_prompt_defines_oldtimer_as_a_forty_year_first_admission_filter(): void
+    {
+        CarbonImmutable::setTestNow('2026-06-15 10:00:00');
+
+        try {
+            $prompt = $this->builder()->systemPrompt(Locale::English);
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+
+        // "oldtimer" resolves to a concrete date filter; `NetherlandsSubcategory eq Oldtimer`
+        // matches zero rows because no such stored value exists.
+        self::assertStringContainsString('FirstAdmissionDate lt 1986-06-15', $prompt);
+        self::assertStringContainsString('no oldtimer category', $prompt);
+    }
+
+    public function test_prompt_forbids_inventing_stored_values(): void
+    {
+        // Invented filters (`NetherlandsSubcategory eq Oldtimer`, inrichting contains TREKHAAK)
+        // silently return a confident zero — worse than a refusal.
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('Never **invent** a stored value', $prompt);
+        self::assertStringContainsString('trekhaak', $prompt);
+    }
+
+    public function test_prompt_allows_count_star_for_single_fuel_value_queries(): void
+    {
+        // A plate appears at most once per fuel value, so single-fuel counts and FuelDescription
+        // breakdowns can use count(*); whole-dataset count_distinct group-bys time out at the
+        // RDW HTTP deadline.
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('once per fuel value', $prompt);
+        self::assertStringContainsString('never combine `count_distinct` with a whole-dataset `groupBy`', $prompt);
+        // The threshold/list cases still need per-vehicle dedup.
+        self::assertStringContainsString('count_distinct(LicensePlate)', $prompt);
+    }
+
+    public function test_prompt_requires_a_nonempty_queries_array_for_refusals(): void
+    {
+        // The model occasionally emitted `queries: []` for a refusal, which fails program
+        // validation and surfaces a generic error instead of the refusal explanation.
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('never return an empty `queries` array', $prompt);
+    }
+
+    public function test_prompt_excludes_nvt_from_colour_breakdown_denominators(): void
+    {
+        // ~6M vehicles (motorcycles, trailers) store the literal "N.v.t." colour; without the
+        // filter it tops every colour breakdown and dilutes every colour groupShare.
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('PrimaryColor neq N.v.t.', $prompt);
+        self::assertStringContainsString('where PrimaryColor neq N.v.t.; groupBy PrimaryColor', $prompt);
+    }
+
+    public function test_prompt_refuses_average_age_questions(): void
+    {
+        // SoQL cannot average dates; the model previously emitted avg() over a date column,
+        // which RDW rejects with HTTP 400.
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('cannot average or subtract dates', $prompt);
+        self::assertStringContainsString('gemiddelde leeftijd', $prompt);
+    }
+
+    public function test_prompt_documents_the_odometer_judgement_fields(): void
+    {
+        // The actual reading is not public, but the judgement fields are — a plate-specific
+        // mileage question presents those as a record instead of refusing outright.
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('OdometerJudgement', $prompt);
+        self::assertStringContainsString('LastOdometerRegistrationYear', $prompt);
+        self::assertStringNotContainsString('mileage/odometer', $prompt);
+    }
+
+    public function test_prompt_requires_outlier_caveat_for_extreme_row_answers(): void
+    {
+        // Registry extremes are usually typos (a 6,100 kW motorcycle, a €9.8M Audi SQ5); the
+        // explanation of a superlative answer must say the value is as registered.
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('**must** say the value is as registered', $prompt);
     }
 
     public function test_prompt_steers_extreme_single_vehicle_to_orderby_not_a_max_aggregate(): void
@@ -314,10 +425,11 @@ final class PromptBuilderTest extends TestCase
             'RegistrationDate', 'FirstAdmissionDate', 'FirstNetherlandsRegistrationDate',
             'ApkExpiryDate', 'TachographExpiryDate', 'BpmDepreciationApprovalDate',
             'EmptyMass', 'PowerToReadyMassRatio',
+            'OdometerJudgement', 'OdometerJudgementCode', 'LastOdometerRegistrationYear',
         ];
         $fuelsFields = ['LicensePlate', 'NetMaximumPower', 'FuelDescription'];
 
-        $schemas = new SchemaRegistry;
+        $schemas = new SchemaRegistry();
         $vehicles = $schemas->get(DatasetId::RegisteredVehicles);
         $fuels = $schemas->get(DatasetId::RegisteredVehicleFuels);
         $prompt = $this->builder()->systemPrompt(Locale::English);
@@ -454,6 +566,6 @@ final class PromptBuilderTest extends TestCase
 
     private function builder(): PromptBuilder
     {
-        return new PromptBuilder(new SchemaRegistry);
+        return new PromptBuilder(new SchemaRegistry());
     }
 }

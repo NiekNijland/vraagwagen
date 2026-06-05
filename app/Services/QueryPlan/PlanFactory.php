@@ -28,11 +28,11 @@ final class PlanFactory
         private readonly SchemaRegistry $schemas,
         ?LoggerInterface $logger = null,
     ) {
-        $this->logger = $logger ?? new NullLogger;
+        $this->logger = $logger ?? new NullLogger();
     }
 
     /**
-     * @param  array<string, mixed>  $data
+     * @param array<string, mixed> $data
      */
     public function fromArray(array $data, TargetDataset $dataset): Plan
     {
@@ -85,10 +85,10 @@ final class PlanFactory
     /**
      * Downgrades a wholly-empty `count` plan (a common prompt-injection shape) to a refusal.
      *
-     * @param  list<WhereClause>  $where
-     * @param  list<string>  $select
-     * @param  list<GroupKey>  $groupBy
-     * @param  list<AggregateClause>  $aggregates
+     * @param list<WhereClause> $where
+     * @param list<string> $select
+     * @param list<GroupKey> $groupBy
+     * @param list<AggregateClause> $aggregates
      */
     private function downgradeBogusCountToUnsupported(
         DisplayHint $display,
@@ -113,9 +113,9 @@ final class PlanFactory
     /**
      * Repairs the SoQL rule that a bare column may not mix with an aggregate unless it is in GROUP BY.
      *
-     * @param  list<string>  $select
-     * @param  list<GroupKey>  $groupBy
-     * @param  list<AggregateClause>  $aggregates
+     * @param list<string> $select
+     * @param list<GroupKey> $groupBy
+     * @param list<AggregateClause> $aggregates
      * @return array{0: list<string>, 1: list<GroupKey>}
      */
     private function normaliseSelectAndGroupBy(array $select, array $groupBy, array $aggregates, DisplayHint $display, TargetDataset $dataset): array
@@ -158,7 +158,7 @@ final class PlanFactory
     /**
      * Strips non-date fields from a timeseries groupBy so count(*) doesn't collapse to one per row.
      *
-     * @param  list<GroupKey>  $groupBy
+     * @param list<GroupKey> $groupBy
      * @return list<GroupKey>
      */
     private function normaliseTimeseriesGroupBy(array $groupBy, DisplayHint $display, TargetDataset $dataset): array
@@ -185,8 +185,8 @@ final class PlanFactory
         if ($filtered === []) {
             throw new InvalidArgumentException(
                 'A timeseries plan must group by at least one date field; got only non-date fields: '
-                .implode(', ', array_map(static fn (GroupKey $k): string => $k->field, $groupBy))
-                .'.',
+                . implode(', ', array_map(static fn (GroupKey $k): string => $k->field, $groupBy))
+                . '.',
             );
         }
 
@@ -205,7 +205,7 @@ final class PlanFactory
     }
 
     /**
-     * @param  array<string, mixed>  $clause
+     * @param array<string, mixed> $clause
      */
     private function parseWhere(array $clause, TargetDataset $dataset): WhereClause
     {
@@ -303,7 +303,7 @@ final class PlanFactory
     }
 
     /**
-     * @param  array<string, mixed>  $clause
+     * @param array<string, mixed> $clause
      */
     private function parseAggregate(array $clause, TargetDataset $dataset): AggregateClause
     {
@@ -331,7 +331,7 @@ final class PlanFactory
     }
 
     /**
-     * @param  array<string, mixed>  $clause
+     * @param array<string, mixed> $clause
      */
     private function parseOrder(array $clause): OrderClause
     {
@@ -342,7 +342,7 @@ final class PlanFactory
     }
 
     /**
-     * @param  list<mixed>  $fields
+     * @param list<mixed> $fields
      * @return list<string>
      */
     private function parseFieldList(array $fields, TargetDataset $dataset): array
@@ -358,7 +358,7 @@ final class PlanFactory
     }
 
     /**
-     * @param  list<mixed>  $items
+     * @param list<mixed> $items
      * @return list<GroupKey>
      */
     private function parseGroupBy(array $items, TargetDataset $dataset): array
@@ -415,7 +415,7 @@ final class PlanFactory
     /**
      * @template T of \BackedEnum
      *
-     * @param  class-string<T>  $enumClass
+     * @param class-string<T> $enumClass
      * @return T
      */
     private function parseEnum(string $enumClass, string $value, string $field): BackedEnum
@@ -429,7 +429,7 @@ final class PlanFactory
     }
 
     /**
-     * @param  array<string, mixed>  $data
+     * @param array<string, mixed> $data
      * @return array<int, mixed>
      */
     private function arrayOrEmpty(array $data, string $key): array

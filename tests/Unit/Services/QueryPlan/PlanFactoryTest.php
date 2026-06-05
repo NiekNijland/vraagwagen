@@ -82,6 +82,26 @@ final class PlanFactoryTest extends TestCase
         self::assertSame('ROSE', $plan->where[0]->value);
     }
 
+    public function test_alias_normalisation_is_scoped_to_exact_colour_filters_only(): void
+    {
+        $plan = $this->factory()->fromArray([
+            'where' => [
+                ['field' => 'Brand', 'op' => 'eq', 'value' => 'ROZE'],
+                ['field' => 'PrimaryColor', 'op' => 'contains', 'value' => 'ROZE'],
+            ],
+            'select' => [],
+            'groupBy' => [],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'orderBy' => [],
+            'limit' => null,
+            'display' => 'count',
+            'explanation' => 'Scoped alias test.',
+        ], TargetDataset::RegisteredVehicles);
+
+        self::assertSame('ROZE', $plan->where[0]->value);
+        self::assertSame('ROZE', $plan->where[1]->value);
+    }
+
     public function test_drops_spurious_select_fields_for_count_display(): void
     {
         $factory = $this->factory();
@@ -684,7 +704,7 @@ final class PlanFactoryTest extends TestCase
 
     private function factory(): PlanFactory
     {
-        return new PlanFactory(new SchemaRegistry);
+        return new PlanFactory(new SchemaRegistry());
     }
 
     private function planWithLimit(PlanFactory $factory, ?int $limit): Plan

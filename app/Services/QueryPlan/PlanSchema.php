@@ -41,7 +41,7 @@ final class PlanSchema
                 ->required(),
             'value' => $schema->string()
                 ->nullable()
-                ->description(self::valueDescription($vehiclesSchema).' Required by the provider schema. Set this for scalar operators and for `in {{qID.Field}}`; otherwise set it to null.')
+                ->description(self::valueDescription($vehiclesSchema) . ' Required by the provider schema. Set this for scalar operators and for `in {{qID.Field}}`; otherwise set it to null.')
                 ->required(),
             'values' => $schema->array()
                 ->items($schema->string())
