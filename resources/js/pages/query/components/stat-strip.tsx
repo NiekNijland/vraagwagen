@@ -1,22 +1,22 @@
-import { Github, Sparkles } from 'lucide-react';
+import { Github } from 'lucide-react';
 
 import { useTranslation } from '@/hooks/use-translation';
 import { cn } from '@/lib/utils';
 
 import { localeTag } from '../format';
-import type { SessionStats } from '../types';
+import type { PlatformStats } from '../types';
 
 // ─── Stat strip (bottom) ─────────────────────────────────────
 export function StatStrip({
     stats,
     locale,
 }: {
-    stats: SessionStats;
+    /** Deferred Inertia prop: undefined until the follow-up request lands. */
+    stats: PlatformStats | undefined;
     locale: string;
 }) {
     const { t } = useTranslation();
     const nf = new Intl.NumberFormat(localeTag(locale));
-    const hasRuns = stats.runs > 0;
 
     return (
         <footer
@@ -27,33 +27,33 @@ export function StatStrip({
             )}
         >
             <div className="inline-flex flex-wrap items-center gap-5">
-                {hasRuns ? (
+                {stats ? (
                     <>
-                        <StatItem
-                            value={nf.format(stats.runs)}
-                            label={t('pages.query.sessionQueries')}
-                        />
-                        {stats.lastLatencyMs !== null && (
+                        {stats.vehicles !== null && (
                             <StatItem
-                                value={`${nf.format(stats.lastLatencyMs)} ms`}
-                                label={t('pages.query.sessionLatency')}
+                                value={nf.format(stats.vehicles)}
+                                label={t('pages.query.statsVehicles')}
                             />
                         )}
-                        {stats.lastTokens !== null && stats.lastTokens > 0 && (
+                        {stats.datasets > 0 && (
                             <StatItem
-                                value={nf.format(stats.lastTokens)}
-                                label={t('pages.query.sessionTokens')}
+                                value={nf.format(stats.datasets)}
+                                label={t('pages.query.statsDatasets')}
+                            />
+                        )}
+                        <StatItem
+                            value={t('pages.query.statsRefreshValue')}
+                            label={t('pages.query.statsRefreshLabel')}
+                        />
+                        {stats.queriesAnswered > 0 && (
+                            <StatItem
+                                value={nf.format(stats.queriesAnswered)}
+                                label={t('pages.query.statsQueriesAnswered')}
                             />
                         )}
                     </>
                 ) : (
-                    <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground/60">
-                        <Sparkles
-                            className="h-3 w-3 text-[var(--rdw-orange)]"
-                            aria-hidden="true"
-                        />
-                        {t('pages.query.sessionEmpty')}
-                    </span>
+                    <StatStripSkeleton />
                 )}
             </div>
             <div className="inline-flex items-center gap-2 font-mono text-[11.5px] tracking-wide">
@@ -93,6 +93,26 @@ function StatItem({ value, label }: { value: string; label: string }) {
             <span className="text-[11.5px] text-muted-foreground/70">
                 {label}
             </span>
+        </span>
+    );
+}
+
+function StatStripSkeleton() {
+    return (
+        <span
+            className="inline-flex items-center gap-5"
+            data-testid="stat-strip-skeleton"
+            aria-hidden="true"
+        >
+            {['w-20', 'w-14', 'w-24'].map((width) => (
+                <span
+                    key={width}
+                    className={cn(
+                        'h-3 animate-pulse rounded bg-muted-foreground/15',
+                        width,
+                    )}
+                />
+            ))}
         </span>
     );
 }

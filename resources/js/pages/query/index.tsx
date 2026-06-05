@@ -38,11 +38,11 @@ import {
 import { resetShareUrl, updateShareUrl } from './share-url';
 import type {
     ErrorResponse,
+    PlatformStats,
     QueryError,
     QueryResult,
     Rating,
     RunResponse,
-    SessionStats,
     SharedRun,
 } from './types';
 
@@ -50,17 +50,13 @@ type PageProps = {
     sharedRun: SharedRun | null;
     promptMinLength?: number;
     promptMaxLength?: number;
+    /** Deferred Inertia prop: absent on first paint, filled in once the follow-up request lands. */
+    platformStats?: PlatformStats;
 };
 
 // Auto-resize the composer textarea up to this many pixels (~5 lines at the composer's text size),
 // then start scrolling. Keeps the box visually balanced without growing off-screen on long pastes.
 const COMPOSER_MAX_HEIGHT_PX = 220;
-
-const INITIAL_SESSION_STATS: SessionStats = {
-    runs: 0,
-    lastLatencyMs: null,
-    lastTokens: null,
-};
 
 function fallbackErrorForStatus(
     status: number,
@@ -93,6 +89,7 @@ export default function QueryPage({
     sharedRun,
     promptMinLength,
     promptMaxLength,
+    platformStats,
 }: PageProps) {
     return (
         <QueryPageInner
@@ -100,6 +97,7 @@ export default function QueryPage({
             sharedRun={sharedRun}
             promptMinLength={promptMinLength}
             promptMaxLength={promptMaxLength}
+            platformStats={platformStats}
         />
     );
 }
@@ -108,6 +106,7 @@ function QueryPageInner({
     sharedRun,
     promptMinLength = MIN_PROMPT_LENGTH,
     promptMaxLength = PROMPT_MAX_LENGTH,
+    platformStats,
 }: PageProps) {
     const { t, currentLocale } = useTranslation();
     const locale = currentLocale();
@@ -118,9 +117,6 @@ function QueryPageInner({
         sharedRun ? sharedRunToResult(sharedRun) : null,
     );
     const [error, setError] = useState<QueryError | null>(null);
-    const [sessionStats, setSessionStats] = useState<SessionStats>(
-        INITIAL_SESSION_STATS,
-    );
     const recent = useSyncExternalStore(
         subscribeToRecentQueries,
         readRecentQueries,
@@ -164,9 +160,6 @@ function QueryPageInner({
         setResult(null);
         setError(null);
 
-        const startedAt =
-            typeof performance !== 'undefined' ? performance.now() : Date.now();
-
         try {
             const response = await postJson(
                 '/api/query',
@@ -197,16 +190,6 @@ function QueryPageInner({
             }
 
             const runData = data as RunResponse;
-            const finishedAt =
-                typeof performance !== 'undefined'
-                    ? performance.now()
-                    : Date.now();
-            const latencyMs = Math.max(0, Math.round(finishedAt - startedAt));
-            const totalTokens =
-                runData.tokens.prompt +
-                runData.tokens.completion +
-                runData.tokens.cacheRead +
-                runData.tokens.thought;
 
             setResult({
                 ...runData,
@@ -214,11 +197,6 @@ function QueryPageInner({
                 rating: null,
                 comment: null,
             });
-            setSessionStats((prev) => ({
-                runs: prev.runs + 1,
-                lastLatencyMs: latencyMs,
-                lastTokens: totalTokens > 0 ? totalTokens : prev.lastTokens,
-            }));
             pushRecentQuery(value);
             updateShareUrl(locale, runData.slug);
         } catch (e) {
@@ -377,7 +355,7 @@ function QueryPageInner({
                     </div>
                 </main>
 
-                <StatStrip stats={sessionStats} locale={locale} />
+                <StatStrip stats={platformStats} locale={locale} />
             </div>
         </>
     );

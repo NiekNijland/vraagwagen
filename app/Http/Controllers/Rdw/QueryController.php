@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Rdw;
 
+use App\Actions\Rdw\GetPlatformStats;
 use App\Actions\Rdw\PersistQueryRun;
 use App\Actions\Rdw\QueryExecutionException;
 use App\Actions\Rdw\RunNaturalLanguageQuery;
@@ -35,7 +36,7 @@ final class QueryController extends Controller
     /** Same length as the slug — short enough to quote, long enough to be uniquely searchable. */
     private const int CORRELATION_ID_LENGTH = 10;
 
-    public function index(Request $request, string $locale, ?string $slug = null): InertiaResponse
+    public function index(Request $request, GetPlatformStats $platformStats, string $locale, ?string $slug = null): InertiaResponse
     {
         $sharedRun = null;
 
@@ -53,6 +54,8 @@ final class QueryController extends Controller
             // the server-side validation in RunQueryRequest.
             'promptMinLength' => (int) config('vraagwagen.prompt.min_length', 3),
             'promptMaxLength' => (int) config('vraagwagen.prompt.max_length', 2000),
+            // Deferred so the first paint never waits on the (cached) RDW vehicle count.
+            'platformStats' => Inertia::defer(static fn (): array => $platformStats->execute()),
         ]);
     }
 

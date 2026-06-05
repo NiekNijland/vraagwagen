@@ -23,6 +23,7 @@ use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredTextResponse;
 use Mockery;
+use NiekNijland\RDW\Datasets\DatasetId;
 use NiekNijland\RDW\Http\Configuration as RdwConfiguration;
 use NiekNijland\RDW\Http\SocrataClient;
 use NiekNijland\RDW\Rdw;
@@ -49,6 +50,23 @@ final class QueryControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('promptMinLength', 5)
                 ->where('promptMaxLength', 1234)
+            );
+    }
+
+    public function test_index_defers_the_platform_stats_with_live_figures(): void
+    {
+        QueryRun::factory()->count(3)->create();
+        $this->fakeRdwWithRows([['count' => '16247892']]);
+
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->missing('platformStats')
+                ->loadDeferredProps(fn (Assert $reload) => $reload
+                    ->where('platformStats.vehicles', 16_247_892)
+                    ->where('platformStats.datasets', count(DatasetId::cases()))
+                    ->where('platformStats.queriesAnswered', 3)
+                )
             );
     }
 

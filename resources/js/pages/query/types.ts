@@ -169,9 +169,9 @@ export type QueryError = {
     responseBody?: string | null;
 };
 
-/** Per-session telemetry shown in the footer strip. */
-export type SessionStats = {
-    runs: number;
-    lastLatencyMs: number | null;
-    lastTokens: number | null;
+/** Platform-wide figures shown in the footer strip; arrives as a deferred Inertia prop. */
+export type PlatformStats = {
+    vehicles: number | null;
+    datasets: number;
+    queriesAnswered: number;
 };
