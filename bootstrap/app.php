@@ -17,21 +17,24 @@ $trustedProxies = array_values(array_filter(array_map(
     static fn (string $proxy): string => trim($proxy),
     explode(',', (string) env('TRUSTED_PROXIES', '127.0.0.1,::1')),
 )));
-$trustedHosts = ['^localhost$', '^127\.0\.0\.1$'];
-$appHost = parse_url((string) env('APP_URL', ''), PHP_URL_HOST);
-
-if (is_string($appHost) && $appHost !== '') {
-    $trustedHosts[] = '^' . preg_quote($appHost, '/') . '$';
-}
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__ . '/../routes/web.php',
-        commands: __DIR__ . '/../routes/console.php',
+        web: __DIR__.'/../routes/web.php',
+        commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withMiddleware(function (Middleware $middleware) use ($trustedProxies, $trustedHosts): void {
-        $middleware->trustHosts(at: $trustedHosts, subdomains: false);
+    ->withMiddleware(function (Middleware $middleware) use ($trustedProxies): void {
+        $middleware->trustHosts(at: static function (): array {
+            $trustedHosts = ['^localhost$', '^127\.0\.0\.1$'];
+            $appHost = parse_url((string) config('app.url', ''), PHP_URL_HOST);
+
+            if (is_string($appHost) && $appHost !== '') {
+                $trustedHosts[] = '^'.preg_quote($appHost, '/').'$';
+            }
+
+            return $trustedHosts;
+        }, subdomains: false);
 
         $middleware->trustProxies(
             at: $trustedProxies,
