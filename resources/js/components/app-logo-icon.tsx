@@ -1,42 +1,29 @@
-import type { ImgHTMLAttributes } from 'react';
-import { cn } from '@/lib/utils';
+import type { SVGAttributes } from 'react';
 
-type AppLogoIconProps = ImgHTMLAttributes<HTMLImageElement> & {
-    /** 'dark' = witte lijnen (voor donkere achtergrond), 'light' = donkere lijnen, 'auto' = volgt theme */
-    variant?: 'auto' | 'dark' | 'light';
-};
-
-export default function AppLogoIcon({
-    variant = 'auto',
-    className,
-    alt = '',
-    ...props
-}: AppLogoIconProps) {
-    if (variant !== 'auto') {
-        return (
-            <img
-                src={`/images/brand/icon-${variant}.png`}
-                alt={alt}
-                className={className}
-                {...props}
-            />
-        );
-    }
-
+export default function AppLogoIcon(props: SVGAttributes<SVGElement>) {
     return (
-        <>
-            <img
-                src="/images/brand/icon-light.png"
-                alt={alt}
-                className={cn('dark:hidden', className)}
-                {...props}
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 64 40"
+            width="64"
+            height="40"
+            shapeRendering="crispEdges"
+            {...props}
+        >
+            <path
+                fill="#ff5a1f"
+                d="M10 0h19v1h-19zM9 1h21v1h-21zM8 2h2v1h-2zM29 2h2v1h-2zM8 3h2v1h-2zM29 3h2v1h-2zM8 4h2v1h-2zM12 4h1v1h-1zM29 4h2v1h-2zM8 5h2v1h-2zM12 5h2v1h-2zM29 5h2v1h-2zM8 6h2v1h-2zM13 6h2v1h-2zM29 6h2v1h-2zM8 7h2v1h-2zM14 7h2v1h-2zM29 7h2v1h-2zM8 8h2v1h-2zM14 8h2v1h-2zM29 8h2v1h-2zM8 9h2v1h-2zM13 9h2v1h-2zM29 9h2v1h-2zM8 10h2v1h-2zM12 10h2v1h-2zM29 10h2v1h-2zM8 11h2v1h-2zM12 11h1v1h-1zM19 11h6v1h-6zM29 11h2v1h-2zM8 12h2v1h-2zM19 12h6v1h-6zM29 12h2v1h-2zM8 13h2v1h-2zM29 13h2v1h-2zM8 14h2v1h-2zM29 14h2v1h-2zM9 15h21v1h-21zM10 16h19v1h-19zM16 17h8v1h-8zM16 18h6v1h-6zM16 19h4v1h-4zM17 20h2v1h-2zM17 21h2v1h-2zM17 22h1v1h-1zM16 24h1v1h-1zM23 24h6v1h-6zM23 25h6v1h-6zM16 27h1v1h-1zM23 27h10v1h-10zM23 28h10v1h-10zM16 30h1v1h-1zM23 30h6v1h-6zM23 31h6v1h-6z"
             />
-            <img
-                src="/images/brand/icon-dark.png"
-                alt={alt}
-                className={cn('hidden dark:block', className)}
-                {...props}
+            <path fill="#ff8b5a" d="M29 24h4v1h-4zM29 25h4v1h-4z" />
+            <path
+                fill="currentColor"
+                d="M21 20h19v1h-19zM20 21h1v1h-1zM40 21h1v1h-1zM19 22h1v1h-1zM41 22h1v1h-1zM18 23h1v1h-1zM42 23h1v1h-1zM17 24h1v1h-1zM43 24h1v1h-1zM16 25h1v1h-1zM34 25h4v1h-4zM44 25h1v1h-1zM15 26h1v1h-1zM45 26h3v1h-3zM14 27h1v1h-1zM34 27h5v1h-5zM48 27h1v1h-1zM13 28h1v1h-1zM34 28h5v1h-5zM49 28h6v1h-6zM12 29h1v1h-1zM55 29h1v1h-1zM12 30h1v1h-1zM51 30h1v1h-1zM55 30h1v1h-1zM12 31h1v1h-1zM51 31h2v1h-2zM55 31h1v1h-1zM12 32h1v1h-1zM16 32h5v1h-5zM43 32h5v1h-5zM55 32h1v1h-1zM12 33h1v1h-1zM15 33h7v1h-7zM42 33h7v1h-7zM54 33h1v1h-1zM12 34h1v1h-1zM15 34h2v1h-2zM20 34h2v1h-2zM42 34h2v1h-2zM47 34h7v1h-7zM12 35h5v1h-5zM20 35h24v1h-24zM47 35h2v1h-2zM15 36h2v1h-2zM20 36h2v1h-2zM42 36h2v1h-2zM47 36h2v1h-2zM15 37h7v1h-7zM42 37h7v1h-7zM16 38h5v1h-5zM43 38h5v1h-5z"
             />
-        </>
+            <path
+                fill="currentColor"
+                opacity="0.45"
+                d="M18 24h1v1h-1zM20 24h1v1h-1zM18 27h1v1h-1zM20 27h1v1h-1zM18 30h1v1h-1zM20 30h1v1h-1zM30 30h11v1h-11zM30 31h11v1h-11zM1 38h1v1h-1zM3 38h1v1h-1zM5 38h1v1h-1zM7 38h8v1h-8zM22 38h1v1h-1zM24 38h18v1h-18zM49 38h9v1h-9zM59 38h1v1h-1zM61 38h1v1h-1zM63 38h1v1h-1z"
+            />
+        </svg>
     );
 }

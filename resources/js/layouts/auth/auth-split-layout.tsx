@@ -18,7 +18,7 @@ export default function AuthSplitLayout({
                     href={home({ locale })}
                     className="relative z-20 flex items-center text-lg font-medium"
                 >
-                    <AppLogoIcon variant="dark" className="mr-2 h-9 w-auto" />
+                    <AppLogoIcon className="mr-2 h-9 w-auto text-white" />
                     {name}
                 </Link>
             </div>
