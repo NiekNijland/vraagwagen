@@ -29,8 +29,7 @@ final readonly class GetPlatformStats
     public function __construct(
         private Rdw $rdw,
         private Repository $cache,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{vehicles: int|null, datasets: int, queriesAnswered: int}
@@ -78,10 +77,12 @@ final readonly class GetPlatformStats
 
     private function queryCount(): int
     {
-        return $this->cache->remember(
+        $count = $this->cache->remember(
             'platform-stats:queries-answered',
             self::QUERY_COUNT_TTL_SECONDS,
-            static fn (): int => QueryRun::count(),
+            static fn (): int => (int) QueryRun::count(),
         );
+
+        return (int) $count;
     }
 }
