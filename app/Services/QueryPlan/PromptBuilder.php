@@ -214,9 +214,9 @@ Program:
   presentation: resultRef "q1"; display table; derive null
   explanation: one sentence in {$explanationLanguage}
 
-User: How many {$brandA}s were first admitted each year since 2000?
+User: How many {$brandA}s were first registered in the Netherlands each year since 2000?
 Program:
-  q1: where Brand eq {$brandA}, FirstAdmissionDate gte 2000-01-01; groupBy FirstAdmissionDate (year); aggregates count(*) as n; orderBy FirstAdmissionDate asc; limit null; display timeseries
+  q1: where Brand eq {$brandA}, FirstNetherlandsRegistrationDate gte 2000-01-01; groupBy FirstNetherlandsRegistrationDate (year); aggregates count(*) as n; orderBy FirstNetherlandsRegistrationDate asc; limit null; display timeseries
   presentation: resultRef "q1"; display timeseries; derive null
   explanation: one sentence in {$explanationLanguage}
 
@@ -234,7 +234,7 @@ Program:
 
 User: {$brandA} registrations per year, broken down by primary colour.
 Program:
-  q1: where Brand eq {$brandA}, FirstAdmissionDate gte 2010-01-01; groupBy FirstAdmissionDate (year), PrimaryColor; aggregates count(*) as n; orderBy FirstAdmissionDate asc; limit null; display stacked_bars
+  q1: where Brand eq {$brandA}, FirstNetherlandsRegistrationDate gte 2010-01-01; groupBy FirstNetherlandsRegistrationDate (year), PrimaryColor; aggregates count(*) as n; orderBy FirstNetherlandsRegistrationDate asc; limit null; display stacked_bars
   presentation: resultRef "q1"; display stacked_bars; derive null
   explanation: one sentence in {$explanationLanguage}
 
@@ -382,13 +382,13 @@ A bare "this month" is **not** ambiguous — it resolves to the range above. Onl
 Several date fields have similar Dutch names; pick deliberately based on the verb in the question:
 
 - `RegistrationDate` (`datum_tenaamstelling_dt`) — date of the **current** tenaamstelling. Use for "tenaamstelling", "tenaamgesteld", "overschrijving", "overgeschreven", and any other "transferred / re-registered to a new owner" wording. This is what "per maand/jaar" questions about ownership transfers almost always want.
-- `FirstNetherlandsRegistrationDate` (`datum_eerste_tenaamstelling_in_nederland_dt`) — the **first time ever** the vehicle was registered in the Netherlands. Only when the user explicitly says "eerste tenaamstelling in Nederland", "voor het eerst in Nederland geregistreerd", or "geïmporteerd in jaar X".
-- `FirstAdmissionDate` (`datum_eerste_toelating_dt`) — first admission of the vehicle anywhere (often abroad, before NL import). Use for "eerste toelating" or year-of-manufacture-style questions when no Dutch-import phrasing is present.
+- `FirstNetherlandsRegistrationDate` (`datum_eerste_tenaamstelling_in_nederland_dt`) — the **first time ever** the vehicle was registered in the Netherlands. Use for "eerste tenaamstelling in Nederland", "voor het eerst in Nederland geregistreerd", "geïmporteerd in jaar X", and for generic Dutch-registration trend questions such as "geregistreerd per jaar" / "registraties per jaar" when the user is counting vehicles entering the Dutch register.
+- `FirstAdmissionDate` (`datum_eerste_toelating_dt`) — first admission of the vehicle anywhere (often abroad, before NL import). Use for "eerste toelating" or year-of-manufacture-style questions, or when the user explicitly wants the very first admission regardless of Dutch registration.
 - `ApkExpiryDate`, `TachographExpiryDate`, `BpmDepreciationApprovalDate` — only when the user explicitly asks about that specific validity/approval moment.
 
 When the user says "overgeschreven" or just "tenaamstelling" without the "eerste in Nederland" qualifier, choose `RegistrationDate`, never `FirstNetherlandsRegistrationDate`.
 
-For **trend questions** — "hoeveel … geregistreerd per jaar", "in welk jaar de meeste …", "hoe is het aantal veranderd" — default to `FirstAdmissionDate`. `RegistrationDate` tracks only the *current* owner, so every used-vehicle sale moves a vehicle into a recent year and the latest year always "wins"; that answers a different question than the new-registrations trend the user means. Reserve `RegistrationDate` for explicit transfer wording.
+For **trend questions** — "hoeveel … geregistreerd per jaar", "in welk jaar de meeste …", "hoe is het aantal veranderd" — default to `FirstNetherlandsRegistrationDate`. `RegistrationDate` tracks only the *current* owner, so every used-vehicle sale moves a vehicle into a recent year and the latest year always "wins"; that answers a different question than the new-registrations trend the user means. `FirstAdmissionDate` can be years earlier for imported vehicles, so it makes recent Dutch-registration years look artificially low. Reserve `FirstAdmissionDate` for explicit "eerste toelating" wording.
 
 # License plates
 

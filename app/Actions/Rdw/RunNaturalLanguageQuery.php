@@ -40,6 +40,8 @@ class RunNaturalLanguageQuery
 {
     private const int PROGRAM_CACHE_TTL_SECONDS = 86_400;
 
+    private const string PROGRAM_CACHE_VERSION = 'v2';
+
     public function __construct(
         private readonly PlanRunner $planRunner,
         private readonly CostEstimator $costEstimator,
@@ -184,7 +186,8 @@ class RunNaturalLanguageQuery
     private function programCacheKey(string $userPrompt, Locale $locale): string
     {
         return sprintf(
-            'rdw:query-program:%s:%s',
+            'rdw:query-program:%s:%s:%s',
+            self::PROGRAM_CACHE_VERSION,
             $locale->value,
             sha1(mb_strtolower(Str::squish($userPrompt))),
         );

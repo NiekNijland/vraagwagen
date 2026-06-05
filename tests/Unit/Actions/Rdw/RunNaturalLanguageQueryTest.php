@@ -535,7 +535,7 @@ final class RunNaturalLanguageQueryTest extends TestCase
         ])->preventStrayPrompts();
 
         $cache = new Repository(new ArrayStore);
-        $cache->put('rdw:query-program:en:'.sha1('how many motorcycles are there?'), [
+        $cache->put('rdw:query-program:v2:en:'.sha1('how many motorcycles are there?'), [
             'program' => [
                 'queries' => [[
                     'id' => 'q1',

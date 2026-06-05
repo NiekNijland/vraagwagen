@@ -416,11 +416,26 @@ final class PromptBuilderTest extends TestCase
         self::assertStringContainsString('N.v.t.', $prompt);
     }
 
-    public function test_prompt_defaults_trend_questions_to_first_admission_date(): void
+    public function test_prompt_defaults_trend_questions_to_first_netherlands_registration_date(): void
     {
         $prompt = $this->builder()->systemPrompt(Locale::English);
 
-        self::assertStringContainsString('default to `FirstAdmissionDate`', $prompt);
+        self::assertStringContainsString('default to `FirstNetherlandsRegistrationDate`', $prompt);
+        self::assertStringContainsString('artificially low', $prompt);
+    }
+
+    public function test_prompt_examples_use_first_netherlands_registration_date_for_registration_trends(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString(
+            'groupBy FirstNetherlandsRegistrationDate (year); aggregates count(*) as n; orderBy FirstNetherlandsRegistrationDate asc; limit null; display timeseries',
+            $prompt,
+        );
+        self::assertStringContainsString(
+            'groupBy FirstNetherlandsRegistrationDate (year), PrimaryColor; aggregates count(*) as n; orderBy FirstNetherlandsRegistrationDate asc; limit null; display stacked_bars',
+            $prompt,
+        );
     }
 
     public function test_prompt_refuses_location_questions(): void
