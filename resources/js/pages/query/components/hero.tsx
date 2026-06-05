@@ -1,3 +1,4 @@
+import AppLogoIcon from '@/components/app-logo-icon';
 import { useTranslation } from '@/hooks/use-translation';
 import { cn } from '@/lib/utils';
 
@@ -20,6 +21,12 @@ export function Hero({ compact }: { compact: boolean }) {
 
     return (
         <header className="flex flex-col items-center">
+            {!compact && (
+                <AppLogoIcon
+                    className="mb-6 h-24 w-auto sm:h-28"
+                    aria-hidden="true"
+                />
+            )}
             <h1
                 className={cn(
                     'm-0 font-bold tracking-[-0.04em] text-balance transition-[font-size,line-height] duration-300 ease-out',

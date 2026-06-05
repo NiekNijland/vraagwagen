@@ -28,8 +28,8 @@ export default function AuthCardLayout({
                     href={home({ locale })}
                     className="flex items-center gap-2 self-center font-medium"
                 >
-                    <div className="flex h-9 w-9 items-center justify-center">
-                        <AppLogoIcon className="size-9 fill-current text-black dark:text-white" />
+                    <div className="flex items-center justify-center">
+                        <AppLogoIcon className="h-14 w-auto" />
                     </div>
                 </Link>
 
