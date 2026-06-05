@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/table';
 import { useTranslation } from '@/hooks/use-translation';
 
+import { PlateChip } from '../components/plate-chip';
 import {
     bucketForColumn,
     formatBucketLabel,
@@ -15,6 +16,7 @@ import {
     localeTag,
     translateColumn,
 } from '../format';
+import { detectPlate, formatPlate } from '../plate';
 import type { Plan, QueryRow } from '../types';
 
 // Cap the rows we paint into the DOM. A normal table is already bounded by the
@@ -55,6 +57,25 @@ export function TableView({
                         <TableRow key={i}>
                             {columns.map((c) => {
                                 const value = row[c];
+                                const plate =
+                                    c === 'LicensePlate' &&
+                                    typeof value === 'string'
+                                        ? detectPlate(value)
+                                        : null;
+
+                                if (plate !== null) {
+                                    const formatted = formatPlate(plate);
+
+                                    return (
+                                        <TableCell key={c} className="text-xs">
+                                            <PlateChip plate={formatted} />
+                                            <span className="sr-only">
+                                                {formatted}
+                                            </span>
+                                        </TableCell>
+                                    );
+                                }
+
                                 const bucket = bucketForColumn(plan, c);
                                 const formatted =
                                     bucket !== null

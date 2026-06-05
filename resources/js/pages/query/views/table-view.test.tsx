@@ -47,6 +47,36 @@ describe('TableView', () => {
         expect(screen.getByText('2020')).toBeInTheDocument();
     });
 
+    it('renders license plate cells as a plate chip', () => {
+        const { container } = renderWithI18n(
+            <TableView
+                rows={[{ LicensePlate: 'MH84KZ', CommercialName: 'GSX R1100' }]}
+                plan={plan()}
+                locale="en"
+            />,
+        );
+
+        const chip = container.querySelector('.rdw-plate');
+        expect(chip).not.toBeNull();
+        expect(chip).toHaveClass('rdw-plate--moto');
+        expect(chip).toHaveTextContent('MH-84');
+        expect(chip).toHaveTextContent('KZ');
+        expect(screen.getByText('MH-84-KZ')).toHaveClass('sr-only');
+    });
+
+    it('falls back to plain text for non-plate license plate values', () => {
+        const { container } = renderWithI18n(
+            <TableView
+                rows={[{ LicensePlate: 'ONBEKEND1' }]}
+                plan={plan()}
+                locale="en"
+            />,
+        );
+
+        expect(container.querySelector('.rdw-plate')).toBeNull();
+        expect(screen.getByText('ONBEKEND1')).toBeInTheDocument();
+    });
+
     it('renders an em dash for null cells', () => {
         renderWithI18n(
             <TableView rows={[{ Kleur: null }]} plan={plan()} locale="en" />,
