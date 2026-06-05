@@ -157,7 +157,7 @@
 :root {
     --rdw-orange: #ff5a1f;
     --rdw-orange-soft: #ff8b5a;
-    --rdw-orange-glow: rgba(255, 90, 31, 0.55);
+    --rdw-orange-glow: rgba(255, 90, 31, 0.65);
     --rdw-orange-faint: rgba(255, 90, 31, 0.08);
 }
 
@@ -281,14 +281,14 @@
 
 .rdw-composer-glow {
     position: absolute;
-    inset: -20px;
+    inset: -36px;
     background: radial-gradient(
         60% 80% at 50% 50%,
         var(--rdw-orange-glow),
         transparent 70%
     );
-    filter: blur(28px);
-    opacity: 0.28;
+    filter: blur(44px);
+    opacity: 0.45;
     pointer-events: none;
     transition: opacity 300ms ease;
     /* Slow breathe so the idle composer feels alive without pulling focus. */
@@ -298,17 +298,17 @@
 @keyframes rdw-glow-breathe {
     0%,
     100% {
-        opacity: 0.3;
+        opacity: 0.42;
     }
     50% {
-        opacity: 0.5;
+        opacity: 0.68;
     }
 }
 
 .rdw-composer-wrap:focus-within .rdw-composer-glow {
     /* Focus overrides the breathe and locks the glow at full strength. */
     animation: none;
-    opacity: 0.9;
+    opacity: 1;
 }
 
 .rdw-composer-shell {
