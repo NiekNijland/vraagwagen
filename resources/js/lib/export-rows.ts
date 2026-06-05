@@ -44,7 +44,7 @@ export function downloadRows(
     URL.revokeObjectURL(url);
 }
 
-function rowsToCsv(rows: Array<Record<string, unknown>>): string {
+export function rowsToCsv(rows: Array<Record<string, unknown>>): string {
     const columns = collectColumns(rows);
     const header = columns.map(escapeCsv).join(',');
     const body = rows
@@ -81,7 +81,11 @@ function formatCsvCell(value: unknown): string {
         return JSON.stringify(value);
     }
 
-    return String(value);
+    return protectSpreadsheetFormula(String(value));
+}
+
+function protectSpreadsheetFormula(value: string): string {
+    return /^[\t\r\n ]*[=+\-@]/.test(value) ? `'${value}` : value;
 }
 
 function escapeCsv(value: string): string {

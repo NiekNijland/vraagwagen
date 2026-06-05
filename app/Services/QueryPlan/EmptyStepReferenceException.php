@@ -12,4 +12,6 @@ use RuntimeException;
  * the registry simply holds nothing for it — so it degrades to a "no matches" refusal instead
  * of the "try rephrasing" error path.
  */
-final class EmptyStepReferenceException extends RuntimeException {}
+final class EmptyStepReferenceException extends RuntimeException
+{
+}

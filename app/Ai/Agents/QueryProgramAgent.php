@@ -9,6 +9,9 @@ use App\Services\QueryPlan\PromptBuilder;
 use App\Services\QueryPlan\QueryProgramSchema;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
+use Laravel\Ai\Attributes\MaxTokens;
+use Laravel\Ai\Attributes\Strict;
+use Laravel\Ai\Attributes\Temperature;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Enums\Lab;
@@ -16,6 +19,9 @@ use Laravel\Ai\Promptable;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
 
+#[Strict]
+#[MaxTokens(1800)]
+#[Temperature(0.0)]
 final class QueryProgramAgent implements Agent, HasStructuredOutput
 {
     use Promptable;
@@ -23,7 +29,8 @@ final class QueryProgramAgent implements Agent, HasStructuredOutput
     public function __construct(
         private readonly PromptBuilder $promptBuilder,
         private readonly Locale $locale = Locale::English,
-    ) {}
+    ) {
+    }
 
     public function ask(string $question): StructuredAgentResponse
     {

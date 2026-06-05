@@ -20,13 +20,17 @@ final readonly class GetPlatformStats
     /** RDW publishes daily, so the vehicle count's natural lifetime is a day (key also rotates at Amsterdam midnight). */
     private const int VEHICLES_TTL_SECONDS = 86_400;
 
+    /** The answered question count can lag slightly; caching keeps the public homepage off the hot write path. */
+    private const int QUERY_COUNT_TTL_SECONDS = 600;
+
     /** A failed lookup is cached briefly so page loads don't repeatedly block on a dead upstream. */
     private const int FAILURE_TTL_SECONDS = 600;
 
     public function __construct(
         private Rdw $rdw,
         private Repository $cache,
-    ) {}
+    ) {
+    }
 
     /**
      * @return array{vehicles: int|null, datasets: int, queriesAnswered: int}
@@ -36,7 +40,7 @@ final readonly class GetPlatformStats
         return [
             'vehicles' => $this->vehicleCount(),
             'datasets' => count(DatasetId::cases()),
-            'queriesAnswered' => QueryRun::query()->count(),
+            'queriesAnswered' => $this->queryCount(),
         ];
     }
 
@@ -70,5 +74,14 @@ final readonly class GetPlatformStats
         );
 
         return $count > 0 ? $count : null;
+    }
+
+    private function queryCount(): int
+    {
+        return $this->cache->remember(
+            'platform-stats:queries-answered',
+            self::QUERY_COUNT_TTL_SECONDS,
+            static fn (): int => QueryRun::count(),
+        );
     }
 }

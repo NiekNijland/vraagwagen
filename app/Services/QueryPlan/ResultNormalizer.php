@@ -15,11 +15,13 @@ use NiekNijland\RDW\Schema\SchemaRegistry;
  */
 final readonly class ResultNormalizer
 {
-    public function __construct(private SchemaRegistry $schemas) {}
+    public function __construct(private SchemaRegistry $schemas)
+    {
+    }
 
     /**
-     * @param  list<object>  $records
-     * @param  list<string>  $select
+     * @param list<object> $records
+     * @param list<string> $select
      * @return list<array<string, mixed>>
      */
     public function fromRecords(array $records, array $select, TargetDataset $dataset): array
@@ -28,9 +30,9 @@ final readonly class ResultNormalizer
     }
 
     /**
-     * @param  list<array<string, mixed>>  $rows
-     * @param  list<AggregateClause>  $aggregates
-     * @param  array<string, BucketExpression>  $buckets
+     * @param list<array<string, mixed>> $rows
+     * @param list<AggregateClause> $aggregates
+     * @param array<string, BucketExpression> $buckets
      * @return list<array<string, mixed>>
      */
     public function fromProjection(array $rows, array $aggregates, array $buckets, TargetDataset $dataset): array
@@ -60,7 +62,7 @@ final readonly class ResultNormalizer
     }
 
     /**
-     * @param  list<string>  $select
+     * @param list<string> $select
      * @return array<string, mixed>
      */
     private function recordToArray(object $record, array $select, TargetDataset $dataset): array

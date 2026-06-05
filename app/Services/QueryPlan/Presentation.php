@@ -10,7 +10,7 @@ final readonly class Presentation
     public const string DERIVED_REF = 'derived';
 
     /**
-     * @param  list<string>  $followUps  Up to 3 complete next-step questions the user can click to ask next.
+     * @param list<string> $followUps Up to 3 complete next-step questions the user can click to ask next.
      */
     public function __construct(
         public string $resultRef,
@@ -19,7 +19,8 @@ final readonly class Presentation
         public string $explanation,
         public ?Refusal $refusal = null,
         public array $followUps = [],
-    ) {}
+    ) {
+    }
 
     public function isDerived(): bool
     {

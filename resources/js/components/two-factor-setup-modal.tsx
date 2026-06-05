@@ -125,7 +125,17 @@ function TwoFactorSetupStep({
                                         className="h-full w-full bg-background p-3 text-foreground outline-none"
                                     />
                                     <button
+                                        type="button"
                                         onClick={() => copy(manualSetupKey)}
+                                        aria-label={
+                                            copiedText === manualSetupKey
+                                                ? t(
+                                                      'components.twoFactorSetupModal.manualCodeCopied',
+                                                  )
+                                                : t(
+                                                      'components.twoFactorSetupModal.copyManualCode',
+                                                  )
+                                        }
                                         className="border-l border-border px-3 hover:bg-muted"
                                     >
                                         <IconComponent className="w-4" />
@@ -185,6 +195,16 @@ function TwoFactorVerificationStep({
                                 disabled={processing}
                                 pattern={REGEXP_ONLY_DIGITS}
                                 autoFocus
+                                aria-invalid={
+                                    errors?.confirmTwoFactorAuthentication?.code
+                                        ? true
+                                        : undefined
+                                }
+                                aria-describedby={
+                                    errors?.confirmTwoFactorAuthentication?.code
+                                        ? 'two-factor-confirmation-error'
+                                        : undefined
+                                }
                             >
                                 <InputOTPGroup>
                                     {Array.from(
@@ -199,6 +219,7 @@ function TwoFactorVerificationStep({
                                 </InputOTPGroup>
                             </InputOTP>
                             <InputError
+                                id="two-factor-confirmation-error"
                                 message={
                                     errors?.confirmTwoFactorAuthentication?.code
                                 }

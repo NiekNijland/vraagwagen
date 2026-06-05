@@ -28,6 +28,7 @@ import {
 } from '../format';
 import type { TimeGranularity } from '../format';
 import type { Plan, QueryRow } from '../types';
+import { AccessibleChartTable } from './accessible-chart-table';
 import { ValueTooltipRow } from './value-tooltip-row';
 
 // At or below this many buckets the series reads as discrete periods, so bars
@@ -160,64 +161,84 @@ export function TimeseriesView({
     // zero-months show as empty slots rather than a line dipping through them.
     if (data.length <= BARS_MAX_BUCKETS) {
         return (
-            <ChartContainer config={config} className="h-[360px] w-full">
-                <BarChart
-                    data={data}
-                    margin={{ left: 12, right: 12, top: 8, bottom: 28 }}
-                >
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    {xAxis}
-                    {yAxis}
-                    {tooltip({ fill: 'var(--chart-1)', fillOpacity: 0.07 })}
-                    <Bar
-                        dataKey="value"
-                        fill="var(--chart-1)"
-                        radius={[4, 4, 0, 0]}
-                    />
-                </BarChart>
-            </ChartContainer>
+            <>
+                <ChartContainer config={config} className="h-[360px] w-full">
+                    <BarChart
+                        data={data}
+                        margin={{ left: 12, right: 12, top: 8, bottom: 28 }}
+                    >
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                        {xAxis}
+                        {yAxis}
+                        {tooltip({ fill: 'var(--chart-1)', fillOpacity: 0.07 })}
+                        <Bar
+                            dataKey="value"
+                            fill="var(--chart-1)"
+                            radius={[4, 4, 0, 0]}
+                        />
+                    </BarChart>
+                </ChartContainer>
+                <AccessibleChartTable
+                    caption={`${xLabel} over time`}
+                    columns={[xLabel, yLabel]}
+                    rows={data.map((entry) => [
+                        formatDateLabel(entry.x, granularity, locale),
+                        formatNumber(entry.value, locale),
+                    ])}
+                />
+            </>
         );
     }
 
     return (
-        <ChartContainer config={config} className="h-[360px] w-full">
-            <AreaChart
-                data={data}
-                margin={{ left: 12, right: 12, top: 8, bottom: 28 }}
-            >
-                <defs>
-                    <linearGradient
-                        id="timeseries-fill"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                    >
-                        <stop
-                            offset="0%"
-                            stopColor="var(--chart-1)"
-                            stopOpacity={0.35}
-                        />
-                        <stop
-                            offset="100%"
-                            stopColor="var(--chart-1)"
-                            stopOpacity={0.02}
-                        />
-                    </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                {xAxis}
-                {yAxis}
-                {tooltip({ stroke: 'var(--chart-1)', strokeOpacity: 0.3 })}
-                <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke="var(--chart-1)"
-                    strokeWidth={2}
-                    fill="url(#timeseries-fill)"
-                />
-            </AreaChart>
-        </ChartContainer>
+        <>
+            <ChartContainer config={config} className="h-[360px] w-full">
+                <AreaChart
+                    data={data}
+                    margin={{ left: 12, right: 12, top: 8, bottom: 28 }}
+                >
+                    <defs>
+                        <linearGradient
+                            id="timeseries-fill"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                        >
+                            <stop
+                                offset="0%"
+                                stopColor="var(--chart-1)"
+                                stopOpacity={0.35}
+                            />
+                            <stop
+                                offset="100%"
+                                stopColor="var(--chart-1)"
+                                stopOpacity={0.02}
+                            />
+                        </linearGradient>
+                    </defs>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    {xAxis}
+                    {yAxis}
+                    {tooltip({ stroke: 'var(--chart-1)', strokeOpacity: 0.3 })}
+                    <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="var(--chart-1)"
+                        strokeWidth={2}
+                        fill="url(#timeseries-fill)"
+                    />
+                </AreaChart>
+            </ChartContainer>
+            <AccessibleChartTable
+                caption={`${xLabel} over time`}
+                columns={[xLabel, yLabel]}
+                rows={data.map((entry) => [
+                    formatDateLabel(entry.x, granularity, locale),
+                    formatNumber(entry.value, locale),
+                ])}
+            />
+        </>
     );
 }
 

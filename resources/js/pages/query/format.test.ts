@@ -430,10 +430,11 @@ describe('fillTimeBuckets', () => {
 });
 
 describe('chartColor', () => {
-    it('cycles through the five palette slots', () => {
+    it('cycles through the nine palette slots', () => {
         expect(chartColor(0)).toBe('var(--chart-1)');
         expect(chartColor(4)).toBe('var(--chart-5)');
-        expect(chartColor(5)).toBe('var(--chart-1)');
+        expect(chartColor(8)).toBe('var(--chart-9)');
+        expect(chartColor(9)).toBe('var(--chart-1)');
     });
 });
 

@@ -8,6 +8,7 @@ return [
         'rate_limited' => 'RDW-snelheidslimiet bereikt. Probeer het opnieuw over :secondss.',
         'rejected' => 'De gegenereerde query werd afgewezen. Probeer je vraag anders te formuleren.',
         'timeout' => 'RDW deed er te lang over om deze query te beantwoorden. Probeer het zo opnieuw.',
+        'service_unavailable' => 'De AI-planner is tijdelijk niet beschikbaar. Probeer het over een moment opnieuw.',
         'malformed' => 'De gegenereerde query was onjuist opgebouwd. Probeer je vraag anders te formuleren.',
         'unexpected' => 'Er ging iets mis bij het opbouwen of uitvoeren van de query.',
         'not_found' => 'Dat queryresultaat is niet gevonden.',

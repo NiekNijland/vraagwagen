@@ -25,7 +25,7 @@ final readonly class CostEstimator
         }
 
         $cacheRead = $usage->cacheReadInputTokens;
-        $freshPromptTokens = max(0, $usage->promptTokens - $cacheRead);
+        $freshPromptTokens = $usage->promptTokens;
 
         $inputRate = (float) ($rates['input'] ?? 0);
         // Fall back to the input rate when no cache-read rate is declared.

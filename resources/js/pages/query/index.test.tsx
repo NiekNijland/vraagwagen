@@ -179,4 +179,37 @@ describe('QueryPage', () => {
         expect(await screen.findByText('999')).toBeInTheDocument();
         expect(fetchMock).not.toHaveBeenCalled();
     });
+
+    it('offers a retry button after a transient failure', async () => {
+        fetchMock
+            .mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({
+                        error: 'Temporarily unavailable',
+                        correlationId: 'cid-retry',
+                    }),
+                    {
+                        status: 504,
+                        headers: { 'Content-Type': 'application/json' },
+                    },
+                ),
+            )
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify(runResponse()), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' },
+                }),
+            );
+
+        renderWithI18n(<QueryPage sharedRun={null} />);
+
+        await userEvent.type(screen.getByRole('textbox'), 'How many Teslas?');
+        await userEvent.keyboard('{Enter}');
+        await userEvent.click(
+            await screen.findByRole('button', { name: 'Try again' }),
+        );
+
+        expect(await screen.findByText('5,421')).toBeInTheDocument();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
 });

@@ -29,7 +29,7 @@ final class GetPlatformStatsTest extends TestCase
 
         $action = new GetPlatformStats(
             $this->fakeRdw([$this->countResponse('16247892')]),
-            new Repository(new ArrayStore),
+            new Repository(new ArrayStore()),
         );
 
         $stats = $action->execute();
@@ -44,11 +44,27 @@ final class GetPlatformStatsTest extends TestCase
         // A single queued response: a second RDW request would drain the queue and fail.
         $action = new GetPlatformStats(
             $this->fakeRdw([$this->countResponse('16247892')]),
-            new Repository(new ArrayStore),
+            new Repository(new ArrayStore()),
         );
 
         self::assertSame(16_247_892, $action->execute()['vehicles']);
         self::assertSame(16_247_892, $action->execute()['vehicles']);
+    }
+
+    public function test_caches_the_answered_question_count_across_executions(): void
+    {
+        QueryRun::factory()->createOne();
+
+        $action = new GetPlatformStats(
+            $this->fakeRdw([$this->countResponse('16247892')]),
+            new Repository(new ArrayStore()),
+        );
+
+        self::assertSame(1, $action->execute()['queriesAnswered']);
+
+        QueryRun::factory()->count(2)->create();
+
+        self::assertSame(1, $action->execute()['queriesAnswered']);
     }
 
     public function test_returns_null_vehicles_and_negative_caches_when_rdw_is_unreachable(): void
@@ -60,7 +76,7 @@ final class GetPlatformStatsTest extends TestCase
                 new ConnectException('Connection refused', new Psr7Request('GET', 'resource/m9d7-ebf2.json')),
                 $this->countResponse('16247892'),
             ]),
-            new Repository(new ArrayStore),
+            new Repository(new ArrayStore()),
         );
 
         self::assertNull($action->execute()['vehicles']);
@@ -77,7 +93,7 @@ final class GetPlatformStatsTest extends TestCase
     }
 
     /**
-     * @param  list<Psr7Response|Throwable>  $queue
+     * @param list<Psr7Response|Throwable> $queue
      */
     private function fakeRdw(array $queue): Rdw
     {
@@ -88,6 +104,6 @@ final class GetPlatformStatsTest extends TestCase
             'handler' => $stack,
         ]);
 
-        return new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        return new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
     }
 }

@@ -62,12 +62,12 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
     const rightNavItems: NavItem[] = [
         {
             title: t('components.appHeader.repository'),
-            href: 'https://github.com/laravel/react-starter-kit',
+            href: 'https://github.com/NiekNijland/vraagwagen',
             icon: Folder,
         },
         {
             title: t('components.appHeader.documentation'),
-            href: 'https://laravel.com/docs/starter-kits#react',
+            href: 'https://opendata.rdw.nl',
             icon: BookOpen,
         },
     ];

@@ -25,6 +25,8 @@ use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Cache\ArrayStore;
+use Illuminate\Cache\Repository;
 use InvalidArgumentException;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
@@ -469,10 +471,47 @@ final class RunNaturalLanguageQueryTest extends TestCase
         self::assertEqualsWithDelta(0.30, $result->estimatedCost, 1e-6);
     }
 
+    public function test_reuses_a_cached_query_program_for_identical_locale_and_prompt(): void
+    {
+        QueryProgramAgent::fake([
+            new StructuredTextResponse(
+                [
+                    'queries' => [[
+                        'id' => 'q1',
+                        'dataset' => 'RegisteredVehicles',
+                        'where' => [], 'select' => [], 'groupBy' => [],
+                        'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+                        'orderBy' => [], 'limit' => null, 'display' => 'count', 'explanation' => '',
+                    ]],
+                    'presentation' => [
+                        'resultRef' => 'q1',
+                        'display' => 'count',
+                        'derive' => null,
+                        'explanation' => '',
+                    ],
+                ],
+                json_encode(['cached' => true], JSON_THROW_ON_ERROR),
+                new Usage(promptTokens: 500, completionTokens: 50),
+                new Meta('openai', 'gpt-4.1-mini'),
+            ),
+        ])->preventStrayPrompts();
+
+        $cache = new Repository(new ArrayStore());
+        $action = $this->actionFor([[['n' => '1']], [['n' => '1']]], $cache);
+
+        $first = $action->execute('How many vehicles are there?', Locale::English);
+        $second = $action->execute('  How many   vehicles are there?  ', Locale::English);
+
+        self::assertSame(500, $first->tokens->prompt);
+        self::assertSame(0, $second->tokens->prompt);
+        self::assertSame('gpt-4.1-mini', $second->model);
+        self::assertNull($second->estimatedCost);
+    }
+
     /**
-     * @param  list<list<array<string, mixed>>>  $rdwResponses  one rows-array per executed Plan
+     * @param list<list<array<string, mixed>>> $rdwResponses one rows-array per executed Plan
      */
-    private function actionFor(array $rdwResponses): RunNaturalLanguageQuery
+    private function actionFor(array $rdwResponses, ?Repository $cache = null): RunNaturalLanguageQuery
     {
         $queue = array_map(
             static fn (array $rows): Psr7Response => new Psr7Response(
@@ -485,8 +524,8 @@ final class RunNaturalLanguageQueryTest extends TestCase
 
         $stack = HandlerStack::create(new MockHandler($queue));
         $guzzle = new GuzzleClient(['base_uri' => 'https://opendata.rdw.nl/', 'handler' => $stack]);
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
-        $schemas = new SchemaRegistry;
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
+        $schemas = new SchemaRegistry();
         $storageTypes = new SocrataStorageTypes($schemas);
         $assembler = new QueryAssembler($rdw, $storageTypes, new FieldCaster($schemas));
         $normalizer = new ResultNormalizer($schemas);
@@ -496,15 +535,16 @@ final class RunNaturalLanguageQueryTest extends TestCase
             costEstimator: new CostEstimator((array) config('vraagwagen.model_prices', [])),
             programFactory: new QueryProgramFactory(
                 new PlanFactory($schemas),
-                new PresentationFactory,
+                new PresentationFactory(),
             ),
-            referenceResolver: new StepReferenceResolver,
-            derivation: new Derivation,
+            referenceResolver: new StepReferenceResolver(),
+            derivation: new Derivation(),
+            cache: $cache ?? new Repository(new ArrayStore()),
         );
     }
 
     /**
-     * @param  array<string, mixed>  $program
+     * @param array<string, mixed> $program
      */
     private function fakeProgram(array $program, ?Usage $usage = null, string $model = 'fake'): void
     {
@@ -512,7 +552,7 @@ final class RunNaturalLanguageQueryTest extends TestCase
             new StructuredTextResponse(
                 $program,
                 json_encode($program, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage,
+                $usage ?? new Usage(),
                 new Meta('openai', $model),
             ),
         ]);

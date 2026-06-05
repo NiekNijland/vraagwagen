@@ -10,10 +10,9 @@ use App\Services\QueryPlan\PlanPresenter;
 use App\Services\QueryPlan\TokenUsage;
 use Illuminate\Support\Str;
 use LogicException;
-use MongoDB\Driver\Exception\BulkWriteException;
 use Throwable;
 
-final class PersistQueryRun
+class PersistQueryRun
 {
     private const int SLUG_LENGTH = 10;
 
@@ -22,10 +21,10 @@ final class PersistQueryRun
     private const int DUPLICATE_KEY_CODE = 11000;
 
     /**
-     * @param  list<array<string, mixed>>  $rows
-     * @param  array<string, string>  $soql
-     * @param  list<array<string, mixed>>  $steps
-     * @param  array<string, mixed>|null  $presentation
+     * @param list<array<string, mixed>> $rows
+     * @param array<string, string> $soql
+     * @param list<array<string, mixed>> $steps
+     * @param array<string, mixed>|null $presentation
      */
     public function execute(
         string $prompt,
@@ -88,6 +87,7 @@ final class PersistQueryRun
 
     private function isDuplicateSlug(Throwable $e): bool
     {
-        return $e instanceof BulkWriteException && $e->getCode() === self::DUPLICATE_KEY_CODE;
+        return $e->getCode() === self::DUPLICATE_KEY_CODE
+            || str_contains($e->getMessage(), 'E11000');
     }
 }

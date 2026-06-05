@@ -79,6 +79,13 @@ export function StatStrip({
                     <Github className="h-3 w-3" />
                     <span>GitHub</span>
                 </a>
+                <span className="text-muted-foreground/40">·</span>
+                <a
+                    href={`/${locale}/privacy`}
+                    className="text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                >
+                    {t('pages.privacy.title')}
+                </a>
             </div>
         </footer>
     );

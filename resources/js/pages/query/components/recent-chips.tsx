@@ -28,7 +28,10 @@ export function RecentChips({
                     {t('pages.query.clearRecent')}
                 </button>
             </div>
-            <div className="flex flex-wrap justify-center gap-1.5">
+            <div
+                data-testid="recent-chips-list"
+                className="flex max-h-28 w-full flex-wrap justify-center gap-1.5 overflow-y-auto px-1 sm:max-h-32"
+            >
                 {items.map((q) => (
                     <RecentChip key={q} question={q} onPick={onPick} />
                 ))}

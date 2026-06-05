@@ -12,12 +12,13 @@ namespace App\Services\QueryPlan;
 final readonly class Refusal
 {
     /**
-     * @param  list<string>  $suggestions  Answerable alternative questions, already in the user's locale.
+     * @param list<string> $suggestions Answerable alternative questions, already in the user's locale.
      */
     public function __construct(
         public RefusalReason $reason,
         public array $suggestions = [],
-    ) {}
+    ) {
+    }
 
     /**
      * @return array{reason: string, suggestions: list<string>}

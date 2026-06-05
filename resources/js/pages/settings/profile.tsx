@@ -1,4 +1,4 @@
-import { Form, Head, Link, setLayoutProps, usePage } from '@inertiajs/react';
+import { Form, Head, setLayoutProps, usePage } from '@inertiajs/react';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
@@ -8,15 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useTranslation } from '@/hooks/use-translation';
 import { edit } from '@/routes/profile';
-import { send } from '@/routes/verification';
 
-export default function Profile({
-    mustVerifyEmail,
-    status,
-}: {
-    mustVerifyEmail: boolean;
-    status?: string;
-}) {
+export default function Profile() {
     const { auth } = usePage().props;
     const { t } = useTranslation();
 
@@ -66,9 +59,18 @@ export default function Profile({
                                     placeholder={t(
                                         'pages.settings.profile.namePlaceholder',
                                     )}
+                                    aria-invalid={
+                                        errors.name ? true : undefined
+                                    }
+                                    aria-describedby={
+                                        errors.name
+                                            ? 'profile-name-error'
+                                            : undefined
+                                    }
                                 />
 
                                 <InputError
+                                    id="profile-name-error"
                                     className="mt-2"
                                     message={errors.name}
                                 />
@@ -90,42 +92,22 @@ export default function Profile({
                                     placeholder={t(
                                         'pages.settings.profile.emailPlaceholder',
                                     )}
+                                    aria-invalid={
+                                        errors.email ? true : undefined
+                                    }
+                                    aria-describedby={
+                                        errors.email
+                                            ? 'profile-email-error'
+                                            : undefined
+                                    }
                                 />
 
                                 <InputError
+                                    id="profile-email-error"
                                     className="mt-2"
                                     message={errors.email}
                                 />
                             </div>
-
-                            {mustVerifyEmail &&
-                                auth.user.email_verified_at === null && (
-                                    <div>
-                                        <p className="-mt-4 text-sm text-muted-foreground">
-                                            {t(
-                                                'pages.settings.profile.unverified',
-                                            )}{' '}
-                                            <Link
-                                                href={send()}
-                                                as="button"
-                                                className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
-                                            >
-                                                {t(
-                                                    'pages.settings.profile.resendLink',
-                                                )}
-                                            </Link>
-                                        </p>
-
-                                        {status ===
-                                            'verification-link-sent' && (
-                                            <div className="mt-2 text-sm font-medium text-green-600">
-                                                {t(
-                                                    'pages.settings.profile.linkSent',
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
 
                             <div className="flex items-center gap-4">
                                 <Button

@@ -138,7 +138,7 @@ export type SharedRun = {
 };
 
 export type RunResponse = {
-    slug: string;
+    slug?: string;
     correlationId: string;
     plan: Plan;
     soql: Record<string, string>;
@@ -164,9 +164,11 @@ export type ErrorResponse = {
 export type QueryError = {
     message: string;
     correlationId?: string;
+    status?: number;
     soql?: Record<string, string>;
     url?: string;
     responseBody?: string | null;
+    onRetry?: () => void;
 };
 
 /** Platform-wide figures shown in the footer strip; arrives as a deferred Inertia prop. */

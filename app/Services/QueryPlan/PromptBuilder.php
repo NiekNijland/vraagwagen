@@ -43,7 +43,9 @@ final readonly class PromptBuilder
         'Bus',
     ];
 
-    public function __construct(private SchemaRegistry $schemas) {}
+    public function __construct(private SchemaRegistry $schemas)
+    {
+    }
 
     /**
      * Wrap user input in tags so the LLM treats it as data, stripping any tags they typed.

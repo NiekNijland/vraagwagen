@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Auth;
 
+use App\Models\User;
 use Laravel\Fortify\Features;
 use Tests\TestCase;
 
@@ -34,5 +35,12 @@ class RegistrationTest extends TestCase
 
         $this->assertAuthenticated();
         $response->assertRedirect(route('dashboard', absolute: false));
+
+        $user = User::query()->where('email', 'test@example.com')->first();
+
+        self::assertInstanceOf(User::class, $user);
+        self::assertFalse($user->hasVerifiedEmail());
+
+        $this->actingAs($user)->get(route('dashboard'))->assertOk();
     }
 }

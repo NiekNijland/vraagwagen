@@ -291,6 +291,8 @@ function ResultToolbar({
 }
 
 export function ErrorView({ error }: { error: QueryError }) {
+    const { t } = useTranslation();
+
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-start gap-3">
@@ -306,6 +308,19 @@ export function ErrorView({ error }: { error: QueryError }) {
                             ID: {error.correlationId}
                         </p>
                     )}
+                    {error.onRetry !== undefined &&
+                        error.status !== undefined &&
+                        [503, 504].includes(error.status) && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={error.onRetry}
+                                className="mt-2 self-start"
+                            >
+                                {t('pages.query.retry')}
+                            </Button>
+                        )}
                 </div>
             </div>
             <QueryDebugPanel

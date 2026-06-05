@@ -49,4 +49,20 @@ describe('BarsView', () => {
 
         expect(await screen.findByText('12.345')).toBeInTheDocument();
     });
+
+    it('includes a screen-reader table alternative for chart data', () => {
+        renderWithI18n(
+            <BarsView
+                rows={[
+                    { kleur: 'WIT', n: 10 },
+                    { kleur: 'ZWART', n: 5 },
+                ]}
+                plan={barsPlan()}
+                locale="en"
+                fallback={<div>fallback</div>}
+            />,
+        );
+
+        expect(screen.getByRole('table', { hidden: true })).toBeInTheDocument();
+    });
 });

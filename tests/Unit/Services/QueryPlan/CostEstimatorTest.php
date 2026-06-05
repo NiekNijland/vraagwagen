@@ -60,12 +60,12 @@ final class CostEstimatorTest extends TestCase
         ]);
 
         $usage = new Usage(
-            promptTokens: 1_000_000,
+            promptTokens: 500_000,
             completionTokens: 0,
             cacheReadInputTokens: 500_000,
         );
 
-        // 500k fresh @ 0.10 + 500k cached @ 0.10 (fallback) = 0.10 total
+        // promptTokens is already net of the cache read: 500k fresh @ 0.10 + 500k cached @ 0.10 = 0.10.
         self::assertSame(0.10, $estimator->estimate('gpt-4.1-nano', $usage));
     }
 
@@ -80,12 +80,12 @@ final class CostEstimatorTest extends TestCase
         ]);
 
         $usage = new Usage(
-            promptTokens: 1_000_000,
+            promptTokens: 500_000,
             completionTokens: 0,
             cacheReadInputTokens: 500_000,
         );
 
-        // 500k fresh @ 0.10 + 500k cached @ 0.025 = 0.0625
+        // promptTokens is already net of the cache read: 500k fresh @ 0.10 + 500k cached @ 0.025 = 0.0625.
         self::assertSame(0.0625, $estimator->estimate('gpt-4.1-nano', $usage));
     }
 

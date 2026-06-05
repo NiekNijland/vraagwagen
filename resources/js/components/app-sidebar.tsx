@@ -31,12 +31,12 @@ export function AppSidebar() {
     const footerNavItems: NavItem[] = [
         {
             title: t('components.appHeader.repository'),
-            href: 'https://github.com/laravel/react-starter-kit',
+            href: 'https://github.com/NiekNijland/vraagwagen',
             icon: FolderGit2,
         },
         {
             title: t('components.appHeader.documentation'),
-            href: 'https://laravel.com/docs/starter-kits#react',
+            href: 'https://opendata.rdw.nl',
             icon: BookOpen,
         },
     ];

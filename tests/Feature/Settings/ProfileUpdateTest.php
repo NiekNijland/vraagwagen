@@ -39,26 +39,7 @@ class ProfileUpdateTest extends TestCase
 
         self::assertSame('Test User', $user->name);
         self::assertSame('test@example.com', $user->email);
-        self::assertNull($user->email_verified_at);
-    }
-
-    public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged(): void
-    {
-        $user = User::factory()->createOne();
-
-        $response = $this
-            ->actingAs($user)
-            ->patch(route('profile.update'), [
-                'name' => 'Test User',
-                'email' => $user->email,
-            ]);
-
-        $response
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('profile.edit'));
-
-        $refreshed = $user->refresh();
-        self::assertNotNull($refreshed->email_verified_at);
+        self::assertNotNull($user->email_verified_at);
     }
 
     public function test_user_can_delete_their_account(): void

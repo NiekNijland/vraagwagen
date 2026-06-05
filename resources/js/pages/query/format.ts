@@ -425,8 +425,8 @@ function pad(value: number, length: number): string {
     return String(value).padStart(length, '0');
 }
 
-// 5 chart slots in the design system. We cycle for groups with more categories.
-const CHART_PALETTE_SIZE = 5;
+// The palette needs enough distinct slots for pies and stacked charts before it cycles.
+const CHART_PALETTE_SIZE = 9;
 
 export function chartColor(index: number): string {
     return `var(--chart-${(index % CHART_PALETTE_SIZE) + 1})`;

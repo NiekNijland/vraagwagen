@@ -308,7 +308,7 @@ final class PromptBuilderTest extends TestCase
         ];
         $fuelsFields = ['LicensePlate', 'NetMaximumPower', 'FuelDescription'];
 
-        $schemas = new SchemaRegistry;
+        $schemas = new SchemaRegistry();
         $vehicles = $schemas->get(DatasetId::RegisteredVehicles);
         $fuels = $schemas->get(DatasetId::RegisteredVehicleFuels);
         $prompt = $this->builder()->systemPrompt(Locale::English);
@@ -421,6 +421,6 @@ final class PromptBuilderTest extends TestCase
 
     private function builder(): PromptBuilder
     {
-        return new PromptBuilder(new SchemaRegistry);
+        return new PromptBuilder(new SchemaRegistry());
     }
 }

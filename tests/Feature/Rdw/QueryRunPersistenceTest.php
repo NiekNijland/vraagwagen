@@ -34,7 +34,7 @@ final class QueryRunPersistenceTest extends TestCase
                 'display' => 'count',
                 'explanation' => 'How many VWs',
             ],
-            usage: new Usage(promptTokens: 1_200, completionTokens: 240, cacheReadInputTokens: 400),
+            usage: new Usage(promptTokens: 800, completionTokens: 240, cacheReadInputTokens: 400),
             model: 'gpt-4.1-nano',
         );
 
@@ -62,7 +62,7 @@ final class QueryRunPersistenceTest extends TestCase
         self::assertSame('VOLKSWAGEN', $run->plan['where'][0]['value']);
         self::assertSame([['n' => '42']], $run->rows);
         self::assertSame('gpt-4.1-nano', $run->model);
-        self::assertSame(1_200, $run->prompt_tokens);
+        self::assertSame(800, $run->prompt_tokens);
         self::assertSame(240, $run->completion_tokens);
         self::assertSame(400, $run->cache_read_tokens);
         self::assertSame(0, $run->thought_tokens);
@@ -99,7 +99,7 @@ final class QueryRunPersistenceTest extends TestCase
     }
 
     /**
-     * @param  array<string, mixed>  $plan
+     * @param array<string, mixed> $plan
      */
     private function fakeQueryPlan(array $plan, ?Usage $usage = null, string $model = 'fake'): void
     {
@@ -117,14 +117,14 @@ final class QueryRunPersistenceTest extends TestCase
             new StructuredTextResponse(
                 $program,
                 json_encode($program, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage,
+                $usage ?? new Usage(),
                 new Meta('openai', $model),
             ),
         ]);
     }
 
     /**
-     * @param  list<array<string, mixed>>  $rows
+     * @param list<array<string, mixed>> $rows
      */
     private function fakeRdwWithRows(array $rows): void
     {
@@ -141,7 +141,7 @@ final class QueryRunPersistenceTest extends TestCase
         ]);
 
         $this->app->instance(Rdw::class, new Rdw(
-            http: new SocrataClient(new RdwConfiguration, $guzzle),
+            http: new SocrataClient(new RdwConfiguration(), $guzzle),
         ));
     }
 }

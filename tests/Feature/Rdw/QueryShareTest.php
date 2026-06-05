@@ -28,15 +28,10 @@ final class QueryShareTest extends TestCase
             );
     }
 
-    public function test_home_passes_null_shared_run_when_slug_does_not_match(): void
+    public function test_unknown_share_slug_returns_a_404(): void
     {
         $this->get(route('rdw.query.shared', 'nope1234'))
-            ->assertOk()
-            ->assertInertia(
-                fn (Assert $page) => $page
-                    ->component('query/index')
-                    ->where('sharedRun', null),
-            );
+            ->assertNotFound();
     }
 
     public function test_home_passes_null_shared_run_when_slug_is_absent(): void

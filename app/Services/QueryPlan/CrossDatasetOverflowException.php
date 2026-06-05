@@ -10,4 +10,6 @@ namespace App\Services\QueryPlan;
  * truncating. Distinct from its parent so the caller can turn it into a {@see RefusalReason::TooBroad}
  * refusal ("narrow your question") rather than a generic failure.
  */
-final class CrossDatasetOverflowException extends StepReferenceException {}
+final class CrossDatasetOverflowException extends StepReferenceException
+{
+}

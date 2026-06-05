@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Rdw;
 
+use App\Actions\Rdw\PersistQueryRun;
 use App\Actions\Rdw\RunNaturalLanguageQuery;
 use App\Ai\Agents\QueryProgramAgent;
 use App\Models\QueryRun;
@@ -19,6 +20,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Request as Psr7Request;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Ai\Exceptions\RateLimitedException as AiRateLimitedException;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredTextResponse;
@@ -482,8 +484,46 @@ final class QueryControllerTest extends TestCase
             ->assertJsonPath('error', 'Something went wrong building or running the query.');
     }
 
+    public function test_run_returns_503_when_the_ai_provider_is_rate_limited(): void
+    {
+        $mock = Mockery::mock(RunNaturalLanguageQuery::class);
+        // @phpstan-ignore method.notFound (Mockery fluent API is not statically resolvable)
+        $mock->shouldReceive('execute')->andThrow(AiRateLimitedException::forProvider('openai'));
+        $this->app->instance(RunNaturalLanguageQuery::class, $mock);
+
+        $this->postJson(route('rdw.query.run'), ['prompt' => 'test prompt'])
+            ->assertStatus(503)
+            ->assertJsonPath('error', 'The AI planner is temporarily unavailable. Please try again in a moment.');
+    }
+
+    public function test_run_still_returns_the_result_when_persisting_the_query_run_fails(): void
+    {
+        $this->fakeQueryPlan([
+            'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => 'VOLKSWAGEN']],
+            'select' => [],
+            'groupBy' => [],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'orderBy' => [],
+            'limit' => 10,
+            'display' => 'count',
+            'explanation' => '',
+        ]);
+        $this->fakeRdwWithRows([['n' => '42']]);
+
+        $persist = Mockery::mock(PersistQueryRun::class);
+        // @phpstan-ignore method.notFound (Mockery fluent API is not statically resolvable)
+        $persist->shouldReceive('execute')->andThrow(new RuntimeException('mongo unavailable'));
+        $this->app->instance(PersistQueryRun::class, $persist);
+
+        $this->postJson(route('rdw.query.run'), ['prompt' => 'How many VWs'])
+            ->assertOk()
+            ->assertJsonMissingPath('slug')
+            ->assertJsonPath('rows.0.n', '42')
+            ->assertJsonPath('displayHint', 'count');
+    }
+
     /**
-     * @param  array<string, mixed>  $plan
+     * @param array<string, mixed> $plan
      */
     private function fakeQueryPlan(array $plan, ?Usage $usage = null, string $model = 'fake'): void
     {
@@ -499,7 +539,7 @@ final class QueryControllerTest extends TestCase
     }
 
     /**
-     * @param  array<string, mixed>  $program
+     * @param array<string, mixed> $program
      */
     private function fakeProgram(array $program, ?Usage $usage = null, string $model = 'fake'): void
     {
@@ -507,14 +547,14 @@ final class QueryControllerTest extends TestCase
             new StructuredTextResponse(
                 $program,
                 json_encode($program, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage,
+                $usage ?? new Usage(),
                 new Meta('openai', $model),
             ),
         ]);
     }
 
     /**
-     * @param  list<array<string, mixed>>  $rows
+     * @param list<array<string, mixed>> $rows
      */
     private function fakeRdwWithRows(array $rows): void
     {
@@ -534,7 +574,7 @@ final class QueryControllerTest extends TestCase
     }
 
     /**
-     * @param  list<Psr7Response|Throwable>  $queue
+     * @param list<Psr7Response|Throwable> $queue
      */
     private function fakeRdwWithQueue(array $queue): void
     {
@@ -545,7 +585,7 @@ final class QueryControllerTest extends TestCase
             'handler' => $stack,
         ]);
 
-        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration, $guzzle));
+        $rdw = new Rdw(http: new SocrataClient(new RdwConfiguration(), $guzzle));
         $this->app->instance(Rdw::class, $rdw);
         $storageTypes = new SocrataStorageTypes($rdw->schemas());
         $assembler = new QueryAssembler($rdw, $storageTypes, new FieldCaster($rdw->schemas()));

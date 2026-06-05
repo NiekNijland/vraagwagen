@@ -28,10 +28,11 @@ final readonly class QueryAssembler
         private Rdw $rdw,
         private SocrataStorageTypes $storageTypes,
         private FieldCaster $caster,
-    ) {}
+    ) {
+    }
 
     /**
-     * @param  array<string, BucketExpression>  $buckets
+     * @param array<string, BucketExpression> $buckets
      * @return QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>
      */
     public function assemble(Plan $plan, array $buckets): QueryBuilder
@@ -50,7 +51,7 @@ final readonly class QueryAssembler
     }
 
     /**
-     * @param  list<GroupKey>  $groupBy
+     * @param list<GroupKey> $groupBy
      * @return array<string, BucketExpression>
      */
     public function buildBucketsByField(array $groupBy, TargetDataset $dataset): array
@@ -95,8 +96,8 @@ final readonly class QueryAssembler
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>  $builder
-     * @param  list<WhereClause>  $clauses
+     * @param QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel> $builder
+     * @param list<WhereClause> $clauses
      * @return QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>
      */
     private function applyWhere(QueryBuilder $builder, array $clauses, TargetDataset $dataset): QueryBuilder
@@ -125,7 +126,7 @@ final readonly class QueryAssembler
      * NB: `!=` on a text-stored numeric drops NULL/empty cells (SoQL evaluates `''::number != n`
      * to NULL); acceptable since empty cells aren't meaningfully numeric.
      *
-     * @param  QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>  $builder
+     * @param QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel> $builder
      * @return QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>
      */
     private function applyComparison(QueryBuilder $builder, BackedEnum $field, string $rawValue, string $operator, TargetDataset $dataset): QueryBuilder
@@ -143,8 +144,8 @@ final readonly class QueryAssembler
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>  $builder
-     * @param  list<string>  $values
+     * @param QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel> $builder
+     * @param list<string> $values
      * @return QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>
      */
     private function applyIn(QueryBuilder $builder, BackedEnum $field, array $values, TargetDataset $dataset): QueryBuilder
@@ -173,8 +174,8 @@ final readonly class QueryAssembler
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>  $builder
-     * @param  array<string, BucketExpression>  $buckets
+     * @param QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel> $builder
+     * @param array<string, BucketExpression> $buckets
      * @return QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>
      */
     private function applySelectAndGroupBy(QueryBuilder $builder, Plan $plan, array $buckets): QueryBuilder
@@ -201,8 +202,8 @@ final readonly class QueryAssembler
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>  $builder
-     * @param  list<AggregateClause>  $aggregates
+     * @param QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel> $builder
+     * @param list<AggregateClause> $aggregates
      * @return QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>
      */
     private function applyAggregates(QueryBuilder $builder, array $aggregates, TargetDataset $dataset): QueryBuilder
@@ -235,10 +236,10 @@ final readonly class QueryAssembler
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>  $builder
-     * @param  list<OrderClause>  $orderBy
-     * @param  list<AggregateClause>  $aggregates
-     * @param  array<string, BucketExpression>  $buckets
+     * @param QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel> $builder
+     * @param list<OrderClause> $orderBy
+     * @param list<AggregateClause> $aggregates
+     * @param array<string, BucketExpression> $buckets
      * @return QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>
      */
     private function applyOrderBy(QueryBuilder $builder, array $orderBy, array $aggregates, array $buckets, TargetDataset $dataset): QueryBuilder
@@ -257,7 +258,7 @@ final readonly class QueryAssembler
             $direction = $clause->direction === OrderDirection::Desc ? SortDirection::Desc : SortDirection::Asc;
 
             if (isset($buckets[$clause->expr])) {
-                $builder = $builder->orderByRaw($buckets[$clause->expr]->expression.' '.$direction->value);
+                $builder = $builder->orderByRaw($buckets[$clause->expr]->expression . ' ' . $direction->value);
 
                 continue;
             }
@@ -284,7 +285,7 @@ final readonly class QueryAssembler
                 ));
             }
 
-            $builder = $builder->orderByRaw($clause->expr.' '.$direction->value);
+            $builder = $builder->orderByRaw($clause->expr . ' ' . $direction->value);
         }
 
         return $builder;
@@ -329,7 +330,7 @@ final readonly class QueryAssembler
     private function normalisedContainsExpression(BackedEnum $field, string $value): string
     {
         $term = strtoupper(str_replace([' ', '-'], '', $value));
-        $quoted = "'".str_replace("'", "''", $term)."'";
+        $quoted = "'" . str_replace("'", "''", $term) . "'";
 
         return sprintf(
             "contains(replace(replace(%s, ' ', ''), '-', ''), %s)",

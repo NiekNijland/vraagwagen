@@ -31,31 +31,29 @@ use App\Services\QueryPlan\StepReferenceResolver;
 use App\Services\QueryPlan\TargetDataset;
 use App\Services\QueryPlan\TokenUsage;
 use App\Services\QueryPlan\WhereOp;
+use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 class RunNaturalLanguageQuery
 {
+    private const int PROGRAM_CACHE_TTL_SECONDS = 86_400;
+
     public function __construct(
         private readonly PlanRunner $planRunner,
         private readonly CostEstimator $costEstimator,
         private readonly QueryProgramFactory $programFactory,
         private readonly StepReferenceResolver $referenceResolver,
         private readonly Derivation $derivation,
-    ) {}
+        private readonly Repository $cache,
+    ) {
+    }
 
     public function execute(string $userPrompt, Locale $locale): QueryResult
     {
-        $response = QueryProgramAgent::make(locale: $locale)->ask($userPrompt);
+        [$program, $model, $tokens, $estimatedCost] = $this->resolveProgram($userPrompt, $locale);
 
-        /** @var array<string, mixed> $raw */
-        $raw = $response->structured;
-        $program = $this->programFactory->fromArray($raw);
-
-        $model = $response->meta->model ?? '';
-        $tokens = TokenUsage::fromUsage($response->usage);
-        $estimatedCost = $this->costEstimator->estimate($model, $response->usage);
-
-        $ledger = new QueryLedger;
+        $ledger = new QueryLedger();
 
         // A refusal must short-circuit before anything runs: the model sometimes attaches real
         // queries to an unsupported presentation, and presenting their rows next to a refusal
@@ -112,6 +110,60 @@ class RunNaturalLanguageQuery
             // controller's "try rephrasing" path rather than a confident, misleading refusal.
             throw new InvalidArgumentException($e->getMessage(), previous: $e);
         }
+    }
+
+    /**
+     * @return array{QueryProgram, string, TokenUsage, ?float}
+     */
+    private function resolveProgram(string $userPrompt, Locale $locale): array
+    {
+        $cacheKey = $this->programCacheKey($userPrompt, $locale);
+        $cached = $this->cache->get($cacheKey);
+
+        if (
+            is_array($cached)
+            && isset($cached['program'])
+            && is_array($cached['program'])
+        ) {
+            return [
+                $this->programFactory->fromArray($cached['program']),
+                is_string($cached['model'] ?? null) ? $cached['model'] : '',
+                new TokenUsage(prompt: 0, completion: 0, cacheRead: 0, thought: 0),
+                null,
+            ];
+        }
+
+        $response = QueryProgramAgent::make(locale: $locale)->ask($userPrompt);
+
+        /** @var array<string, mixed> $raw */
+        $raw = $response->structured;
+        $program = $this->programFactory->fromArray($raw);
+        $model = $response->meta->model ?? '';
+
+        $this->cache->put(
+            $cacheKey,
+            [
+                'program' => $raw,
+                'model' => $model,
+            ],
+            self::PROGRAM_CACHE_TTL_SECONDS,
+        );
+
+        return [
+            $program,
+            $model,
+            TokenUsage::fromUsage($response->usage),
+            $this->costEstimator->estimate($model, $response->usage),
+        ];
+    }
+
+    private function programCacheKey(string $userPrompt, Locale $locale): string
+    {
+        return sprintf(
+            'rdw:query-program:%s:%s',
+            $locale->value,
+            sha1(mb_strtolower(Str::squish($userPrompt))),
+        );
     }
 
     /**
@@ -194,7 +246,7 @@ class RunNaturalLanguageQuery
      * value from the executed step ("{{q1.Brand}}" → "KAWASAKI"). A follow-up whose token cannot
      * be resolved is dropped — leaking a raw template token to the user is worse than one fewer chip.
      *
-     * @param  list<string>  $followUps
+     * @param list<string> $followUps
      * @return list<string>
      */
     private function resolveFollowUps(array $followUps, QueryLedger $ledger): array

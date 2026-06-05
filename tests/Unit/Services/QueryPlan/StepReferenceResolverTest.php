@@ -24,7 +24,7 @@ final class StepReferenceResolverTest extends TestCase
     {
         $ledger = $this->ledgerWith('q1', [['Brand' => 'VOLKSWAGEN', 'CommercialName' => 'UP']]);
 
-        $resolved = (new StepReferenceResolver)->resolve(
+        $resolved = (new StepReferenceResolver())->resolve(
             $this->plan([
                 new WhereClause('Brand', WhereOp::Equals, '{{q1.Brand}}'),
                 new WhereClause('CommercialName', WhereOp::Equals, '{{q1.CommercialName}}'),
@@ -40,9 +40,9 @@ final class StepReferenceResolverTest extends TestCase
 
     public function test_passes_plain_literals_through_untouched(): void
     {
-        $resolved = (new StepReferenceResolver)->resolve(
+        $resolved = (new StepReferenceResolver())->resolve(
             $this->plan([new WhereClause('Brand', WhereOp::Equals, 'TOYOTA')]),
-            new QueryLedger,
+            new QueryLedger(),
         );
 
         self::assertSame('TOYOTA', $resolved->where[0]->value);
@@ -50,9 +50,9 @@ final class StepReferenceResolverTest extends TestCase
 
     public function test_passes_a_literal_in_list_through_untouched(): void
     {
-        $resolved = (new StepReferenceResolver)->resolve(
+        $resolved = (new StepReferenceResolver())->resolve(
             $this->plan([new WhereClause('Brand', WhereOp::In, '', ['HONDA', 'YAMAHA'])]),
-            new QueryLedger,
+            new QueryLedger(),
         );
 
         self::assertSame(['HONDA', 'YAMAHA'], $resolved->where[0]->values);
@@ -62,9 +62,9 @@ final class StepReferenceResolverTest extends TestCase
     {
         $this->expectException(StepReferenceException::class);
 
-        (new StepReferenceResolver)->resolve(
+        (new StepReferenceResolver())->resolve(
             $this->plan([new WhereClause('Brand', WhereOp::Equals, '{{q9.Brand}}')]),
-            new QueryLedger,
+            new QueryLedger(),
         );
     }
 
@@ -72,7 +72,7 @@ final class StepReferenceResolverTest extends TestCase
     {
         $this->expectException(EmptyStepReferenceException::class);
 
-        (new StepReferenceResolver)->resolve(
+        (new StepReferenceResolver())->resolve(
             $this->plan([new WhereClause('Brand', WhereOp::Equals, '{{q1.Brand}}')]),
             $this->ledgerWith('q1', []),
         );
@@ -82,7 +82,7 @@ final class StepReferenceResolverTest extends TestCase
     {
         $this->expectException(StepReferenceException::class);
 
-        (new StepReferenceResolver)->resolve(
+        (new StepReferenceResolver())->resolve(
             $this->plan([new WhereClause('Brand', WhereOp::Equals, '{{q1.Brand}}')]),
             $this->ledgerWith('q1', [['Brand' => 'A'], ['Brand' => 'B']]),
         );
@@ -92,7 +92,7 @@ final class StepReferenceResolverTest extends TestCase
     {
         $this->expectException(StepReferenceException::class);
 
-        (new StepReferenceResolver)->resolve(
+        (new StepReferenceResolver())->resolve(
             $this->plan([new WhereClause('CommercialName', WhereOp::Equals, '{{q1.CommercialName}}')]),
             $this->ledgerWith('q1', [['Brand' => 'VOLKSWAGEN']]),
         );
@@ -102,7 +102,7 @@ final class StepReferenceResolverTest extends TestCase
     {
         $this->expectException(EmptyStepReferenceException::class);
 
-        (new StepReferenceResolver)->resolve(
+        (new StepReferenceResolver())->resolve(
             $this->plan([new WhereClause('Brand', WhereOp::Equals, '{{q1.Brand}}')]),
             $this->ledgerWith('q1', [['Brand' => null]]),
         );
@@ -116,7 +116,7 @@ final class StepReferenceResolverTest extends TestCase
             ['LicensePlate' => 'AA-001-A'],
         ]);
 
-        $resolved = (new StepReferenceResolver)->resolve(
+        $resolved = (new StepReferenceResolver())->resolve(
             $this->plan([new WhereClause('LicensePlate', WhereOp::In, '{{q1.LicensePlate}}')]),
             $ledger,
         );
@@ -135,7 +135,7 @@ final class StepReferenceResolverTest extends TestCase
             range(1, StepReferenceResolver::LIST_LIMIT),
         );
 
-        $resolved = (new StepReferenceResolver)->resolve(
+        $resolved = (new StepReferenceResolver())->resolve(
             $this->plan([new WhereClause('LicensePlate', WhereOp::In, '{{q1.LicensePlate}}')]),
             $this->ledgerWith('q1', $rows),
         );
@@ -155,7 +155,7 @@ final class StepReferenceResolverTest extends TestCase
         $this->expectException(CrossDatasetOverflowException::class);
         $this->expectExceptionMessage('matches more than 1000 vehicles');
 
-        (new StepReferenceResolver)->resolve(
+        (new StepReferenceResolver())->resolve(
             $this->plan([new WhereClause('LicensePlate', WhereOp::In, '{{q1.LicensePlate}}')]),
             $this->ledgerWith('q1', $rows),
         );
@@ -165,14 +165,14 @@ final class StepReferenceResolverTest extends TestCase
     {
         $this->expectException(EmptyStepReferenceException::class);
 
-        (new StepReferenceResolver)->resolve(
+        (new StepReferenceResolver())->resolve(
             $this->plan([new WhereClause('LicensePlate', WhereOp::In, '{{q1.LicensePlate}}')]),
             $this->ledgerWith('q1', []),
         );
     }
 
     /**
-     * @param  list<WhereClause>  $where
+     * @param list<WhereClause> $where
      */
     private function plan(array $where): Plan
     {
@@ -180,11 +180,11 @@ final class StepReferenceResolverTest extends TestCase
     }
 
     /**
-     * @param  list<array<string, mixed>>  $rows
+     * @param list<array<string, mixed>> $rows
      */
     private function ledgerWith(string $id, array $rows): QueryLedger
     {
-        $ledger = new QueryLedger;
+        $ledger = new QueryLedger();
         $ledger->record(new LedgerEntry(
             $id,
             $this->plan([]),

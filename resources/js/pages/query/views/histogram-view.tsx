@@ -15,6 +15,7 @@ import {
     valueAxisLabel,
 } from '../format';
 import type { Plan, QueryRow } from '../types';
+import { AccessibleChartTable } from './accessible-chart-table';
 import { ValueTooltipRow } from './value-tooltip-row';
 
 export function HistogramView({
@@ -90,67 +91,77 @@ export function HistogramView({
     } satisfies ChartConfig;
 
     return (
-        <ChartContainer config={config} className="h-[360px] w-full">
-            <BarChart
-                data={data}
-                margin={{ left: 12, right: 12, top: 8, bottom: 28 }}
-                barCategoryGap={1}
-            >
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                    dataKey="bin"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tick={{ fontSize: 11 }}
-                    minTickGap={4}
-                    interval="preserveStartEnd"
-                    label={{
-                        value: xLabel,
-                        position: 'insideBottom',
-                        offset: -16,
-                        fill: 'var(--muted-foreground)',
-                        fontSize: 12,
-                    }}
-                />
-                <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    width={64}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(v) => formatNumber(v, locale)}
-                    label={{
-                        value: yLabel,
-                        angle: -90,
-                        position: 'insideLeft',
-                        offset: 8,
-                        style: { textAnchor: 'middle' },
-                        fill: 'var(--muted-foreground)',
-                        fontSize: 12,
-                    }}
-                />
-                <ChartTooltip
-                    cursor={{ fill: 'var(--chart-1)', fillOpacity: 0.08 }}
-                    content={
-                        <ChartTooltipContent
-                            indicator="dot"
-                            formatter={(value) => (
-                                <ValueTooltipRow
-                                    label={yLabel}
-                                    value={value}
-                                    locale={locale}
-                                />
-                            )}
-                        />
-                    }
-                />
-                <Bar
-                    dataKey="value"
-                    fill="var(--chart-1)"
-                    radius={[2, 2, 0, 0]}
-                />
-            </BarChart>
-        </ChartContainer>
+        <>
+            <ChartContainer config={config} className="h-[360px] w-full">
+                <BarChart
+                    data={data}
+                    margin={{ left: 12, right: 12, top: 8, bottom: 28 }}
+                    barCategoryGap={1}
+                >
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis
+                        dataKey="bin"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        tick={{ fontSize: 11 }}
+                        minTickGap={4}
+                        interval="preserveStartEnd"
+                        label={{
+                            value: xLabel,
+                            position: 'insideBottom',
+                            offset: -16,
+                            fill: 'var(--muted-foreground)',
+                            fontSize: 12,
+                        }}
+                    />
+                    <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        width={64}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) => formatNumber(v, locale)}
+                        label={{
+                            value: yLabel,
+                            angle: -90,
+                            position: 'insideLeft',
+                            offset: 8,
+                            style: { textAnchor: 'middle' },
+                            fill: 'var(--muted-foreground)',
+                            fontSize: 12,
+                        }}
+                    />
+                    <ChartTooltip
+                        cursor={{ fill: 'var(--chart-1)', fillOpacity: 0.08 }}
+                        content={
+                            <ChartTooltipContent
+                                indicator="dot"
+                                formatter={(value) => (
+                                    <ValueTooltipRow
+                                        label={yLabel}
+                                        value={value}
+                                        locale={locale}
+                                    />
+                                )}
+                            />
+                        }
+                    />
+                    <Bar
+                        dataKey="value"
+                        fill="var(--chart-1)"
+                        radius={[2, 2, 0, 0]}
+                    />
+                </BarChart>
+            </ChartContainer>
+            <AccessibleChartTable
+                caption={`${xLabel} histogram`}
+                columns={[xLabel, yLabel]}
+                rows={data.map((entry) => [
+                    entry.bin,
+                    formatNumber(entry.value, locale),
+                ])}
+            />
+        </>
     );
 }
 

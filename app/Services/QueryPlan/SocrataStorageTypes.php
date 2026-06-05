@@ -24,7 +24,9 @@ final class SocrataStorageTypes
     /** @var array<string, array<string, string>> dataset id → rdwKey → dataTypeName */
     private array $byDataset = [];
 
-    public function __construct(private readonly SchemaRegistry $schemas) {}
+    public function __construct(private readonly SchemaRegistry $schemas)
+    {
+    }
 
     /**
      * True when a SoQL comparison/order/aggregate on this field needs a `::number` cast because
@@ -80,7 +82,7 @@ final class SocrataStorageTypes
             throw new RuntimeException(sprintf('Package "%s" is not installed.', self::PACKAGE));
         }
 
-        $file = $path.'/metadata/'.$datasetId->value.'.json';
+        $file = $path . '/metadata/' . $datasetId->value . '.json';
         if (! is_file($file)) {
             throw new RuntimeException(sprintf('Socrata metadata missing for dataset "%s" at %s.', $datasetId->value, $file));
         }

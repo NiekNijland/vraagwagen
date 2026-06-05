@@ -8,6 +8,7 @@ return [
         'rate_limited' => 'RDW rate limit reached. Try again in :secondss.',
         'rejected' => 'The generated query was rejected. Try rephrasing your question.',
         'timeout' => 'RDW took too long to answer this query. Please try again in a moment.',
+        'service_unavailable' => 'The AI planner is temporarily unavailable. Please try again in a moment.',
         'malformed' => 'The generated query was malformed. Try rephrasing your question.',
         'unexpected' => 'Something went wrong building or running the query.',
         'not_found' => 'That query result was not found.',

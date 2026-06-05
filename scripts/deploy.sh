@@ -123,6 +123,19 @@ if [[ -d "$SHARED_DIR" ]]; then
     run_step 'Link shared storage' link_shared "${SHARED_DIR}/storage" "$(pwd)/storage"
 fi
 
+run_step 'Enable maintenance mode' php artisan down --retry=60
+MAINTENANCE_MODE=1
+
+if command -v mongodump >/dev/null 2>&1 && [[ -n "${MONGODB_URI:-}" ]]; then
+    BACKUP_DIR="${SITE_BASE}/backups"
+    mkdir -p "$BACKUP_DIR"
+    BACKUP_FILE="${BACKUP_DIR}/mongo-$(date '+%Y%m%d-%H%M%S').archive.gz"
+
+    run_step 'Back up MongoDB' mongodump --uri="$MONGODB_URI" --archive="$BACKUP_FILE" --gzip
+else
+    log 'Skipping MongoDB backup (mongodump or MONGODB_URI unavailable)'
+fi
+
 run_step 'Install Composer dependencies' \
     composer install \
         --no-interaction \
@@ -148,10 +161,7 @@ run_step 'Discover Composer packages' php artisan package:discover --ansi
 run_step 'Clear Laravel caches before frontend build' php artisan optimize:clear
 
 run_step 'Install Node dependencies' npm ci --no-audit --no-fund
-run_step 'Build frontend and SSR assets' npm run build:ssr
-
-run_step 'Enable maintenance mode' php artisan down --retry=60
-MAINTENANCE_MODE=1
+run_step 'Build frontend assets' npm run build
 
 if has_pending_migrations; then
     APP_MIGRATIONS_PENDING=1

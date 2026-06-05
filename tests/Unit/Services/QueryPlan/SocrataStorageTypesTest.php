@@ -81,6 +81,6 @@ final class SocrataStorageTypesTest extends TestCase
 
     private function service(): SocrataStorageTypes
     {
-        return new SocrataStorageTypes(new SchemaRegistry);
+        return new SocrataStorageTypes(new SchemaRegistry());
     }
 }

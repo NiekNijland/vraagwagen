@@ -115,9 +115,22 @@ export default function Security({
                                     placeholder={t(
                                         'pages.settings.security.updatePassword.currentPasswordPlaceholder',
                                     )}
+                                    aria-invalid={
+                                        errors.current_password
+                                            ? true
+                                            : undefined
+                                    }
+                                    aria-describedby={
+                                        errors.current_password
+                                            ? 'current-password-error'
+                                            : undefined
+                                    }
                                 />
 
-                                <InputError message={errors.current_password} />
+                                <InputError
+                                    id="current-password-error"
+                                    message={errors.current_password}
+                                />
                             </div>
 
                             <div className="grid gap-2">
@@ -136,9 +149,20 @@ export default function Security({
                                     placeholder={t(
                                         'pages.settings.security.updatePassword.newPasswordPlaceholder',
                                     )}
+                                    aria-invalid={
+                                        errors.password ? true : undefined
+                                    }
+                                    aria-describedby={
+                                        errors.password
+                                            ? 'new-password-error'
+                                            : undefined
+                                    }
                                 />
 
-                                <InputError message={errors.password} />
+                                <InputError
+                                    id="new-password-error"
+                                    message={errors.password}
+                                />
                             </div>
 
                             <div className="grid gap-2">
@@ -156,9 +180,20 @@ export default function Security({
                                     placeholder={t(
                                         'pages.settings.security.updatePassword.confirmPasswordPlaceholder',
                                     )}
+                                    aria-invalid={
+                                        errors.password_confirmation
+                                            ? true
+                                            : undefined
+                                    }
+                                    aria-describedby={
+                                        errors.password_confirmation
+                                            ? 'confirm-password-error'
+                                            : undefined
+                                    }
                                 />
 
                                 <InputError
+                                    id="confirm-password-error"
                                     message={errors.password_confirmation}
                                 />
                             </div>

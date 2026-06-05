@@ -67,7 +67,7 @@ DEPLOY_TOKEN=$(read_env DEPLOY_TOKEN)
 [[ -n "$DEPLOY_TOKEN" ]] || fail "DEPLOY_TOKEN is empty in ${ENV_FILE} — the /deploy/clear-opcache route 403s without it"
 
 log_step "clear opcache (${APP_URL}/deploy/clear-opcache)"
-OPCACHE_RESPONSE=$(curl -sS --max-time 10 -w '\nHTTP_STATUS:%{http_code}' "${APP_URL}/deploy/clear-opcache?token=${DEPLOY_TOKEN}" 2>&1) || true
+OPCACHE_RESPONSE=$(curl -sS --max-time 10 -H "X-Deploy-Token: ${DEPLOY_TOKEN}" -w '\nHTTP_STATUS:%{http_code}' "${APP_URL}/deploy/clear-opcache" 2>&1) || true
 OPCACHE_BODY="${OPCACHE_RESPONSE%$'\n'HTTP_STATUS:*}"
 OPCACHE_STATUS="${OPCACHE_RESPONSE##*HTTP_STATUS:}"
 [[ "$OPCACHE_BODY" == "OPCACHE_CLEARED" ]] || fail "opcache clear http=${OPCACHE_STATUS} body=${OPCACHE_BODY}"

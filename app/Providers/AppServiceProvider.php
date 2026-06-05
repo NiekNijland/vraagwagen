@@ -55,7 +55,7 @@ class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('rdw-query', fn (Request $request): array => [
             Limit::perMinute((int) config('vraagwagen.rate_limit.per_minute'))->by((string) $request->ip()),
-            Limit::perDay((int) config('vraagwagen.rate_limit.per_day_ip'))->by('rdw-query:ip:'.$request->ip()),
+            Limit::perDay((int) config('vraagwagen.rate_limit.per_day_ip'))->by('rdw-query:ip:' . $request->ip()),
             Limit::perDay((int) config('vraagwagen.rate_limit.per_day_global'))->by('rdw-query:global'),
         ]);
 

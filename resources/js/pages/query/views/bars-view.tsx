@@ -14,9 +14,17 @@ import {
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
 import { useCountUp } from '@/hooks/use-count-up';
+import { useTranslation } from '@/hooks/use-translation';
 
-import { findNumericKey, formatBucketLabel, formatNumber } from '../format';
+import {
+    findNumericKey,
+    formatBucketLabel,
+    formatNumber,
+    translateColumn,
+    valueAxisLabel,
+} from '../format';
 import type { Bucket, Plan, QueryRow } from '../types';
+import { AccessibleChartTable } from './accessible-chart-table';
 
 // Each bar reads comfortably at this row height; the plot height scales with the
 // bar count so a handful of categories doesn't sit in a half-empty 360px box.
@@ -35,6 +43,7 @@ export function BarsView({
     locale: string;
     fallback: React.ReactNode;
 }) {
+    const { t } = useTranslation();
     const firstRow = rows[0] ?? {};
     const groupKey =
         plan.groupBy[0]?.field ??
@@ -86,46 +95,58 @@ export function BarsView({
         MAX_CHART_HEIGHT,
         Math.max(MIN_CHART_HEIGHT, data.length * ROW_HEIGHT),
     );
+    const categoryLabel = translateColumn(groupKey, t);
+    const valueLabel = valueAxisLabel(plan, t);
 
     return (
-        <ChartContainer
-            config={config}
-            className="w-full"
-            style={{ height: chartHeight }}
-        >
-            <BarChart
-                data={data}
-                layout="vertical"
-                margin={{ left: 12, right: 48 }}
+        <>
+            <ChartContainer
+                config={config}
+                className="w-full"
+                style={{ height: chartHeight }}
             >
-                <CartesianGrid horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis
-                    dataKey="label"
-                    type="category"
-                    tickLine={false}
-                    axisLine={false}
-                    width={120}
-                    tick={{ fontSize: 12 }}
-                />
-                <ChartTooltip
-                    cursor={false}
-                    content={<ChartTooltipContent indicator="line" />}
-                />
-                <Bar
-                    dataKey="value"
-                    fill="var(--rdw-orange, var(--chart-1))"
-                    radius={4}
+                <BarChart
+                    data={data}
+                    layout="vertical"
+                    margin={{ left: 12, right: 48 }}
                 >
-                    <LabelList
-                        dataKey="value"
-                        position="right"
-                        className="fill-foreground text-xs"
-                        formatter={(v) => formatNumber(v, locale)}
+                    <CartesianGrid horizontal={false} />
+                    <XAxis type="number" hide />
+                    <YAxis
+                        dataKey="label"
+                        type="category"
+                        tickLine={false}
+                        axisLine={false}
+                        width={120}
+                        tick={{ fontSize: 12 }}
                     />
-                </Bar>
-            </BarChart>
-        </ChartContainer>
+                    <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent indicator="line" />}
+                    />
+                    <Bar
+                        dataKey="value"
+                        fill="var(--rdw-orange, var(--chart-1))"
+                        radius={4}
+                    >
+                        <LabelList
+                            dataKey="value"
+                            position="right"
+                            className="fill-foreground text-xs"
+                            formatter={(v) => formatNumber(v, locale)}
+                        />
+                    </Bar>
+                </BarChart>
+            </ChartContainer>
+            <AccessibleChartTable
+                caption={`${categoryLabel} by ${valueLabel}`}
+                columns={[categoryLabel, valueLabel]}
+                rows={data.map((entry) => [
+                    entry.label,
+                    formatNumber(entry.value, locale),
+                ])}
+            />
+        </>
     );
 }
 

@@ -15,8 +15,10 @@ import {
     findNumericKey,
     formatNumber,
     isDateLike,
+    translateColumn,
 } from '../format';
 import type { Plan, QueryRow } from '../types';
+import { AccessibleChartTable } from './accessible-chart-table';
 
 const MAX_STACKS = 8;
 
@@ -87,6 +89,7 @@ export function StackedBarsView({
 
     const stackKeys =
         otherSet.size > 0 ? [...visibleInner, otherLabel] : visibleInner;
+    const outerLabel = translateColumn(outerKey, t);
 
     const data = sortedOuters.map((outer) => {
         const innerMap = cell.get(outer) ?? new Map<string, number>();
@@ -116,61 +119,71 @@ export function StackedBarsView({
     );
 
     return (
-        <ChartContainer config={config} className="h-[420px] w-full">
-            <BarChart
-                data={data}
-                margin={{ left: 12, right: 12, top: 8, bottom: 8 }}
-            >
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                    dataKey="outer"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tick={{ fontSize: 11 }}
-                    minTickGap={16}
-                />
-                <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    width={48}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(v) => formatNumber(v, locale)}
-                />
-                <ChartTooltip
-                    cursor={{ fill: 'var(--chart-1)', fillOpacity: 0.05 }}
-                    content={
-                        <ChartTooltipContent
-                            formatter={(value, name) => (
-                                <div className="flex w-full items-center justify-between gap-3">
-                                    <span className="text-muted-foreground">
-                                        {String(name)}
-                                    </span>
-                                    <span className="font-mono font-medium tabular-nums">
-                                        {formatNumber(value, locale)}
-                                    </span>
-                                </div>
-                            )}
-                        />
-                    }
-                />
-                <ChartLegend content={<ChartLegendContent />} />
-                {stackKeys.map((k, i) => (
-                    <Bar
-                        key={k}
-                        dataKey={k}
-                        stackId="stack"
-                        fill={chartColor(i)}
-                        radius={
-                            // Round only the last (topmost) stack so the column has a
-                            // clean rounded crown.
-                            i === stackKeys.length - 1
-                                ? [3, 3, 0, 0]
-                                : [0, 0, 0, 0]
+        <>
+            <ChartContainer config={config} className="h-[420px] w-full">
+                <BarChart
+                    data={data}
+                    margin={{ left: 12, right: 12, top: 8, bottom: 8 }}
+                >
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis
+                        dataKey="outer"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        tick={{ fontSize: 11 }}
+                        minTickGap={16}
+                    />
+                    <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        width={48}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) => formatNumber(v, locale)}
+                    />
+                    <ChartTooltip
+                        cursor={{ fill: 'var(--chart-1)', fillOpacity: 0.05 }}
+                        content={
+                            <ChartTooltipContent
+                                formatter={(value, name) => (
+                                    <div className="flex w-full items-center justify-between gap-3">
+                                        <span className="text-muted-foreground">
+                                            {String(name)}
+                                        </span>
+                                        <span className="font-mono font-medium tabular-nums">
+                                            {formatNumber(value, locale)}
+                                        </span>
+                                    </div>
+                                )}
+                            />
                         }
                     />
-                ))}
-            </BarChart>
-        </ChartContainer>
+                    <ChartLegend content={<ChartLegendContent />} />
+                    {stackKeys.map((k, i) => (
+                        <Bar
+                            key={k}
+                            dataKey={k}
+                            stackId="stack"
+                            fill={chartColor(i)}
+                            radius={
+                                i === stackKeys.length - 1
+                                    ? [3, 3, 0, 0]
+                                    : [0, 0, 0, 0]
+                            }
+                        />
+                    ))}
+                </BarChart>
+            </ChartContainer>
+            <AccessibleChartTable
+                caption={`${outerLabel} by stack`}
+                columns={[outerLabel, ...stackKeys]}
+                rows={data.map((entry) => [
+                    String(entry.outer),
+                    ...stackKeys.map((key) =>
+                        formatNumber(entry[key] ?? 0, locale),
+                    ),
+                ])}
+            />
+        </>
     );
 }

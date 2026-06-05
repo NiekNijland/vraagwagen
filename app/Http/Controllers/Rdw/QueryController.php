@@ -17,12 +17,17 @@ use App\Services\QueryPlan\PlanPresenter;
 use App\Services\QueryPlan\TokenUsage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use InvalidArgumentException;
+use Laravel\Ai\Exceptions\AiException;
+use Laravel\Ai\Exceptions\InsufficientCreditsException as AiInsufficientCreditsException;
+use Laravel\Ai\Exceptions\ProviderOverloadedException as AiProviderOverloadedException;
+use Laravel\Ai\Exceptions\RateLimitedException as AiRateLimitedException;
 use NiekNijland\RDW\Exceptions\RateLimitException;
 use NiekNijland\RDW\Exceptions\RdwException;
 use Throwable;
@@ -43,9 +48,11 @@ final class QueryController extends Controller
         if (is_string($slug) && $slug !== '') {
             $run = QueryRun::query()->where('slug', $slug)->first();
 
-            if ($run instanceof QueryRun) {
-                $sharedRun = $this->serializeRun($run, $this->currentClientToken($request));
+            if (! $run instanceof QueryRun) {
+                abort(404);
             }
+
+            $sharedRun = $this->serializeRun($run, $this->currentClientToken($request));
         }
 
         return Inertia::render('query/index', [
@@ -56,6 +63,8 @@ final class QueryController extends Controller
             'promptMaxLength' => (int) config('vraagwagen.prompt.max_length', 2000),
             // Deferred so the first paint never waits on the (cached) RDW vehicle count.
             'platformStats' => Inertia::defer(static fn (): array => $platformStats->execute()),
+        ])->withViewData([
+            'meta' => $this->queryPageMeta($request, $locale, $sharedRun),
         ]);
     }
 
@@ -101,6 +110,21 @@ final class QueryController extends Controller
                 'responseBody' => (bool) config('app.debug') ? $e->responseBody : null,
                 'correlationId' => $correlationId,
             ], $e->isTransient ? 504 : 422);
+        } catch (AiException $e) {
+            $status = $this->aiFailureStatus($e);
+            $errorKey = $status === 504
+                ? 'query.errors.timeout'
+                : 'query.errors.service_unavailable';
+
+            Log::warning('AI query planner failed', [
+                'message' => $e->getMessage(),
+                'status' => $status,
+            ]);
+
+            return response()->json([
+                'error' => __($errorKey),
+                'correlationId' => $correlationId,
+            ], $status);
         } catch (InvalidArgumentException $e) {
             // Plan validation errors reference internal field names; return the localized fallback.
             Log::info('RDW plan invalid', ['message' => $e->getMessage()]);
@@ -129,24 +153,36 @@ final class QueryController extends Controller
         $presentation = PlanPresenter::presentationToArray($result->presentation, $result->derived);
 
         $user = $request->user();
-        $run = $persist->execute(
-            prompt: $prompt,
-            locale: app()->getLocale(),
-            plan: $result->plan,
-            rows: $result->rows,
-            soql: $result->soql,
-            url: $result->url,
-            userId: $user !== null ? (string) $user->getAuthIdentifier() : null,
-            model: $result->model,
-            tokens: $result->tokens,
-            estimatedCost: $result->estimatedCost,
-            steps: $steps,
-            presentation: $presentation,
-            correlationId: $correlationId,
-        );
+        $slug = null;
 
-        return response()->json([
-            'slug' => $run->slug,
+        try {
+            $run = $persist->execute(
+                prompt: $prompt,
+                locale: app()->getLocale(),
+                plan: $result->plan,
+                rows: $result->rows,
+                soql: $result->soql,
+                url: $result->url,
+                userId: $user !== null ? (string) $user->getAuthIdentifier() : null,
+                model: $result->model,
+                tokens: $result->tokens,
+                estimatedCost: $result->estimatedCost,
+                steps: $steps,
+                presentation: $presentation,
+                correlationId: $correlationId,
+            );
+
+            $slug = $run->slug;
+        } catch (Throwable $e) {
+            report($e);
+
+            Log::warning('Query result could not be persisted', [
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json(array_filter([
+            'slug' => $slug,
             'correlationId' => $correlationId,
             'plan' => PlanPresenter::toArray($result->plan),
             'soql' => $result->soql,
@@ -158,7 +194,7 @@ final class QueryController extends Controller
             'model' => $result->model,
             'tokens' => $result->tokens->toArray(),
             'estimatedCost' => $result->estimatedCost,
-        ]);
+        ], static fn (mixed $value): bool => $value !== null));
     }
 
     public function feedback(SubmitFeedbackRequest $request, string $slug): JsonResponse
@@ -240,5 +276,61 @@ final class QueryController extends Controller
         ));
 
         return $token;
+    }
+
+    /**
+     * @param array<string, mixed>|null $sharedRun
+     * @return array<string, string>
+     */
+    private function queryPageMeta(Request $request, string $locale, ?array $sharedRun): array
+    {
+        $isSharedRun = $sharedRun !== null;
+        $defaultTitle = __('pages.query.title', locale: $locale);
+        $defaultDescription = __('pages.query.metaDescription', locale: $locale);
+        $title = $isSharedRun
+            ? sprintf('%s | vraagwagen.nl', $sharedRun['prompt'])
+            : (is_string($defaultTitle) ? $defaultTitle : 'vraagwagen.nl');
+        $description = $isSharedRun
+            ? (string) ($sharedRun['presentation']['explanation']
+                ?? $sharedRun['plan']['explanation']
+                ?? $sharedRun['prompt'])
+            : (is_string($defaultDescription) ? $defaultDescription : 'vraagwagen.nl');
+        $url = $request->fullUrl();
+        $image = $request->root() . '/apple-touch-icon.png';
+
+        return [
+            'title' => $title,
+            'description' => $description,
+            'canonical' => $url,
+            'ogTitle' => $title,
+            'ogDescription' => $description,
+            'ogType' => $isSharedRun ? 'article' : 'website',
+            'ogUrl' => $url,
+            'ogImage' => $image,
+            'twitterCard' => 'summary_large_image',
+            'twitterTitle' => $title,
+            'twitterDescription' => $description,
+            'twitterImage' => $image,
+        ];
+    }
+
+    private function aiFailureStatus(AiException $e): int
+    {
+        if (
+            $e instanceof AiRateLimitedException
+            || $e instanceof AiProviderOverloadedException
+            || $e instanceof AiInsufficientCreditsException
+        ) {
+            return Response::HTTP_SERVICE_UNAVAILABLE;
+        }
+
+        $message = strtolower($e->getMessage());
+        $previousMessage = strtolower((string) $e->getPrevious()?->getMessage());
+
+        if (str_contains($message, 'timed out') || str_contains($previousMessage, 'timed out')) {
+            return Response::HTTP_GATEWAY_TIMEOUT;
+        }
+
+        return Response::HTTP_SERVICE_UNAVAILABLE;
     }
 }

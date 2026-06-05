@@ -38,11 +38,12 @@ final readonly class PlanRunner
         private Rdw $rdw,
         private QueryAssembler $assembler,
         private ResultNormalizer $normalizer,
-        private Repository $cache = new Repository(new NullStore),
+        private Repository $cache = new Repository(new NullStore()),
         private int $maxAttempts = 2,
         private int $retryBackoffMs = 250,
         private int $maxProjectionRows = self::DEFAULT_MAX_PROJECTION_ROWS,
-    ) {}
+    ) {
+    }
 
     public function run(Plan $plan): RunnerResult
     {
@@ -67,9 +68,9 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>  $builder
-     * @param  array<string, BucketExpression>  $buckets
-     * @param  array<string, string>  $soql
+     * @param QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel> $builder
+     * @param array<string, BucketExpression> $buckets
+     * @param array<string, string> $soql
      * @return list<array<string, mixed>>
      */
     private function fetch(QueryBuilder $builder, Plan $plan, array $buckets, array $soql, string $url): array
@@ -94,8 +95,8 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>  $builder
-     * @param  array<string, BucketExpression>  $buckets
+     * @param QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel> $builder
+     * @param array<string, BucketExpression> $buckets
      * @return list<array<string, mixed>>
      */
     private function execute(QueryBuilder $builder, Plan $plan, array $buckets): array
@@ -113,7 +114,7 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param  QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>  $builder
+     * @param QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel> $builder
      * @return list<array<string, mixed>>
      */
     private function fetchProjectionRows(QueryBuilder $builder, Plan $plan): array
@@ -122,15 +123,50 @@ final readonly class PlanRunner
             return $builder->getProjection();
         }
 
+        $pagingBuilder = $this->applyStablePagingOrder($builder, $plan);
         $rows = [];
         $offset = 0;
         do {
-            $page = $builder->limit(self::PROJECTION_PAGE_SIZE)->offset($offset)->getProjection();
+            $page = $pagingBuilder->limit(self::PROJECTION_PAGE_SIZE)->offset($offset)->getProjection();
             $rows = array_merge($rows, $page);
             $offset += self::PROJECTION_PAGE_SIZE;
         } while (count($page) === self::PROJECTION_PAGE_SIZE && count($rows) < $this->maxProjectionRows);
 
         return $rows;
+    }
+
+    /**
+     * Auto-paged grouped queries need a deterministic order or Socrata can reshuffle rows between pages.
+     * Keep this internal so the user-facing SoQL still reflects the requested plan rather than the paging shim.
+     *
+     * @param QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel> $builder
+     * @return QueryBuilder<RegisteredVehicle|RegisteredVehicleFuel>
+     */
+    private function applyStablePagingOrder(QueryBuilder $builder, Plan $plan): QueryBuilder
+    {
+        if ($plan->orderBy !== [] || $plan->groupBy === []) {
+            return $builder;
+        }
+
+        $groupExpression = $builder->toSoqlParams()['$group'] ?? null;
+        if (! is_string($groupExpression) || $groupExpression === '') {
+            return $builder;
+        }
+
+        $parts = array_map(
+            static fn (string $part): string => trim($part),
+            explode(',', $groupExpression),
+        );
+        $parts = array_values(array_filter($parts, static fn (string $part): bool => $part !== ''));
+
+        if ($parts === []) {
+            return $builder;
+        }
+
+        return $builder->orderByRaw(implode(', ', array_map(
+            static fn (string $part): string => $part . ' ASC',
+            $parts,
+        )));
     }
 
     private function cacheTtlSeconds(Plan $plan): int
@@ -143,7 +179,7 @@ final readonly class PlanRunner
     /**
      * Cache key rotates daily on Amsterdam-local midnight, matching the RDW publication cadence.
      *
-     * @param  array<string, string>  $soql
+     * @param array<string, string> $soql
      */
     private function cacheKey(array $soql, TargetDataset $dataset): string
     {
@@ -165,7 +201,7 @@ final readonly class PlanRunner
     }
 
     /**
-     * @param  array<string, string>  $soql
+     * @param array<string, string> $soql
      */
     private function buildRequestUrl(array $soql, TargetDataset $dataset): string
     {
@@ -173,6 +209,6 @@ final readonly class PlanRunner
         $datasetId = $dataset->datasetId()->value;
         $query = http_build_query($soql, '', '&', PHP_QUERY_RFC3986);
 
-        return "{$base}/resource/{$datasetId}.json".($query !== '' ? "?{$query}" : '');
+        return "{$base}/resource/{$datasetId}.json" . ($query !== '' ? "?{$query}" : '');
     }
 }

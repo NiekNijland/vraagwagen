@@ -181,6 +181,7 @@ function QueryPageInner({
                 setError({
                     message: errorMessage,
                     correlationId: errorData.correlationId,
+                    status: response.status,
                     soql: errorData.soql,
                     url: errorData.url,
                     responseBody: errorData.responseBody,
@@ -198,7 +199,12 @@ function QueryPageInner({
                 comment: null,
             });
             pushRecentQuery(value);
-            updateShareUrl(locale, runData.slug);
+
+            if (runData.slug) {
+                updateShareUrl(locale, runData.slug);
+            } else {
+                resetShareUrl(locale);
+            }
         } catch (e) {
             if (e instanceof DOMException && e.name === 'AbortError') {
                 return;
@@ -248,6 +254,16 @@ function QueryPageInner({
 
     const suggestions = locale === 'nl' ? SUGGESTIONS_NL : SUGGESTIONS_EN;
     const discoverItems = useMemo(() => pickDiscoverItems(locale), [locale]);
+    const metaTitle =
+        result !== null
+            ? `${result.prompt} | vraagwagen.nl`
+            : t('pages.query.heading');
+    const metaDescription =
+        result?.presentation?.explanation ??
+        result?.plan.explanation ??
+        t('pages.query.metaDescription');
+    const metaUrl =
+        typeof window !== 'undefined' ? window.location.href : undefined;
 
     // Screen readers can't see the result swap in, so announce the high-level
     // status politely. Errors already surface through the toast's own live
@@ -260,7 +276,67 @@ function QueryPageInner({
 
     return (
         <>
-            <Head title={t('pages.query.title')} />
+            <Head title={metaTitle}>
+                <meta
+                    head-key="description"
+                    name="description"
+                    content={metaDescription}
+                />
+                <meta
+                    head-key="og:title"
+                    property="og:title"
+                    content={metaTitle}
+                />
+                <meta
+                    head-key="og:description"
+                    property="og:description"
+                    content={metaDescription}
+                />
+                <meta
+                    head-key="og:type"
+                    property="og:type"
+                    content={result !== null ? 'article' : 'website'}
+                />
+                {metaUrl && (
+                    <>
+                        <link
+                            head-key="canonical"
+                            rel="canonical"
+                            href={metaUrl}
+                        />
+                        <meta
+                            head-key="og:url"
+                            property="og:url"
+                            content={metaUrl}
+                        />
+                    </>
+                )}
+                <meta
+                    head-key="og:image"
+                    property="og:image"
+                    content="/apple-touch-icon.png"
+                />
+                <meta
+                    head-key="twitter:card"
+                    name="twitter:card"
+                    content="summary_large_image"
+                />
+                <meta
+                    head-key="twitter:title"
+                    name="twitter:title"
+                    content={metaTitle}
+                />
+                <meta
+                    head-key="twitter:description"
+                    name="twitter:description"
+                    content={metaDescription}
+                />
+                <meta
+                    head-key="twitter:image"
+                    name="twitter:image"
+                    content="/apple-touch-icon.png"
+                />
+            </Head>
             <div className="rdw-app relative isolate flex min-h-screen flex-col overflow-x-hidden bg-background text-foreground">
                 <div className="rdw-bg" aria-hidden="true" />
                 <div className="rdw-grid" aria-hidden="true" />
@@ -349,7 +425,14 @@ function QueryPageInner({
 
                         {!loading && error && (
                             <ResultPanel query={prompt}>
-                                <ErrorView error={error} />
+                                <ErrorView
+                                    error={{
+                                        ...error,
+                                        onRetry: () => {
+                                            void submit();
+                                        },
+                                    }}
+                                />
                             </ResultPanel>
                         )}
                     </div>
