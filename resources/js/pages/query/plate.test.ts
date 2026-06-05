@@ -89,10 +89,29 @@ describe('extractPlateFromText', () => {
         expect(extractPlateFromText('kenteken GT486N graag')).toBe('GT-486-N');
     });
 
+    it('finds a plate typed with spaces between the groups', () => {
+        expect(extractPlateFromText('kenteken GT 486 N')).toBe('GT-486-N');
+    });
+
     it('returns null when no plate is present', () => {
         expect(
             extractPlateFromText('How many Teslas are registered?'),
         ).toBeNull();
         expect(extractPlateFromText('')).toBeNull();
+    });
+
+    it('does not mistake a word plus a year for a plate', () => {
+        expect(
+            extractPlateFromText(
+                'Volkswagen Golf-tenaamstellingen per maand in 2024',
+            ),
+        ).toBeNull();
+        expect(extractPlateFromText('hoeveel campers sinds 2010?')).toBeNull();
+        expect(extractPlateFromText('alles van na 2020 graag')).toBeNull();
+    });
+
+    it('still finds a plate whose digits happen to read as a year', () => {
+        expect(extractPlateFromText('kenteken IN2024')).toBe('IN-20-24');
+        expect(extractPlateFromText('kenteken IN-20-24')).toBe('IN-20-24');
     });
 });

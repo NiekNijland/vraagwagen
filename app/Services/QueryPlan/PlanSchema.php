@@ -40,6 +40,10 @@ final class PlanSchema
                 ->description('Comparison operator.')
                 ->required(),
             'value' => $schema->string()->description(self::valueDescription($vehiclesSchema))->required(),
+            'values' => $schema->array()
+                ->items($schema->string())
+                ->description('Literal value list, only for op `in` with several known values of one field (e.g. Brand in [HONDA, YAMAHA]). Leave empty for every other op, and leave empty when `value` carries a {{qID.Field}} step reference.')
+                ->required(),
         ]);
 
         $aggregateItem = $schema->object([

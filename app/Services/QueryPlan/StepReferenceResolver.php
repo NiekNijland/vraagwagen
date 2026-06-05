@@ -54,6 +54,14 @@ final class StepReferenceResolver
     private function resolveScalarReference(StepReference $reference, QueryLedger $ledger): string
     {
         $rows = $this->referencedRows($reference, $ledger);
+        if ($rows === []) {
+            // Not a program error: the lookup ran fine but matched nothing (an unknown plate, a
+            // brand the registry spells differently). Degrade to a "no matches" answer.
+            throw new EmptyStepReferenceException(sprintf(
+                'Lookup query "%s" matched no vehicles.',
+                $reference->queryId,
+            ));
+        }
         if (count($rows) !== 1) {
             throw new StepReferenceException(sprintf(
                 'Reference "%s" expects query "%s" to return exactly one row, got %d.',
@@ -65,7 +73,9 @@ final class StepReferenceResolver
 
         $value = $this->columnValue($rows[0], $reference);
         if ($value === null) {
-            throw new StepReferenceException(sprintf(
+            // The vehicle exists but the referenced field is unregistered — data absence,
+            // not a malformed program.
+            throw new EmptyStepReferenceException(sprintf(
                 'Column "%s" of query "%s" is null.',
                 $reference->field,
                 $reference->queryId,
@@ -82,9 +92,8 @@ final class StepReferenceResolver
     {
         $rows = $this->referencedRows($reference, $ledger);
         if ($rows === []) {
-            throw new StepReferenceException(sprintf(
-                'Reference "%s" expects query "%s" to return at least one row.',
-                $reference->token(),
+            throw new EmptyStepReferenceException(sprintf(
+                'Lookup query "%s" matched no vehicles.',
                 $reference->queryId,
             ));
         }
@@ -116,7 +125,7 @@ final class StepReferenceResolver
         }
 
         if ($values === []) {
-            throw new StepReferenceException(sprintf(
+            throw new EmptyStepReferenceException(sprintf(
                 'Column "%s" of query "%s" is null on every row.',
                 $reference->field,
                 $reference->queryId,

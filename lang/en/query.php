@@ -18,6 +18,7 @@ return [
 
     'refusal' => [
         'too_broad' => 'That matches too many vehicles to combine across datasets. Narrow it down — for example by a specific model, year, or a less common brand.',
+        'no_matches' => 'No vehicle matching the question was found — check the license plate or brand name.',
     ],
 
 ];

@@ -71,17 +71,21 @@ export function ResultView({
                 <FollowUpChips items={followUps} onPick={onPickFollowUp} />
             )}
 
-            <ResultToolbar result={result} locale={locale} />
-
-            {result.slug !== undefined && (
-                <FeedbackPanel
-                    key={result.slug}
-                    slug={result.slug}
-                    rating={result.rating}
-                    comment={result.comment}
-                    onChange={onRatingChange}
-                />
-            )}
+            <ResultToolbar
+                result={result}
+                locale={locale}
+                feedback={
+                    result.slug !== undefined ? (
+                        <FeedbackPanel
+                            key={result.slug}
+                            slug={result.slug}
+                            rating={result.rating}
+                            comment={result.comment}
+                            onChange={onRatingChange}
+                        />
+                    ) : null
+                }
+            />
 
             {!isUnsupported && (
                 <ResultDisclosures result={result} locale={locale} />
@@ -215,13 +219,15 @@ function UsageLine({
     );
 }
 
-// Toolbar (share, csv, json).
+// Toolbar: inline feedback prompt on the left, share/csv/json on the right.
 function ResultToolbar({
     result,
     locale,
+    feedback,
 }: {
     result: QueryResult;
     locale: string;
+    feedback?: React.ReactNode;
 }) {
     const { t } = useTranslation();
     const [, copy] = useClipboard();
@@ -230,53 +236,56 @@ function ResultToolbar({
         result.slug !== undefined ? buildShareUrl(locale, result.slug) : null;
 
     return (
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
-            {shareUrl && (
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                        const ok = await copy(shareUrl);
-
-                        if (ok) {
-                            toast.success(t('pages.query.shareCopied'));
-                        } else {
-                            toast.error(t('pages.query.shareFailed'));
-                        }
-                    }}
-                >
-                    <Share2 className="h-3 w-3" />
-                    {t('pages.query.share')}
-                </Button>
-            )}
-
-            {hasRows && (
-                <>
+        <div className="flex flex-wrap items-start gap-2 border-t pt-3">
+            {feedback}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+                {shareUrl && (
                     <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() =>
-                            downloadRows(result.rows, 'csv', result.prompt)
-                        }
+                        onClick={async () => {
+                            const ok = await copy(shareUrl);
+
+                            if (ok) {
+                                toast.success(t('pages.query.shareCopied'));
+                            } else {
+                                toast.error(t('pages.query.shareFailed'));
+                            }
+                        }}
                     >
-                        <Download className="h-3 w-3" />
-                        {t('pages.query.exportCsv')}
+                        <Share2 className="h-3 w-3" />
+                        {t('pages.query.share')}
                     </Button>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                            downloadRows(result.rows, 'json', result.prompt)
-                        }
-                    >
-                        <Download className="h-3 w-3" />
-                        {t('pages.query.exportJson')}
-                    </Button>
-                </>
-            )}
+                )}
+
+                {hasRows && (
+                    <>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                                downloadRows(result.rows, 'csv', result.prompt)
+                            }
+                        >
+                            <Download className="h-3 w-3" />
+                            {t('pages.query.exportCsv')}
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                                downloadRows(result.rows, 'json', result.prompt)
+                            }
+                        >
+                            <Download className="h-3 w-3" />
+                            {t('pages.query.exportJson')}
+                        </Button>
+                    </>
+                )}
+            </div>
         </div>
     );
 }

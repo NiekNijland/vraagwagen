@@ -165,18 +165,20 @@ final class RunNaturalLanguageQueryTest extends TestCase
 
     public function test_treats_an_unresolvable_step_reference_as_a_malformed_program(): void
     {
-        // q1 returns no rows, so {{q1.Brand}} has no value to substitute → StepReferenceException.
-        // The question is usually answerable and the model just botched the program, so this surfaces
-        // as a malformed-program error (the controller's "try rephrasing" 422), not a fake refusal.
+        // q1 returns several rows, so {{q1.Brand}} has no single value to substitute →
+        // StepReferenceException. The question is usually answerable and the model just botched the
+        // program (a lookup must be single-row), so this surfaces as a malformed-program error (the
+        // controller's "try rephrasing" 422), not a fake refusal. An *empty* lookup is different —
+        // that degrades to a no-matches refusal, covered below.
         $this->fakeProgram([
             'queries' => [
                 [
                     'id' => 'q1',
                     'dataset' => 'RegisteredVehicles',
-                    'where' => [['field' => 'LicensePlate', 'op' => 'eq', 'value' => 'NOPLATE']],
+                    'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => 'KAWASAKI']],
                     'select' => ['Brand'],
                     'groupBy' => [], 'aggregates' => [], 'orderBy' => [],
-                    'limit' => 1, 'display' => 'record', 'explanation' => '',
+                    'limit' => 2, 'display' => 'table', 'explanation' => '',
                 ],
                 [
                     'id' => 'q2',
@@ -195,7 +197,7 @@ final class RunNaturalLanguageQueryTest extends TestCase
             ],
         ]);
 
-        $action = $this->actionFor([[]]);
+        $action = $this->actionFor([[['merk' => 'KAWASAKI'], ['merk' => 'KAWASAKI']]]);
 
         // A genuine refusal carries a reason + suggestions; a botched derive/reference is a malformed
         // program, so it raises rather than masquerading as a confident "out of scope" answer.
@@ -301,6 +303,140 @@ final class RunNaturalLanguageQueryTest extends TestCase
         self::assertCount(2, $result->steps);
         // The lookup is still forced to fetch one past the cap, even though it came back complete.
         self::assertSame(StepReferenceResolver::LIST_LIMIT + 1, $result->steps[0]->plan->limit);
+    }
+
+    public function test_short_circuits_a_refusal_presentation_without_running_its_queries(): void
+    {
+        // The model sometimes attaches a real, runnable query to an unsupported presentation.
+        // Presenting its rows next to the refusal explanation would show a confident answer to a
+        // question it just declined — the refusal must win and nothing may hit RDW.
+        $this->fakeProgram([
+            'queries' => [[
+                'id' => 'q1',
+                'dataset' => 'RegisteredVehicles',
+                'where' => [['field' => 'VehicleType', 'op' => 'eq', 'value' => 'Motorfiets']],
+                'select' => [], 'groupBy' => [],
+                'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+                'orderBy' => [], 'limit' => null, 'display' => 'count',
+                'explanation' => 'Counts motorcycles.',
+            ]],
+            'presentation' => [
+                'resultRef' => 'q1',
+                'display' => 'unsupported',
+                'derive' => null,
+                'explanation' => 'The registry records no theft data.',
+                'refusal' => ['reason' => 'no_such_data', 'suggestions' => ['How many motorcycles are registered?']],
+            ],
+        ]);
+
+        // An empty RDW queue: any executed query would throw from the mock handler.
+        $action = $this->actionFor([]);
+
+        $result = $action->execute('How many motorcycles were stolen in 2023?', Locale::English);
+
+        self::assertSame(DisplayHint::Unsupported, $result->plan->display);
+        self::assertNotNull($result->presentation);
+        self::assertSame(DisplayHint::Unsupported, $result->presentation->display);
+        self::assertSame('The registry records no theft data.', $result->presentation->explanation);
+        self::assertNotNull($result->presentation->refusal);
+        self::assertSame(RefusalReason::NoSuchData, $result->presentation->refusal->reason);
+        self::assertSame(['How many motorcycles are registered?'], $result->presentation->refusal->suggestions);
+        self::assertSame([], $result->steps);
+        self::assertSame([], $result->rows);
+    }
+
+    public function test_degrades_an_empty_lookup_to_a_no_matches_refusal(): void
+    {
+        $this->fakeProgram([
+            'queries' => [
+                [
+                    'id' => 'q1',
+                    'dataset' => 'RegisteredVehicles',
+                    'where' => [['field' => 'LicensePlate', 'op' => 'eq', 'value' => 'ZZ999Z']],
+                    'select' => ['Brand'],
+                    'groupBy' => [], 'aggregates' => [], 'orderBy' => [],
+                    'limit' => 1, 'display' => 'record', 'explanation' => '',
+                ],
+                [
+                    'id' => 'q2',
+                    'dataset' => 'RegisteredVehicles',
+                    'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => '{{q1.Brand}}']],
+                    'select' => [], 'groupBy' => [],
+                    'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+                    'orderBy' => [], 'limit' => null, 'display' => 'count', 'explanation' => '',
+                ],
+            ],
+            'presentation' => [
+                'resultRef' => 'q2',
+                'display' => 'count',
+                'derive' => null,
+                'explanation' => '',
+            ],
+        ]);
+
+        // The plate lookup matches nothing; resolving q2's reference degrades to a refusal
+        // instead of surfacing a malformed-program error for a perfectly fine question.
+        $action = $this->actionFor([[]]);
+
+        $result = $action->execute('How many vehicles share a brand with plate ZZ-999-Z?', Locale::English);
+
+        self::assertSame(DisplayHint::Unsupported, $result->plan->display);
+        self::assertNotNull($result->presentation);
+        self::assertNotNull($result->presentation->refusal);
+        self::assertSame(RefusalReason::NoSuchData, $result->presentation->refusal->reason);
+
+        $expected = __('query.refusal.no_matches', [], Locale::English->value);
+        self::assertIsString($expected);
+        self::assertSame($expected, $result->presentation->explanation);
+    }
+
+    public function test_substitutes_step_reference_tokens_in_follow_ups(): void
+    {
+        $this->fakeProgram([
+            'queries' => [
+                [
+                    'id' => 'q1',
+                    'dataset' => 'RegisteredVehicles',
+                    'where' => [['field' => 'LicensePlate', 'op' => 'eq', 'value' => '03MBN6']],
+                    'select' => ['Brand'],
+                    'groupBy' => [], 'aggregates' => [], 'orderBy' => [],
+                    'limit' => 1, 'display' => 'record', 'explanation' => '',
+                ],
+                [
+                    'id' => 'q2',
+                    'dataset' => 'RegisteredVehicles',
+                    'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => '{{q1.Brand}}']],
+                    'select' => [], 'groupBy' => [],
+                    'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+                    'orderBy' => [], 'limit' => null, 'display' => 'count', 'explanation' => '',
+                ],
+            ],
+            'presentation' => [
+                'resultRef' => 'q2',
+                'display' => 'count',
+                'derive' => null,
+                'explanation' => 'Counts the brand.',
+                'followUps' => [
+                    'How many {{q1.Brand}} motorcycles are registered per year?',
+                    'What about {{q9.Brand}}?',
+                ],
+            ],
+        ]);
+
+        $action = $this->actionFor([
+            [['merk' => 'KAWASAKI']],
+            [['n' => '87778']],
+        ]);
+
+        $result = $action->execute('How many motorcycles share a brand with 03-MBN-6?', Locale::English);
+
+        self::assertNotNull($result->presentation);
+        // The resolvable token is substituted with the executed step's value; the follow-up whose
+        // token cannot resolve is dropped rather than leaked to the user as a raw template.
+        self::assertSame(
+            ['How many KAWASAKI motorcycles are registered per year?'],
+            $result->presentation->followUps,
+        );
     }
 
     public function test_estimates_cost_from_response_usage(): void

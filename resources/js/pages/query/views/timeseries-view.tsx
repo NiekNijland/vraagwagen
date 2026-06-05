@@ -128,9 +128,14 @@ export function TimeseriesView({
         />
     );
 
+    // The hover cursor is a rectangle on a bar chart and a vertical line on an
+    // area chart; both get a faint brand-orange treatment instead of the
+    // default grey block.
     const tooltip = (
+        cursor: React.ComponentProps<typeof ChartTooltip>['cursor'],
+    ) => (
         <ChartTooltip
-            cursor={{ stroke: 'var(--chart-1)', strokeOpacity: 0.3 }}
+            cursor={cursor}
             content={
                 // "dot" keeps the period header above the value row; with "line"
                 // the single-series label nests and gets dropped by the formatter.
@@ -163,7 +168,7 @@ export function TimeseriesView({
                     <CartesianGrid vertical={false} strokeDasharray="3 3" />
                     {xAxis}
                     {yAxis}
-                    {tooltip}
+                    {tooltip({ fill: 'var(--chart-1)', fillOpacity: 0.07 })}
                     <Bar
                         dataKey="value"
                         fill="var(--chart-1)"
@@ -203,7 +208,7 @@ export function TimeseriesView({
                 <CartesianGrid vertical={false} strokeDasharray="3 3" />
                 {xAxis}
                 {yAxis}
-                {tooltip}
+                {tooltip({ stroke: 'var(--chart-1)', strokeOpacity: 0.3 })}
                 <Area
                     type="monotone"
                     dataKey="value"

@@ -182,7 +182,7 @@ final class QueryControllerTest extends TestCase
         QueryProgramAgent::assertPrompted(fn (): bool => true);
     }
 
-    public function test_run_reports_a_localized_malformed_error_when_a_reference_cannot_resolve(): void
+    public function test_run_degrades_an_empty_lookup_to_a_localized_no_matches_refusal(): void
     {
         $program = [
             'queries' => [
@@ -209,9 +209,9 @@ final class QueryControllerTest extends TestCase
             ],
         ];
 
-        // q1 returns no rows, so {{q1.Brand}} cannot resolve: a botched program, not a refusal.
-        // The question ("how many of my model?") is answerable, so the controller asks the user to
-        // rephrase (422) rather than claiming a confident, misleading "unsupported" answer.
+        // q1 returns no rows, so {{q1.Brand}} has nothing to substitute. The plate simply doesn't
+        // exist — the program was fine — so this degrades to a localized "no matches" refusal
+        // instead of a malformed-program 422 asking the user to rephrase a perfectly good question.
         $emptyRows = fn (): Psr7Response => new Psr7Response(
             200, ['Content-Type' => 'application/json'], json_encode([], JSON_THROW_ON_ERROR),
         );
@@ -220,15 +220,18 @@ final class QueryControllerTest extends TestCase
         $this->fakeRdwWithResponse($emptyRows());
 
         $this->postJson(route('rdw.query.run'), ['prompt' => 'How many of my model? XX-XX-XX'])
-            ->assertStatus(422)
-            ->assertJsonPath('error', 'The generated query was malformed. Try rephrasing your question.');
+            ->assertOk()
+            ->assertJsonPath('displayHint', 'unsupported')
+            ->assertJsonPath('presentation.refusal.reason', 'no_such_data')
+            ->assertJsonPath('presentation.explanation', 'No vehicle matching the question was found — check the license plate or brand name.');
 
         $this->fakeProgram($program);
         $this->fakeRdwWithResponse($emptyRows());
 
         $this->postJson(route('rdw.query.run'), ['prompt' => 'Hoeveel van mijn model? XX-XX-XX'], ['Accept-Language' => 'nl'])
-            ->assertStatus(422)
-            ->assertJsonPath('error', 'De gegenereerde query was onjuist opgebouwd. Probeer je vraag anders te formuleren.');
+            ->assertOk()
+            ->assertJsonPath('displayHint', 'unsupported')
+            ->assertJsonPath('presentation.explanation', 'Er is geen voertuig gevonden dat aan de vraag voldoet — controleer het kenteken of de merknaam.');
     }
 
     public function test_run_computes_a_group_share_figure_from_one_grouped_query(): void

@@ -6,6 +6,7 @@ namespace Tests\Unit\Services\QueryPlan;
 
 use App\Services\QueryPlan\CrossDatasetOverflowException;
 use App\Services\QueryPlan\DisplayHint;
+use App\Services\QueryPlan\EmptyStepReferenceException;
 use App\Services\QueryPlan\LedgerEntry;
 use App\Services\QueryPlan\Plan;
 use App\Services\QueryPlan\QueryLedger;
@@ -47,6 +48,16 @@ final class StepReferenceResolverTest extends TestCase
         self::assertSame('TOYOTA', $resolved->where[0]->value);
     }
 
+    public function test_passes_a_literal_in_list_through_untouched(): void
+    {
+        $resolved = (new StepReferenceResolver)->resolve(
+            $this->plan([new WhereClause('Brand', WhereOp::In, '', ['HONDA', 'YAMAHA'])]),
+            new QueryLedger,
+        );
+
+        self::assertSame(['HONDA', 'YAMAHA'], $resolved->where[0]->values);
+    }
+
     public function test_throws_when_referenced_query_is_missing(): void
     {
         $this->expectException(StepReferenceException::class);
@@ -57,9 +68,9 @@ final class StepReferenceResolverTest extends TestCase
         );
     }
 
-    public function test_throws_when_referenced_query_returned_no_rows(): void
+    public function test_treats_an_empty_scalar_lookup_as_a_no_matches_case(): void
     {
-        $this->expectException(StepReferenceException::class);
+        $this->expectException(EmptyStepReferenceException::class);
 
         (new StepReferenceResolver)->resolve(
             $this->plan([new WhereClause('Brand', WhereOp::Equals, '{{q1.Brand}}')]),
@@ -87,9 +98,9 @@ final class StepReferenceResolverTest extends TestCase
         );
     }
 
-    public function test_throws_when_referenced_value_is_null(): void
+    public function test_treats_a_null_referenced_value_as_a_no_matches_case(): void
     {
-        $this->expectException(StepReferenceException::class);
+        $this->expectException(EmptyStepReferenceException::class);
 
         (new StepReferenceResolver)->resolve(
             $this->plan([new WhereClause('Brand', WhereOp::Equals, '{{q1.Brand}}')]),
@@ -150,9 +161,9 @@ final class StepReferenceResolverTest extends TestCase
         );
     }
 
-    public function test_in_op_throws_when_lookup_is_empty(): void
+    public function test_in_op_treats_an_empty_lookup_as_a_no_matches_case(): void
     {
-        $this->expectException(StepReferenceException::class);
+        $this->expectException(EmptyStepReferenceException::class);
 
         (new StepReferenceResolver)->resolve(
             $this->plan([new WhereClause('LicensePlate', WhereOp::In, '{{q1.LicensePlate}}')]),

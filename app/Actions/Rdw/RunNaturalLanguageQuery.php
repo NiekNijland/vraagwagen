@@ -14,6 +14,7 @@ use App\Services\QueryPlan\Derive;
 use App\Services\QueryPlan\Derived;
 use App\Services\QueryPlan\DeriveOp;
 use App\Services\QueryPlan\DisplayHint;
+use App\Services\QueryPlan\EmptyStepReferenceException;
 use App\Services\QueryPlan\LedgerEntry;
 use App\Services\QueryPlan\Plan;
 use App\Services\QueryPlan\PlanRunner;
@@ -55,6 +56,18 @@ class RunNaturalLanguageQuery
         $estimatedCost = $this->costEstimator->estimate($model, $response->usage);
 
         $ledger = new QueryLedger;
+
+        // A refusal must short-circuit before anything runs: the model sometimes attaches real
+        // queries to an unsupported presentation, and presenting their rows next to a refusal
+        // explanation shows the user a confident answer to a question it just declined.
+        if ($program->presentation->display === DisplayHint::Unsupported) {
+            return $this->unsupported(
+                $ledger, $locale, $model, $tokens, $estimatedCost,
+                $program->presentation->explanation !== '' ? $program->presentation->explanation : null,
+                $program->presentation->refusal,
+            );
+        }
+
         $lookupIds = $this->lookupQueryIds($program);
 
         try {
@@ -81,6 +94,16 @@ class RunNaturalLanguageQuery
                 $ledger, $locale, $model, $tokens, $estimatedCost,
                 is_string($tooBroad) ? $tooBroad : null,
                 new Refusal(RefusalReason::TooBroad),
+            );
+        } catch (EmptyStepReferenceException) {
+            // A lookup matched nothing (unknown plate, brand spelled differently, unregistered
+            // field) — the question was fine, the registry just holds no data for it.
+            $noMatches = __('query.refusal.no_matches', [], $locale->value);
+
+            return $this->unsupported(
+                $ledger, $locale, $model, $tokens, $estimatedCost,
+                is_string($noMatches) ? $noMatches : null,
+                new Refusal(RefusalReason::NoSuchData),
             );
         } catch (StepReferenceException|DerivationException $e) {
             // A malformed multi-query program: a derive operand that wasn't a scalar, a reference
@@ -149,7 +172,7 @@ class RunNaturalLanguageQuery
             derive: $presentation->derive,
             explanation: $presentation->explanation,
             refusal: $presentation->refusal,
-            followUps: $presentation->followUps,
+            followUps: $this->resolveFollowUps($presentation->followUps, $ledger),
         );
 
         return new QueryResult(
@@ -164,6 +187,42 @@ class RunNaturalLanguageQuery
             presentation: $presentation,
             derived: $derived,
         );
+    }
+
+    /**
+     * Substitute `{{qID.Field}}` tokens the model embeds in follow-up questions with the resolved
+     * value from the executed step ("{{q1.Brand}}" → "KAWASAKI"). A follow-up whose token cannot
+     * be resolved is dropped — leaking a raw template token to the user is worse than one fewer chip.
+     *
+     * @param  list<string>  $followUps
+     * @return list<string>
+     */
+    private function resolveFollowUps(array $followUps, QueryLedger $ledger): array
+    {
+        $resolved = [];
+        foreach ($followUps as $followUp) {
+            $failed = false;
+            $substituted = (string) preg_replace_callback(
+                '/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*([A-Za-z][A-Za-z0-9_]*)\s*\}\}/',
+                function (array $matches) use ($ledger, &$failed): string {
+                    $value = $ledger->get($matches[1])?->result->rows[0][$matches[2]] ?? null;
+                    if ($value === null || is_array($value)) {
+                        $failed = true;
+
+                        return '';
+                    }
+
+                    return (string) $value;
+                },
+                $followUp,
+            );
+
+            if (! $failed) {
+                $resolved[] = $substituted;
+            }
+        }
+
+        return $resolved;
     }
 
     private function presentedEntry(Presentation $presentation, QueryLedger $ledger): LedgerEntry

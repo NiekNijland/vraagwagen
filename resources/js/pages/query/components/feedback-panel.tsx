@@ -50,17 +50,17 @@ export function FeedbackPanel({
     };
 
     return (
-        <div className="flex flex-col gap-2 rounded-[4px] border bg-card/40 p-3 text-xs">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 grow flex-col gap-2 text-xs">
+            <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">
                     {t('pages.query.feedbackPrompt')}
                 </span>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
                     <Button
                         type="button"
-                        variant={rating === 'up' ? 'default' : 'outline'}
+                        variant={rating === 'up' ? 'default' : 'ghost'}
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-7 w-7"
                         disabled={submitting}
                         onClick={() =>
                             void submitFeedback('up', commentDraft || null)
@@ -71,9 +71,9 @@ export function FeedbackPanel({
                     </Button>
                     <Button
                         type="button"
-                        variant={rating === 'down' ? 'default' : 'outline'}
+                        variant={rating === 'down' ? 'default' : 'ghost'}
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-7 w-7"
                         disabled={submitting}
                         onClick={() =>
                             void submitFeedback('down', commentDraft || null)

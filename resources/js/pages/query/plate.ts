@@ -80,6 +80,12 @@ export function splitPlateLines(formatted: string): [string, string] {
 // same plate). Anything wider than that is sentence text, never a plate.
 const MAX_PLATE_TOKENS = 3;
 
+// No sidecode has a digit group longer than three, so a standalone token of
+// four or more digits can never be a single plate group — it is a year or
+// other number from sentence text. Without this guard "per maand in 2024"
+// merges into IN-20-24 (sidecode 1).
+const YEAR_LIKE_TOKEN = /^\d{4,}$/;
+
 export function extractPlateFromText(text: string): string | null {
     // Split on whitespace only — a space is a token boundary, never part of a
     // plate. (detectPlate still strips dashes inside a token, so "GT-486-N"
@@ -94,9 +100,13 @@ export function extractPlateFromText(text: string): string | null {
             size <= MAX_PLATE_TOKENS && start + size <= tokens.length;
             size++
         ) {
-            const plate = detectPlate(
-                tokens.slice(start, start + size).join(''),
-            );
+            const run = tokens.slice(start, start + size);
+
+            if (size > 1 && run.some((token) => YEAR_LIKE_TOKEN.test(token))) {
+                continue;
+            }
+
+            const plate = detectPlate(run.join(''));
 
             if (plate !== null) {
                 return formatPlate(plate);

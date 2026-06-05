@@ -224,11 +224,21 @@ final class PlanFactory
 
         $this->assertCommercialNameUsesContains($field, $op, $value);
 
+        // An `in` clause is either a literal list or a step reference — anything else would only
+        // surface later as an opaque assembler error, so reject it here with the actual problem.
+        if ($op === WhereOp::In && $values === [] && StepReference::tryParse($value) === null) {
+            throw new InvalidArgumentException(sprintf(
+                'WhereOp::In on field "%s" needs a non-empty `values` list or a {{qID.Field}} step reference in `value`.',
+                $field,
+            ));
+        }
+
         return new WhereClause(
             field: $field,
             op: $op,
             value: $value,
-            values: $values,
+            // `values` only means something for `in`; the model sometimes stuffs it elsewhere.
+            values: $op === WhereOp::In ? $values : [],
         );
     }
 

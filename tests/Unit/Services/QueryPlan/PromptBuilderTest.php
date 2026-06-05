@@ -356,6 +356,69 @@ final class PromptBuilderTest extends TestCase
         }
     }
 
+    public function test_prompt_lists_the_full_vehicle_type_vocabulary(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        // The package vocabulary undercounts VehicleType (5 of 15 values); the prompt overrides it
+        // so sidecar motorcycles and trikes are addressable as VehicleType filters.
+        self::assertStringContainsString('Motorfiets met zijspan', $prompt);
+        self::assertStringContainsString('Driewielig motorrijtuig', $prompt);
+    }
+
+    public function test_prompt_requires_the_vehicle_type_filter_on_every_query_of_the_program(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('VehicleType eq Motorfiets', $prompt);
+        self::assertStringContainsString('on **every** `RegisteredVehicles` query in the program', $prompt);
+    }
+
+    public function test_prompt_warns_about_brand_spelling_variants(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('HARLEY DAVIDSON', $prompt);
+        self::assertStringContainsString('Brand contains HARLEY DAVIDSON', $prompt);
+    }
+
+    public function test_prompt_documents_the_literal_in_list_form(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('Brand in [HONDA, YAMAHA]', $prompt);
+        self::assertStringContainsString('Never pack a comma-joined string into `value`', $prompt);
+    }
+
+    public function test_prompt_refuses_motorcycle_colour_questions(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('does not register motorcycle colours', $prompt);
+        self::assertStringContainsString('N.v.t.', $prompt);
+    }
+
+    public function test_prompt_defaults_trend_questions_to_first_admission_date(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('default to `FirstAdmissionDate`', $prompt);
+    }
+
+    public function test_prompt_refuses_location_questions(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('no city, municipality or province data', $prompt);
+    }
+
+    public function test_prompt_forbids_presenting_whole_dataset_figures_for_a_named_vehicle_type(): void
+    {
+        $prompt = $this->builder()->systemPrompt(Locale::English);
+
+        self::assertStringContainsString('never present a whole-dataset figure as if it covered only that type', $prompt);
+    }
+
     private function builder(): PromptBuilder
     {
         return new PromptBuilder(new SchemaRegistry);

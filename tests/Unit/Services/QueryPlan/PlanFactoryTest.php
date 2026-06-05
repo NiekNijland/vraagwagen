@@ -592,6 +592,54 @@ final class PlanFactoryTest extends TestCase
         self::assertSame(WhereOp::Contains, $plan->where[0]->op);
     }
 
+    public function test_accepts_a_literal_values_list_for_the_in_op(): void
+    {
+        $plan = $this->factory()->fromArray([
+            'where' => [['field' => 'Brand', 'op' => 'in', 'value' => '', 'values' => ['HONDA', 'YAMAHA']]],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'display' => 'count',
+        ], TargetDataset::RegisteredVehicles);
+
+        self::assertSame(WhereOp::In, $plan->where[0]->op);
+        self::assertSame(['HONDA', 'YAMAHA'], $plan->where[0]->values);
+    }
+
+    public function test_accepts_a_step_reference_for_the_in_op_without_values(): void
+    {
+        $plan = $this->factory()->fromArray([
+            'where' => [['field' => 'LicensePlate', 'op' => 'in', 'value' => '{{q1.LicensePlate}}', 'values' => []]],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'display' => 'count',
+        ], TargetDataset::RegisteredVehicleFuels);
+
+        self::assertSame('{{q1.LicensePlate}}', $plan->where[0]->value);
+        self::assertSame([], $plan->where[0]->values);
+    }
+
+    public function test_rejects_an_in_op_with_neither_values_nor_a_step_reference(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('WhereOp::In on field "Brand" needs a non-empty `values` list');
+
+        $this->factory()->fromArray([
+            'where' => [['field' => 'Brand', 'op' => 'in', 'value' => 'HONDA, YAMAHA', 'values' => []]],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'display' => 'count',
+        ], TargetDataset::RegisteredVehicles);
+    }
+
+    public function test_drops_a_stray_values_list_on_a_non_in_op(): void
+    {
+        $plan = $this->factory()->fromArray([
+            'where' => [['field' => 'Brand', 'op' => 'eq', 'value' => 'HONDA', 'values' => ['YAMAHA']]],
+            'aggregates' => [['fn' => 'count', 'field' => '*', 'alias' => 'n']],
+            'display' => 'count',
+        ], TargetDataset::RegisteredVehicles);
+
+        self::assertSame('HONDA', $plan->where[0]->value);
+        self::assertSame([], $plan->where[0]->values);
+    }
+
     private function factory(): PlanFactory
     {
         return new PlanFactory(new SchemaRegistry);
