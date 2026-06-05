@@ -254,7 +254,7 @@ Program:
 # Output rules
 
 - Fill every query-level plan field (`where`, `select`, `groupBy`, `aggregates`, `orderBy`, `limit`, `display`, `explanation`) on every query; use empty arrays for query sections that don't apply.
-- Inside each `where` clause, emit only the value carrier that actually applies: for scalar operators (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `startsWith`) set `value` and omit `values`; for a literal `in [...]` list set `values` and omit `value`; for `in {{qID.Field}}` set `value` and omit `values`.
+- Inside each `where` clause, always emit both schema keys: for scalar operators (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `startsWith`) set `value` and set `values` to `null`; for a literal `in [...]` list set `values` and set `value` to `null`; for `in {{qID.Field}}` set `value` and set `values` to `null`.
 - Set `limit` to a number **only** when the answer is a bounded set of rows: a fixed-size row list (`table`), a single record (`record` → 1), or an explicit top-N ranking (`bars` → 1 for "most common", else the N asked for / 25). For every complete breakdown (`timeseries`, `histogram`, `stacked_bars`, `pie`) and for `count` / `stats`, set `limit: null` — a cap there silently drops rows, leaving the answer incomplete. RDW returns at most 1000 rows when `limit` is null, which is all the protection a breakdown needs.
 - Use the smallest number of queries that answers the question.
 - `explanation` is one short sentence, written in {$explanationLanguage}, and never contains a computed number.

@@ -39,10 +39,15 @@ final class PlanSchema
                 ->enum(array_map(static fn (WhereOp $o): string => $o->value, WhereOp::cases()))
                 ->description('Comparison operator.')
                 ->required(),
-            'value' => $schema->string()->description(self::valueDescription($vehiclesSchema)),
+            'value' => $schema->string()
+                ->nullable()
+                ->description(self::valueDescription($vehiclesSchema).' Required by the provider schema. Set this for scalar operators and for `in {{qID.Field}}`; otherwise set it to null.')
+                ->required(),
             'values' => $schema->array()
                 ->items($schema->string())
-                ->description('Literal value list, only for op `in` with several known values of one field (e.g. Brand in [HONDA, YAMAHA]). Leave empty for every other op, and leave empty when `value` carries a {{qID.Field}} step reference.'),
+                ->nullable()
+                ->description('Literal value list, only for op `in` with several known values of one field (e.g. Brand in [HONDA, YAMAHA]). Required by the provider schema: set this array for literal `in [...]`, otherwise set it to null.')
+                ->required(),
         ]);
 
         $aggregateItem = $schema->object([

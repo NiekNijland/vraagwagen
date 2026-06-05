@@ -399,13 +399,13 @@ final class PromptBuilderTest extends TestCase
         self::assertStringContainsString('Never pack a comma-joined string into `value`', $prompt);
     }
 
-    public function test_prompt_says_where_clauses_must_emit_only_the_relevant_value_carrier(): void
+    public function test_prompt_says_where_clauses_must_emit_both_keys_and_null_the_unused_carrier(): void
     {
         $prompt = $this->builder()->systemPrompt(Locale::English);
 
-        self::assertStringContainsString('emit only the value carrier that actually applies', $prompt);
-        self::assertStringContainsString('set `value` and omit `values`', $prompt);
-        self::assertStringContainsString('set `values` and omit `value`', $prompt);
+        self::assertStringContainsString('always emit both schema keys', $prompt);
+        self::assertStringContainsString('set `values` to `null`', $prompt);
+        self::assertStringContainsString('set `value` to `null`', $prompt);
     }
 
     public function test_prompt_refuses_motorcycle_colour_questions(): void

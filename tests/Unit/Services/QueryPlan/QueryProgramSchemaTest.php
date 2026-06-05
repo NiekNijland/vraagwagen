@@ -59,7 +59,7 @@ final class QueryProgramSchemaTest extends TestCase
         self::assertContains('dataset', $schema['properties']['queries']['items']['required']);
     }
 
-    public function test_where_clauses_do_not_require_both_value_carriers(): void
+    public function test_where_clauses_require_both_value_carriers_but_allow_null_for_the_unused_one(): void
     {
         $built = QueryProgramSchema::build(new JsonSchemaTypeFactory);
 
@@ -68,9 +68,11 @@ final class QueryProgramSchemaTest extends TestCase
 
         self::assertContains('field', $whereItem['required']);
         self::assertContains('op', $whereItem['required']);
-        self::assertNotContains('value', $whereItem['required']);
-        self::assertNotContains('values', $whereItem['required']);
+        self::assertContains('value', $whereItem['required']);
+        self::assertContains('values', $whereItem['required']);
         self::assertArrayHasKey('value', $whereItem['properties']);
         self::assertArrayHasKey('values', $whereItem['properties']);
+        self::assertSame(['string', 'null'], $whereItem['properties']['value']['type']);
+        self::assertSame(['array', 'null'], $whereItem['properties']['values']['type']);
     }
 }
