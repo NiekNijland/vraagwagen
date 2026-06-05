@@ -24,8 +24,8 @@ final class RateLimitSettingsTest extends TestCase
         config()->set('vraagwagen.rate_limit.per_minute', 12);
         config()->set('vraagwagen.rate_limit.per_day_global', 99);
 
-        $this->assertSame(12, $this->settings->perMinute());
-        $this->assertSame(99, $this->settings->perDayGlobal());
+        self::assertSame(12, $this->settings->perMinute());
+        self::assertSame(99, $this->settings->perDayGlobal());
     }
 
     public function test_override_wins_over_config_default(): void
@@ -34,25 +34,29 @@ final class RateLimitSettingsTest extends TestCase
 
         $this->settings->update(['per_minute' => 3]);
 
-        $this->assertSame(3, $this->settings->perMinute());
-        $this->assertSame('rate_limit.per_minute', Setting::query()->firstOrFail()->key);
+        self::assertSame(3, $this->settings->perMinute());
+
+        $setting = Setting::query()->firstOrFail();
+        assert($setting instanceof Setting);
+
+        self::assertSame('rate_limit.per_minute', $setting->key);
     }
 
     public function test_update_invalidates_the_cached_overrides(): void
     {
         // Prime the cache with "no overrides".
-        $this->assertSame((int) config('vraagwagen.rate_limit.per_day_ip'), $this->settings->perDayIp());
+        self::assertSame((int) config('vraagwagen.rate_limit.per_day_ip'), $this->settings->perDayIp());
 
         $this->settings->update(['per_day_ip' => 5]);
 
-        $this->assertSame(5, $this->settings->perDayIp());
+        self::assertSame(5, $this->settings->perDayIp());
     }
 
     public function test_update_ignores_unknown_keys(): void
     {
         $this->settings->update(['nonsense' => 1]);
 
-        $this->assertSame(0, Setting::query()->count());
+        self::assertSame(0, Setting::query()->get()->count());
     }
 
     public function test_all_reports_value_source_and_default(): void
@@ -63,8 +67,8 @@ final class RateLimitSettingsTest extends TestCase
 
         $all = $this->settings->all();
 
-        $this->assertSame(['value' => 4, 'overridden' => true, 'default' => 10], $all['per_minute']);
-        $this->assertFalse($all['per_day_global']['overridden']);
+        self::assertSame(['value' => 4, 'overridden' => true, 'default' => 10], $all['per_minute']);
+        self::assertFalse($all['per_day_global']['overridden']);
     }
 
     public function test_clear_override_restores_the_default(): void
@@ -74,7 +78,7 @@ final class RateLimitSettingsTest extends TestCase
 
         $this->settings->clearOverride('per_minute');
 
-        $this->assertSame(10, $this->settings->perMinute());
-        $this->assertSame(0, Setting::query()->count());
+        self::assertSame(10, $this->settings->perMinute());
+        self::assertSame(0, Setting::query()->get()->count());
     }
 }

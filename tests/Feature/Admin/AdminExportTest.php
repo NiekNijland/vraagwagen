@@ -30,10 +30,10 @@ final class AdminExportTest extends TestCase
 
         $csv = $response->streamedContent();
 
-        $this->assertStringContainsString('created_at,slug,locale,prompt', $csv);
-        $this->assertStringContainsString('first prompt', $csv);
-        $this->assertStringContainsString('second prompt', $csv);
-        $this->assertStringContainsString('down', $csv);
+        self::assertStringContainsString('created_at,slug,locale,prompt', $csv);
+        self::assertStringContainsString('first prompt', $csv);
+        self::assertStringContainsString('second prompt', $csv);
+        self::assertStringContainsString('down', $csv);
     }
 
     public function test_queries_export_respects_filters(): void
@@ -43,8 +43,8 @@ final class AdminExportTest extends TestCase
 
         $csv = $this->get(route('admin.queries.export', ['search' => 'tesla']))->streamedContent();
 
-        $this->assertStringContainsString('tesla question', $csv);
-        $this->assertStringNotContainsString('porsche question', $csv);
+        self::assertStringContainsString('tesla question', $csv);
+        self::assertStringNotContainsString('porsche question', $csv);
     }
 
     public function test_feedback_export_only_includes_rated_runs(): void
@@ -59,8 +59,8 @@ final class AdminExportTest extends TestCase
 
         $csv = $response->streamedContent();
 
-        $this->assertStringContainsString('rated prompt', $csv);
-        $this->assertStringContainsString('top', $csv);
-        $this->assertStringNotContainsString('unrated prompt', $csv);
+        self::assertStringContainsString('rated prompt', $csv);
+        self::assertStringContainsString('top', $csv);
+        self::assertStringNotContainsString('unrated prompt', $csv);
     }
 }

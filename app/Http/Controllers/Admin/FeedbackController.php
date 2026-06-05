@@ -22,21 +22,24 @@ final class FeedbackController extends Controller
     {
         $rating = $this->validatedRating($request);
 
-        // laravel-mongodb's orderBy() only accepts string directions; orderByDesc() passes an enum.
         $runs = $this->ratedQuery($rating)
             ->orderBy('rated_at', 'desc')
             ->paginate(self::PER_PAGE)
             ->withQueryString()
-            ->through(static fn (QueryRun $run): array => [
-                'id' => $run->id,
-                'slug' => $run->slug,
-                'prompt' => $run->prompt,
-                'locale' => $run->locale,
-                'rating' => $run->rating?->value,
-                'comment' => $run->comment,
-                'ratedAt' => $run->rated_at?->toIso8601String(),
-                'createdAt' => $run->created_at->toIso8601String(),
-            ]);
+            ->through(static function ($run): array {
+                assert($run instanceof QueryRun);
+
+                return [
+                    'id' => $run->id,
+                    'slug' => $run->slug,
+                    'prompt' => $run->prompt,
+                    'locale' => $run->locale,
+                    'rating' => $run->rating?->value,
+                    'comment' => $run->comment,
+                    'ratedAt' => $run->rated_at?->toIso8601String(),
+                    'createdAt' => $run->created_at->toIso8601String(),
+                ];
+            });
 
         return Inertia::render('admin/feedback/index', [
             'runs' => $runs,
@@ -54,7 +57,13 @@ final class FeedbackController extends Controller
 
             fputcsv($out, ['rated_at', 'rating', 'slug', 'locale', 'prompt', 'comment']);
 
-            foreach ($this->ratedQuery($rating)->orderBy('rated_at', 'desc')->cursor() as $run) {
+            foreach (
+                $this->ratedQuery($rating)
+                    ->orderBy('rated_at', 'desc')
+                    ->cursor() as $run
+            ) {
+                assert($run instanceof QueryRun);
+
                 fputcsv($out, [
                     $run->rated_at?->toIso8601String(),
                     $run->rating?->value,
@@ -74,7 +83,7 @@ final class FeedbackController extends Controller
      */
     private function ratedQuery(?string $rating): Builder
     {
-        $query = QueryRun::query()->whereNotNull('rating');
+        $query = QueryRun::query()->where('rating', '!=', null);
 
         if (is_string($rating)) {
             $query->where('rating', $rating);

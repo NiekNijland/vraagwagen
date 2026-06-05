@@ -15,7 +15,15 @@ final class MakeAdmin extends Command
 {
     public function handle(): int
     {
-        $email = (string) $this->argument('email');
+        $emailArgument = $this->argument('email');
+
+        if (! is_string($emailArgument)) {
+            $this->error('The email argument must be a string.');
+
+            return self::FAILURE;
+        }
+
+        $email = $emailArgument;
 
         $user = User::query()->where('email', $email)->first();
 

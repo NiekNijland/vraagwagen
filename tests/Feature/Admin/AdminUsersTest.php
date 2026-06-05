@@ -23,7 +23,7 @@ final class AdminUsersTest extends TestCase
         $admin = User::factory()->admin()->createOne(['email' => 'admin@example.com']);
         $user = User::factory()->createOne(['email' => 'user@example.com']);
 
-        QueryRun::factory()->count(2)->create(['user_id' => (string) $user->id]);
+        QueryRun::factory()->count(2)->create(['user_id' => $user->id]);
         QueryRun::factory()->createOne(['user_id' => null]);
 
         $this->actingAs($admin);

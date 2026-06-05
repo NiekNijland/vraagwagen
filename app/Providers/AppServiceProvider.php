@@ -60,7 +60,7 @@ class AppServiceProvider extends ServiceProvider
 
             return [
                 Limit::perMinute($settings->perMinute())->by((string) $request->ip()),
-                Limit::perDay($settings->perDayIp())->by('rdw-query:ip:'.$request->ip()),
+                Limit::perDay($settings->perDayIp())->by('rdw-query:ip:' . $request->ip()),
                 Limit::perDay($settings->perDayGlobal())->by('rdw-query:global'),
             ];
         });

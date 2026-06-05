@@ -17,7 +17,8 @@ class RateLimitInspector
     public function __construct(
         private readonly RateLimiter $limiter,
         private readonly RateLimitSettings $settings,
-    ) {}
+    ) {
+    }
 
     /**
      * @return array{used: int, limit: int, remaining: int, resetsInSeconds: int}
@@ -60,7 +61,7 @@ class RateLimitInspector
      */
     private function usage(string $key, int $limit): array
     {
-        $used = $this->limiter->attempts($key);
+        $used = (int) $this->limiter->attempts($key);
 
         return [
             'used' => $used,
@@ -72,21 +73,21 @@ class RateLimitInspector
 
     private static function globalKey(): string
     {
-        return md5('rdw-query'.'rdw-query:global');
+        return md5('rdw-query' . 'rdw-query:global');
     }
 
     private static function ipMinuteKey(string $ip): string
     {
-        return md5('rdw-query'.$ip);
+        return md5('rdw-query' . $ip);
     }
 
     private static function ipDayKey(string $ip): string
     {
-        return md5('rdw-query'.'rdw-query:ip:'.$ip);
+        return md5('rdw-query' . 'rdw-query:ip:' . $ip);
     }
 
     private static function feedbackKey(string $ip): string
     {
-        return md5('rdw-feedback'.$ip);
+        return md5('rdw-feedback' . $ip);
     }
 }

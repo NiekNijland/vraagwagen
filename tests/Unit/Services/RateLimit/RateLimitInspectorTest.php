@@ -24,24 +24,24 @@ final class RateLimitInspectorTest extends TestCase
         config()->set('vraagwagen.rate_limit.per_day_global', 50);
 
         // ThrottleRequests stores named-limiter hits under md5($limiterName . $limit->key).
-        RateLimiter::hit(md5('rdw-query'.'rdw-query:global'), 86_400);
-        RateLimiter::hit(md5('rdw-query'.'rdw-query:global'), 86_400);
+        RateLimiter::hit(md5('rdw-query' . 'rdw-query:global'), 86_400);
+        RateLimiter::hit(md5('rdw-query' . 'rdw-query:global'), 86_400);
 
         $usage = $this->inspector->globalUsage();
 
-        $this->assertSame(2, $usage['used']);
-        $this->assertSame(50, $usage['limit']);
-        $this->assertSame(48, $usage['remaining']);
-        $this->assertGreaterThan(0, $usage['resetsInSeconds']);
+        self::assertSame(2, $usage['used']);
+        self::assertSame(50, $usage['limit']);
+        self::assertSame(48, $usage['remaining']);
+        self::assertGreaterThan(0, $usage['resetsInSeconds']);
     }
 
     public function test_reset_global_clears_the_counter(): void
     {
-        RateLimiter::hit(md5('rdw-query'.'rdw-query:global'), 86_400);
+        RateLimiter::hit(md5('rdw-query' . 'rdw-query:global'), 86_400);
 
         $this->inspector->resetGlobal();
 
-        $this->assertSame(0, $this->inspector->globalUsage()['used']);
+        self::assertSame(0, $this->inspector->globalUsage()['used']);
     }
 
     public function test_ip_usage_covers_minute_day_and_feedback_keys(): void
@@ -51,32 +51,32 @@ final class RateLimitInspectorTest extends TestCase
         config()->set('vraagwagen.rate_limit.feedback_per_minute', 30);
 
         $ip = '10.0.0.1';
-        RateLimiter::hit(md5('rdw-query'.$ip), 60);
-        RateLimiter::hit(md5('rdw-query'.'rdw-query:ip:'.$ip), 86_400);
-        RateLimiter::hit(md5('rdw-query'.'rdw-query:ip:'.$ip), 86_400);
-        RateLimiter::hit(md5('rdw-feedback'.$ip), 60);
+        RateLimiter::hit(md5('rdw-query' . $ip), 60);
+        RateLimiter::hit(md5('rdw-query' . 'rdw-query:ip:' . $ip), 86_400);
+        RateLimiter::hit(md5('rdw-query' . 'rdw-query:ip:' . $ip), 86_400);
+        RateLimiter::hit(md5('rdw-feedback' . $ip), 60);
 
         $usage = $this->inspector->ipUsage($ip);
 
-        $this->assertSame(1, $usage['perMinute']['used']);
-        $this->assertSame(2, $usage['perDay']['used']);
-        $this->assertSame(23, $usage['perDay']['remaining']);
-        $this->assertSame(1, $usage['feedbackPerMinute']['used']);
+        self::assertSame(1, $usage['perMinute']['used']);
+        self::assertSame(2, $usage['perDay']['used']);
+        self::assertSame(23, $usage['perDay']['remaining']);
+        self::assertSame(1, $usage['feedbackPerMinute']['used']);
     }
 
     public function test_reset_ip_clears_all_ip_scoped_counters(): void
     {
         $ip = '10.0.0.1';
-        RateLimiter::hit(md5('rdw-query'.$ip), 60);
-        RateLimiter::hit(md5('rdw-query'.'rdw-query:ip:'.$ip), 86_400);
-        RateLimiter::hit(md5('rdw-feedback'.$ip), 60);
+        RateLimiter::hit(md5('rdw-query' . $ip), 60);
+        RateLimiter::hit(md5('rdw-query' . 'rdw-query:ip:' . $ip), 86_400);
+        RateLimiter::hit(md5('rdw-feedback' . $ip), 60);
 
         $this->inspector->resetIp($ip);
 
         $usage = $this->inspector->ipUsage($ip);
 
-        $this->assertSame(0, $usage['perMinute']['used']);
-        $this->assertSame(0, $usage['perDay']['used']);
-        $this->assertSame(0, $usage['feedbackPerMinute']['used']);
+        self::assertSame(0, $usage['perMinute']['used']);
+        self::assertSame(0, $usage['perDay']['used']);
+        self::assertSame(0, $usage['feedbackPerMinute']['used']);
     }
 }

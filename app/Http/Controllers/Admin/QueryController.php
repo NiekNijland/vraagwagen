@@ -30,7 +30,11 @@ final class QueryController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(self::PER_PAGE)
             ->withQueryString()
-            ->through(fn (QueryRun $run): array => $this->serializeListItem($run));
+            ->through(function ($run): array {
+                assert($run instanceof QueryRun);
+
+                return $this->serializeListItem($run);
+            });
 
         return Inertia::render('admin/queries/index', [
             'runs' => $runs,
@@ -66,6 +70,8 @@ final class QueryController extends Controller
             ]);
 
             foreach ($this->filteredQuery($filters)->orderBy('created_at', 'desc')->cursor() as $run) {
+                assert($run instanceof QueryRun);
+
                 fputcsv($out, [
                     $run->created_at->toIso8601String(),
                     $run->slug,

@@ -69,7 +69,7 @@ final class AdminRateLimitTest extends TestCase
             'feedback_per_minute' => 30,
         ])->assertRedirect(route('admin.rate-limits.index'));
 
-        $this->assertSame(4, Setting::query()->count());
+        self::assertSame(4, Setting::query()->get()->count());
 
         // The lowered per-minute override now gates the public query endpoint.
         $this->postJson(route('rdw.query.run'), ['prompt' => 'count vehicles'])->assertOk();

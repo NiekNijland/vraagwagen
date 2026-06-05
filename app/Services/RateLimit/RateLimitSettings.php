@@ -6,6 +6,7 @@ namespace App\Services\RateLimit;
 
 use App\Models\Setting;
 use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Effective rate-limit values: an admin-set override from the settings collection wins over the
@@ -20,7 +21,9 @@ class RateLimitSettings
 
     public const array KEYS = ['per_minute', 'per_day_ip', 'per_day_global', 'feedback_per_minute'];
 
-    public function __construct(private readonly Repository $cache) {}
+    public function __construct(private readonly Repository $cache)
+    {
+    }
 
     public function perMinute(): int
     {
@@ -64,7 +67,7 @@ class RateLimitSettings
     }
 
     /**
-     * @param  array<string, int>  $values
+     * @param array<string, int> $values
      */
     public function update(array $values): void
     {
@@ -106,9 +109,12 @@ class RateLimitSettings
             return $cached;
         }
 
-        $overrides = Setting::query()
+        /** @var Collection<int, Setting> $settings */
+        $settings = Setting::query()
             ->where('key', 'like', 'rate_limit.%')
-            ->get()
+            ->get();
+
+        $overrides = $settings
             ->mapWithKeys(static fn (Setting $setting): array => [
                 substr($setting->key, strlen('rate_limit.')) => (int) $setting->value,
             ])
