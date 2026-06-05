@@ -14,7 +14,7 @@ use Inertia\Inertia;
 Route::get('/', static function (Request $request) {
     $query = $request->getQueryString();
 
-    return redirect('/' . app()->getLocale() . ($query !== null && $query !== '' ? '?' . $query : ''));
+    return redirect('/'.app()->getLocale().($query !== null && $query !== '' ? '?'.$query : ''));
 });
 
 Route::prefix('{locale}')
@@ -81,4 +81,5 @@ Route::middleware(['auth'])->group(function (): void {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
 });
 
-require __DIR__ . '/settings.php';
+require __DIR__.'/settings.php';
+require __DIR__.'/admin.php';

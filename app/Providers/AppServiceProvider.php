@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Services\QueryPlan\CostEstimator;
 use App\Services\QueryPlan\SocrataStorageTypes;
+use App\Services\RateLimit\RateLimitSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -50,17 +51,22 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Public RDW endpoint: per-IP burst + per-IP daily cap + global daily cap protect the OpenAI budget.
+     * Values come from RateLimitSettings so admin-set overrides apply without a deploy.
      */
     protected function configureRateLimiting(): void
     {
-        RateLimiter::for('rdw-query', fn (Request $request): array => [
-            Limit::perMinute((int) config('vraagwagen.rate_limit.per_minute'))->by((string) $request->ip()),
-            Limit::perDay((int) config('vraagwagen.rate_limit.per_day_ip'))->by('rdw-query:ip:' . $request->ip()),
-            Limit::perDay((int) config('vraagwagen.rate_limit.per_day_global'))->by('rdw-query:global'),
-        ]);
+        RateLimiter::for('rdw-query', static function (Request $request): array {
+            $settings = app(RateLimitSettings::class);
 
-        RateLimiter::for('rdw-feedback', fn (Request $request): array => [
-            Limit::perMinute((int) config('vraagwagen.rate_limit.feedback_per_minute'))->by((string) $request->ip()),
+            return [
+                Limit::perMinute($settings->perMinute())->by((string) $request->ip()),
+                Limit::perDay($settings->perDayIp())->by('rdw-query:ip:'.$request->ip()),
+                Limit::perDay($settings->perDayGlobal())->by('rdw-query:global'),
+            ];
+        });
+
+        RateLimiter::for('rdw-feedback', static fn (Request $request): array => [
+            Limit::perMinute(app(RateLimitSettings::class)->feedbackPerMinute())->by((string) $request->ip()),
         ]);
     }
 

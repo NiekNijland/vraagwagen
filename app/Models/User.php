@@ -26,10 +26,11 @@ use MongoDB\Laravel\Auth\User as Authenticatable;
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
  * @property Locale|null $locale
+ * @property bool $is_admin
  *
  * @method static User create(array<string, mixed> $attributes = [])
  */
-#[Fillable(['name', 'email', 'password', 'locale'])]
+#[Fillable(['name', 'email', 'password', 'locale', 'is_admin'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements HasLocalePreference
 {
@@ -46,6 +47,7 @@ class User extends Authenticatable implements HasLocalePreference
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'locale' => Locale::class,
+            'is_admin' => 'boolean',
         ];
     }
 

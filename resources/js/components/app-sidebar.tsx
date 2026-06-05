@@ -1,6 +1,7 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { BookOpen, FolderGit2, LayoutGrid } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
+import { NavAdmin } from '@/components/nav-admin';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -19,6 +20,7 @@ import type { NavItem } from '@/types';
 
 export function AppSidebar() {
     const { t } = useTranslation();
+    const { auth } = usePage().props;
 
     const mainNavItems: NavItem[] = [
         {
@@ -57,6 +59,7 @@ export function AppSidebar() {
 
             <SidebarContent>
                 <NavMain items={mainNavItems} />
+                {auth.user?.is_admin && <NavAdmin />}
             </SidebarContent>
 
             <SidebarFooter>
