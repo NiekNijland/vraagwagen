@@ -75,7 +75,7 @@ final class FeedbackController extends Controller
             }
 
             fclose($out);
-        }, 'feedback-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv']);
+        }, 'feedback-' . now()->format('Y-m-d') . '.csv', ['Content-Type' => 'text/csv']);
     }
 
     /**

@@ -91,11 +91,11 @@ final class QueryController extends Controller
             }
 
             fclose($out);
-        }, 'queries-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv']);
+        }, 'queries-' . now()->format('Y-m-d') . '.csv', ['Content-Type' => 'text/csv']);
     }
 
     /**
-     * @param  array{search: ?string, rating: ?string, locale: ?string, from: ?string, to: ?string}  $filters
+     * @param array{search: ?string, rating: ?string, locale: ?string, from: ?string, to: ?string} $filters
      * @return Builder<QueryRun>
      */
     private function filteredQuery(array $filters): Builder
@@ -103,7 +103,7 @@ final class QueryController extends Controller
         $query = QueryRun::query();
 
         if (is_string($filters['search']) && $filters['search'] !== '') {
-            $query->where('prompt', 'like', '%'.$filters['search'].'%');
+            $query->where('prompt', 'like', '%' . $filters['search'] . '%');
         }
 
         if (is_string($filters['rating'])) {

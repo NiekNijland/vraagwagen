@@ -61,7 +61,7 @@ final class UserController extends Controller
         $connection = QueryRun::query()->getConnection();
 
         /** @var Collection $collection */
-        $collection = $connection->getCollection((new QueryRun)->getTable());
+        $collection = $connection->getCollection((new QueryRun())->getTable());
 
         /** @var Traversable<array-key, array<string, mixed>> $cursor */
         $cursor = $collection->aggregate([
