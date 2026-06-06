@@ -2,7 +2,6 @@ import { Head } from '@inertiajs/react';
 
 import { useTranslation } from '@/hooks/use-translation';
 import { home } from '@/routes';
-
 import { TopBar } from './components/top-bar';
 
 export default function QueryPrivacyPage() {
