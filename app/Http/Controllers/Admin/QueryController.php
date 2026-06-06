@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\QueryFilterRequest;
 use App\Models\QueryRun;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
@@ -26,8 +27,7 @@ final class QueryController extends Controller
 
         // laravel-mongodb's orderBy() only accepts string directions, so avoid orderByDesc()
         // (it passes the base builder's SortDirection enum through, which the driver rejects).
-        $runs = $this->filteredQuery($filters)
-            ->orderBy('created_at', 'desc')
+        $runs = $this->orderedFilteredQuery($filters)
             ->paginate(self::PER_PAGE)
             ->withQueryString()
             ->through(function ($run): array {
@@ -69,9 +69,10 @@ final class QueryController extends Controller
                 'estimated_cost', 'user_id', 'correlation_id',
             ]);
 
-            foreach ($this->filteredQuery($filters)->orderBy('created_at', 'desc')->cursor() as $run) {
-                assert($run instanceof QueryRun);
+            /** @var Collection<int, QueryRun> $runs */
+            $runs = $this->orderedFilteredQuery($filters)->get();
 
+            foreach ($runs as $run) {
                 fputcsv($out, [
                     $run->created_at->toIso8601String(),
                     $run->slug,
@@ -100,6 +101,7 @@ final class QueryController extends Controller
      */
     private function filteredQuery(array $filters): Builder
     {
+        /** @var Builder<QueryRun> $query */
         $query = QueryRun::query();
 
         if (is_string($filters['search']) && $filters['search'] !== '') {
@@ -121,6 +123,20 @@ final class QueryController extends Controller
         if (is_string($filters['to'])) {
             $query->where('created_at', '<=', Carbon::parse($filters['to'])->endOfDay());
         }
+
+        return $query;
+    }
+
+    /**
+     * @param array{search: ?string, rating: ?string, locale: ?string, from: ?string, to: ?string} $filters
+     * @return Builder<QueryRun>
+     */
+    private function orderedFilteredQuery(array $filters): Builder
+    {
+        $query = $this->filteredQuery($filters);
+
+        // @phpstan-ignore-next-line laravel-mongodb exposes orderBy at runtime but PHPStan narrows to the base builder.
+        $query->orderBy('created_at', 'desc');
 
         return $query;
     }

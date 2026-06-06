@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\Rating;
 use App\Http\Controllers\Controller;
 use App\Models\QueryRun;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -22,8 +23,7 @@ final class FeedbackController extends Controller
     {
         $rating = $this->validatedRating($request);
 
-        $runs = $this->ratedQuery($rating)
-            ->orderBy('rated_at', 'desc')
+        $runs = $this->orderedRatedQuery($rating)
             ->paginate(self::PER_PAGE)
             ->withQueryString()
             ->through(static function ($run): array {
@@ -57,13 +57,10 @@ final class FeedbackController extends Controller
 
             fputcsv($out, ['rated_at', 'rating', 'slug', 'locale', 'prompt', 'comment']);
 
-            foreach (
-                $this->ratedQuery($rating)
-                    ->orderBy('rated_at', 'desc')
-                    ->cursor() as $run
-            ) {
-                assert($run instanceof QueryRun);
+            /** @var Collection<int, QueryRun> $runs */
+            $runs = $this->orderedRatedQuery($rating)->get();
 
+            foreach ($runs as $run) {
                 fputcsv($out, [
                     $run->rated_at?->toIso8601String(),
                     $run->rating?->value,
@@ -83,11 +80,25 @@ final class FeedbackController extends Controller
      */
     private function ratedQuery(?string $rating): Builder
     {
+        /** @var Builder<QueryRun> $query */
         $query = QueryRun::query()->where('rating', '!=', null);
 
         if (is_string($rating)) {
             $query->where('rating', $rating);
         }
+
+        return $query;
+    }
+
+    /**
+     * @return Builder<QueryRun>
+     */
+    private function orderedRatedQuery(?string $rating): Builder
+    {
+        $query = $this->ratedQuery($rating);
+
+        // @phpstan-ignore-next-line laravel-mongodb exposes orderBy at runtime but PHPStan narrows to the base builder.
+        $query->orderBy('rated_at', 'desc');
 
         return $query;
     }

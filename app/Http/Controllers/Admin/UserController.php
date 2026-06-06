@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\QueryRun;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use MongoDB\BSON\UTCDateTime;
@@ -23,11 +24,10 @@ final class UserController extends Controller
     {
         $activity = $this->activityByUser();
 
-        $users = User::query()
-            ->orderBy('email')
+        $users = $this->orderedUsersQuery()
             ->paginate(self::PER_PAGE)
             ->withQueryString()
-            ->through(static function (User $user) use ($activity): array {
+            ->through(static function ($user) use ($activity): array {
                 $userActivity = $activity[$user->id] ?? null;
 
                 return [
@@ -35,7 +35,7 @@ final class UserController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     // Most users predate the flag; a missing attribute casts to null, not false.
-                    'isAdmin' => (bool) $user->is_admin,
+                    'isAdmin' => $user->is_admin,
                     'verified' => $user->email_verified_at !== null,
                     'queryCount' => $userActivity['queries'] ?? 0,
                     'lastQueryAt' => $userActivity['lastAt'] ?? null,
@@ -90,5 +90,18 @@ final class UserController extends Controller
         }
 
         return $activity;
+    }
+
+    /**
+     * @return Builder<User>
+     */
+    private function orderedUsersQuery(): Builder
+    {
+        $query = User::query();
+
+        // @phpstan-ignore-next-line laravel-mongodb exposes orderBy at runtime but PHPStan narrows to the base builder.
+        $query->orderBy('email');
+
+        return $query;
     }
 }
