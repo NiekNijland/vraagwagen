@@ -6,7 +6,7 @@ import { renderWithI18n } from '@/test/render';
 import { RecentChips } from './recent-chips';
 
 describe('RecentChips', () => {
-    it('keeps long recent-query lists inside a scrollable area', () => {
+    it('shows only the newest recent queries without an inner scroll area', () => {
         renderWithI18n(
             <RecentChips
                 items={Array.from(
@@ -20,7 +20,10 @@ describe('RecentChips', () => {
 
         const list = screen.getByTestId('recent-chips-list');
 
-        expect(list.className).toContain('max-h-28');
-        expect(list.className).toContain('overflow-y-auto');
+        expect(list.className).not.toContain('max-h-28');
+        expect(list.className).not.toContain('overflow-y-auto');
+        expect(screen.getByText('Recent query 1')).toBeInTheDocument();
+        expect(screen.getByText('Recent query 4')).toBeInTheDocument();
+        expect(screen.queryByText('Recent query 5')).not.toBeInTheDocument();
     });
 });

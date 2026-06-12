@@ -2,6 +2,8 @@ import { Plus } from 'lucide-react';
 
 import { useTranslation } from '@/hooks/use-translation';
 
+const RECENT_CHIPS_VISIBLE_MAX = 4;
+
 // ─── Recent chips ─────────────────────────────────────────────
 export function RecentChips({
     items,
@@ -13,6 +15,7 @@ export function RecentChips({
     onClearAll: () => void;
 }) {
     const { t } = useTranslation();
+    const visibleItems = items.slice(0, RECENT_CHIPS_VISIBLE_MAX);
 
     return (
         <div className="mt-5 flex w-full max-w-[880px] flex-col items-center gap-2">
@@ -30,9 +33,9 @@ export function RecentChips({
             </div>
             <div
                 data-testid="recent-chips-list"
-                className="flex max-h-28 w-full flex-wrap justify-center gap-1.5 overflow-y-auto px-1 sm:max-h-32"
+                className="flex w-full flex-wrap justify-center gap-1.5 px-1"
             >
-                {items.map((q) => (
+                {visibleItems.map((q) => (
                     <RecentChip key={q} question={q} onPick={onPick} />
                 ))}
             </div>
