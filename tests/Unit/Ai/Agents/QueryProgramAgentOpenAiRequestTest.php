@@ -91,4 +91,45 @@ final class QueryProgramAgentOpenAiRequestTest extends TestCase
                 && ($whereItem['additionalProperties'] ?? null) === false;
         });
     }
+
+    public function test_reasoning_model_request_carries_low_effort_and_no_temperature(): void
+    {
+        $this->fakeMinimalResponse('gpt-5.4-nano');
+        Config::set('vraagwagen.llm_model', 'gpt-5.4-nano');
+
+        QueryProgramAgent::make(locale: Locale::Dutch)->ask('hoeveel teslas zijn er?');
+
+        Http::assertSent(fn (Request $request): bool => ($request['reasoning']['effort'] ?? null) === 'low'
+            && ! isset($request['temperature']));
+    }
+
+    public function test_non_reasoning_model_request_carries_zero_temperature_and_no_reasoning(): void
+    {
+        $this->fakeMinimalResponse('gpt-4.1-mini');
+        Config::set('vraagwagen.llm_model', 'gpt-4.1-mini');
+
+        QueryProgramAgent::make(locale: Locale::Dutch)->ask('hoeveel teslas zijn er?');
+
+        Http::assertSent(fn (Request $request): bool => isset($request['temperature'])
+            && (float) $request['temperature'] === 0.0
+            && ! isset($request['reasoning']));
+    }
+
+    private function fakeMinimalResponse(string $model): void
+    {
+        Config::set('ai.providers.openai.key', 'test-key');
+        Config::set('ai.providers.openai.url', 'https://api.openai.com/v1');
+
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'id' => 'resp_test',
+                'model' => $model,
+                'output' => [[
+                    'type' => 'message',
+                    'content' => [['type' => 'output_text', 'text' => '{}']],
+                ]],
+                'usage' => ['input_tokens' => 1, 'output_tokens' => 1, 'total_tokens' => 2],
+            ], 200),
+        ]);
+    }
 }

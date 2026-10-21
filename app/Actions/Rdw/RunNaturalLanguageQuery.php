@@ -40,7 +40,7 @@ class RunNaturalLanguageQuery
 {
     private const int PROGRAM_CACHE_TTL_SECONDS = 86_400;
 
-    private const string PROGRAM_CACHE_VERSION = 'v3';
+    private const string PROGRAM_CACHE_VERSION = 'v4';
 
     public function __construct(
         private readonly PlanRunner $planRunner,

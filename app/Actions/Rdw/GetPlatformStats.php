@@ -34,6 +34,8 @@ final readonly class GetPlatformStats
 
     /**
      * @return array{vehicles: int|null, datasets: int, queriesAnswered: int}
+     *
+     * @phpstan-impure
      */
     public function execute(): array
     {

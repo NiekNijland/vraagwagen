@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 return [
-    'llm_model' => env('VRAAGWAGEN_LLM_MODEL', 'gpt-4.1-mini'),
+    'llm_model' => env('VRAAGWAGEN_LLM_MODEL', 'gpt-5.4-nano'),
     'rdw_app_token' => env('RDW_APP_TOKEN'),
     'prompt' => [
         // Hard cap on the natural-language prompt the user submits, in characters. Bounds the
@@ -29,6 +29,16 @@ return [
             'input' => 0.40,
             'cached_input' => 0.10,
             'output' => 1.60,
+        ],
+        'gpt-5-nano' => [
+            'input' => 0.05,
+            'cached_input' => 0.005,
+            'output' => 0.40,
+        ],
+        'gpt-5.4-nano' => [
+            'input' => 0.20,
+            'cached_input' => 0.02,
+            'output' => 1.25,
         ],
         'gpt-4.1' => [
             'input' => 2.00,

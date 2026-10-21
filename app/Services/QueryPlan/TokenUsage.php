@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Services\QueryPlan;
 
 use App\Models\QueryRun;
-use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\Data\TextUsage;
 
 final readonly class TokenUsage
 {
@@ -17,13 +17,16 @@ final readonly class TokenUsage
     ) {
     }
 
-    public static function fromUsage(Usage $usage): self
+    public static function fromUsage(TextUsage $usage): self
     {
+        $cacheRead = $usage->cacheReadInputTokens ?? 0;
+        $thought = $usage->reasoningTokens ?? 0;
+
         return new self(
-            prompt: $usage->promptTokens,
-            completion: $usage->completionTokens,
-            cacheRead: $usage->cacheReadInputTokens,
-            thought: $usage->reasoningTokens,
+            prompt: $usage->inputTokens - $cacheRead,
+            completion: $usage->outputTokens - $thought,
+            cacheRead: $cacheRead,
+            thought: $thought,
         );
     }
 

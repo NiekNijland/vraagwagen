@@ -139,7 +139,6 @@ final class AdminRateLimitTest extends TestCase
     private function mockQueryAction(): void
     {
         $mock = Mockery::mock(RunNaturalLanguageQuery::class);
-        // @phpstan-ignore method.notFound (Mockery fluent API is not statically resolvable)
         $mock->shouldReceive('execute')->andReturn(new QueryResult(
             plan: new Plan(
                 dataset: TargetDataset::RegisteredVehicles,

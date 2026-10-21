@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Services\QueryPlan;
 
 use App\Services\QueryPlan\CostEstimator;
-use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\Data\TextUsage;
 use PHPUnit\Framework\TestCase;
 
 final class CostEstimatorTest extends TestCase
@@ -20,9 +20,9 @@ final class CostEstimatorTest extends TestCase
             ],
         ]);
 
-        $usage = new Usage(
-            promptTokens: 1_000_000,
-            completionTokens: 1_000_000,
+        $usage = new TextUsage(
+            inputTokens: 1_000_000,
+            outputTokens: 1_000_000,
         );
 
         self::assertSame(0.50, $estimator->estimate('gpt-4.1-nano', $usage));
@@ -34,7 +34,7 @@ final class CostEstimatorTest extends TestCase
             'gpt-4.1-nano' => ['input' => 0.10, 'output' => 0.40],
         ]);
 
-        $usage = new Usage(promptTokens: 100, completionTokens: 50);
+        $usage = new TextUsage(inputTokens: 100, outputTokens: 50);
 
         self::assertNull($estimator->estimate('claude-haiku-4-5', $usage));
     }
@@ -45,9 +45,9 @@ final class CostEstimatorTest extends TestCase
             'gpt-4.1-nano' => ['input' => 0.10, 'output' => 0.40],
         ]);
 
-        $usage = new Usage(
-            promptTokens: 1_000_000,
-            completionTokens: 0,
+        $usage = new TextUsage(
+            inputTokens: 1_000_000,
+            outputTokens: 0,
         );
 
         self::assertSame(0.10, $estimator->estimate('gpt-4.1-nano-2025-04-14', $usage));
@@ -59,13 +59,13 @@ final class CostEstimatorTest extends TestCase
             'gpt-4.1-nano' => ['input' => 0.10, 'output' => 0.40],
         ]);
 
-        $usage = new Usage(
-            promptTokens: 500_000,
-            completionTokens: 0,
+        $usage = new TextUsage(
+            inputTokens: 1_000_000,
+            outputTokens: 0,
             cacheReadInputTokens: 500_000,
         );
 
-        // promptTokens is already net of the cache read: 500k fresh @ 0.10 + 500k cached @ 0.10 = 0.10.
+        // inputTokens includes the cache read: 500k fresh @ 0.10 + 500k cached @ 0.10 = 0.10.
         self::assertSame(0.10, $estimator->estimate('gpt-4.1-nano', $usage));
     }
 
@@ -79,13 +79,13 @@ final class CostEstimatorTest extends TestCase
             ],
         ]);
 
-        $usage = new Usage(
-            promptTokens: 500_000,
-            completionTokens: 0,
+        $usage = new TextUsage(
+            inputTokens: 1_000_000,
+            outputTokens: 0,
             cacheReadInputTokens: 500_000,
         );
 
-        // promptTokens is already net of the cache read: 500k fresh @ 0.10 + 500k cached @ 0.025 = 0.0625.
+        // inputTokens includes the cache read: 500k fresh @ 0.10 + 500k cached @ 0.025 = 0.0625.
         self::assertSame(0.0625, $estimator->estimate('gpt-4.1-nano', $usage));
     }
 
@@ -96,7 +96,7 @@ final class CostEstimatorTest extends TestCase
             'gpt-4' => ['input' => 2.50, 'output' => 10.00],
         ]);
 
-        $usage = new Usage(promptTokens: 1_000, completionTokens: 0);
+        $usage = new TextUsage(inputTokens: 1_000, outputTokens: 0);
 
         self::assertNull($estimator->estimate('gpt-4o-2024-11-20', $usage));
         self::assertNull($estimator->estimate('gpt-4.1-nano', $usage));
@@ -110,7 +110,7 @@ final class CostEstimatorTest extends TestCase
             'gpt-4-turbo' => ['input' => 10.00, 'output' => 30.00],
         ]);
 
-        $usage = new Usage(promptTokens: 1_000_000, completionTokens: 0);
+        $usage = new TextUsage(inputTokens: 1_000_000, outputTokens: 0);
 
         // 1M @ 10.00 / 1M = 10.00; the gpt-4-turbo key (longer) wins.
         self::assertSame(10.00, $estimator->estimate('gpt-4-turbo-2024-04-09', $usage));
@@ -122,9 +122,9 @@ final class CostEstimatorTest extends TestCase
             'o1-mini' => ['input' => 3.00, 'output' => 12.00],
         ]);
 
-        $usage = new Usage(
-            promptTokens: 1_000_000,
-            completionTokens: 0,
+        $usage = new TextUsage(
+            inputTokens: 1_000_000,
+            outputTokens: 1_000_000,
             reasoningTokens: 1_000_000,
         );
 
