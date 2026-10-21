@@ -22,7 +22,7 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Ai\Exceptions\RateLimitedException as AiRateLimitedException;
 use Laravel\Ai\Responses\Data\Meta;
-use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\StructuredTextResponse;
 use Mockery;
 use NiekNijland\RDW\Datasets\DatasetId;
@@ -99,7 +99,7 @@ final class QueryControllerTest extends TestCase
                 'display' => 'bars',
                 'explanation' => 'Colors of VWs',
             ],
-            usage: new Usage(promptTokens: 800, completionTokens: 120),
+            usage: new TextUsage(inputTokens: 800, outputTokens: 120),
             model: 'gpt-4.1-nano',
         );
 
@@ -512,7 +512,6 @@ final class QueryControllerTest extends TestCase
     public function test_run_returns_500_with_sanitised_message_for_unexpected_errors(): void
     {
         $mock = Mockery::mock(RunNaturalLanguageQuery::class);
-        // @phpstan-ignore method.notFound (Mockery fluent API is not statically resolvable)
         $mock->shouldReceive('execute')->andThrow(new RuntimeException('boom'));
         $this->app->instance(RunNaturalLanguageQuery::class, $mock);
 
@@ -525,7 +524,6 @@ final class QueryControllerTest extends TestCase
     public function test_run_returns_503_when_the_ai_provider_is_rate_limited(): void
     {
         $mock = Mockery::mock(RunNaturalLanguageQuery::class);
-        // @phpstan-ignore method.notFound (Mockery fluent API is not statically resolvable)
         $mock->shouldReceive('execute')->andThrow(AiRateLimitedException::forProvider('openai'));
         $this->app->instance(RunNaturalLanguageQuery::class, $mock);
 
@@ -549,7 +547,6 @@ final class QueryControllerTest extends TestCase
         $this->fakeRdwWithRows([['n' => '42']]);
 
         $persist = Mockery::mock(PersistQueryRun::class);
-        // @phpstan-ignore method.notFound (Mockery fluent API is not statically resolvable)
         $persist->shouldReceive('execute')->andThrow(new RuntimeException('mongo unavailable'));
         $this->app->instance(PersistQueryRun::class, $persist);
 
@@ -563,7 +560,7 @@ final class QueryControllerTest extends TestCase
     /**
      * @param array<string, mixed> $plan
      */
-    private function fakeQueryPlan(array $plan, ?Usage $usage = null, string $model = 'fake'): void
+    private function fakeQueryPlan(array $plan, ?TextUsage $usage = null, string $model = 'fake'): void
     {
         $this->fakeProgram([
             'queries' => [['id' => 'q1', 'dataset' => 'RegisteredVehicles'] + $plan],
@@ -579,13 +576,13 @@ final class QueryControllerTest extends TestCase
     /**
      * @param array<string, mixed> $program
      */
-    private function fakeProgram(array $program, ?Usage $usage = null, string $model = 'fake'): void
+    private function fakeProgram(array $program, ?TextUsage $usage = null, string $model = 'fake'): void
     {
         QueryProgramAgent::fake([
             new StructuredTextResponse(
                 $program,
                 json_encode($program, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage(),
+                $usage ?? new TextUsage(),
                 new Meta('openai', $model),
             ),
         ]);

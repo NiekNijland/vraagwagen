@@ -1,5 +1,4 @@
-import { Github } from 'lucide-react';
-
+import GithubIcon from '@/components/github-icon';
 import { useTranslation } from '@/hooks/use-translation';
 import { cn } from '@/lib/utils';
 
@@ -76,7 +75,7 @@ export function StatStrip({
                     aria-label="GitHub"
                     className="inline-flex items-center gap-1 text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
                 >
-                    <Github className="h-3 w-3" />
+                    <GithubIcon className="h-3 w-3" />
                     <span>GitHub</span>
                 </a>
                 <span className="text-muted-foreground/40">·</span>

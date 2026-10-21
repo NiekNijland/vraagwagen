@@ -46,11 +46,7 @@ export type Plan = {
 export type QueryRow = Record<string, unknown>;
 
 export type DeriveOp =
-    | 'groupShare'
-    | 'percentage'
-    | 'ratio'
-    | 'difference'
-    | 'sum';
+    'groupShare' | 'percentage' | 'ratio' | 'difference' | 'sum';
 
 /** One executed query in a multi-step program (for the debug pane). */
 export type Step = {
@@ -70,10 +66,7 @@ export type Derived = {
 };
 
 export type RefusalReason =
-    | 'out_of_scope'
-    | 'no_such_data'
-    | 'too_broad'
-    | 'ambiguous';
+    'out_of_scope' | 'no_such_data' | 'too_broad' | 'ambiguous';
 
 /** Why a question could not be answered, plus answerable alternatives to offer the user. */
 export type Refusal = {

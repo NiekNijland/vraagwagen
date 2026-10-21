@@ -29,7 +29,7 @@ use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
 use InvalidArgumentException;
 use Laravel\Ai\Responses\Data\Meta;
-use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\StructuredTextResponse;
 use NiekNijland\RDW\Http\Configuration as RdwConfiguration;
 use NiekNijland\RDW\Http\SocrataClient;
@@ -57,7 +57,7 @@ final class RunNaturalLanguageQueryTest extends TestCase
                 'derive' => null,
                 'explanation' => 'Counts VWs.',
             ],
-        ], usage: new Usage(promptTokens: 800, completionTokens: 120), model: 'gpt-4.1-nano');
+        ], usage: new TextUsage(inputTokens: 800, outputTokens: 120), model: 'gpt-4.1-nano');
 
         $action = $this->actionFor([[['n' => '42']]]);
 
@@ -461,7 +461,7 @@ final class RunNaturalLanguageQueryTest extends TestCase
                 'derive' => null,
                 'explanation' => '',
             ],
-        ], usage: new Usage(promptTokens: 1_000_000, completionTokens: 500_000), model: 'gpt-4.1-nano');
+        ], usage: new TextUsage(inputTokens: 1_000_000, outputTokens: 500_000), model: 'gpt-4.1-nano');
 
         $action = $this->actionFor([[['n' => '1']]]);
 
@@ -491,7 +491,7 @@ final class RunNaturalLanguageQueryTest extends TestCase
                     ],
                 ],
                 json_encode(['cached' => true], JSON_THROW_ON_ERROR),
-                new Usage(promptTokens: 500, completionTokens: 50),
+                new TextUsage(inputTokens: 500, outputTokens: 50),
                 new Meta('openai', 'gpt-4.1-mini'),
             ),
         ])->preventStrayPrompts();
@@ -529,7 +529,7 @@ final class RunNaturalLanguageQueryTest extends TestCase
                     ],
                 ],
                 json_encode(['fresh' => true], JSON_THROW_ON_ERROR),
-                new Usage(promptTokens: 700, completionTokens: 70),
+                new TextUsage(inputTokens: 700, outputTokens: 70),
                 new Meta('openai', 'gpt-4.1-mini'),
             ),
         ])->preventStrayPrompts();
@@ -602,13 +602,13 @@ final class RunNaturalLanguageQueryTest extends TestCase
     /**
      * @param array<string, mixed> $program
      */
-    private function fakeProgram(array $program, ?Usage $usage = null, string $model = 'fake'): void
+    private function fakeProgram(array $program, ?TextUsage $usage = null, string $model = 'fake'): void
     {
         QueryProgramAgent::fake([
             new StructuredTextResponse(
                 $program,
                 json_encode($program, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage(),
+                $usage ?? new TextUsage(),
                 new Meta('openai', $model),
             ),
         ]);

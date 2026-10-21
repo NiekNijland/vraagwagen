@@ -12,7 +12,7 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Laravel\Ai\Responses\Data\Meta;
-use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\StructuredTextResponse;
 use NiekNijland\RDW\Http\Configuration as RdwConfiguration;
 use NiekNijland\RDW\Http\SocrataClient;
@@ -34,7 +34,7 @@ final class QueryRunPersistenceTest extends TestCase
                 'display' => 'count',
                 'explanation' => 'How many VWs',
             ],
-            usage: new Usage(promptTokens: 800, completionTokens: 240, cacheReadInputTokens: 400),
+            usage: new TextUsage(inputTokens: 1_200, outputTokens: 240, cacheReadInputTokens: 400),
             model: 'gpt-4.1-nano',
         );
 
@@ -101,7 +101,7 @@ final class QueryRunPersistenceTest extends TestCase
     /**
      * @param array<string, mixed> $plan
      */
-    private function fakeQueryPlan(array $plan, ?Usage $usage = null, string $model = 'fake'): void
+    private function fakeQueryPlan(array $plan, ?TextUsage $usage = null, string $model = 'fake'): void
     {
         $program = [
             'queries' => [['id' => 'q1', 'dataset' => 'RegisteredVehicles'] + $plan],
@@ -117,7 +117,7 @@ final class QueryRunPersistenceTest extends TestCase
             new StructuredTextResponse(
                 $program,
                 json_encode($program, JSON_THROW_ON_ERROR),
-                $usage ?? new Usage(),
+                $usage ?? new TextUsage(),
                 new Meta('openai', $model),
             ),
         ]);

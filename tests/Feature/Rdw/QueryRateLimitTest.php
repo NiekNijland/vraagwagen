@@ -21,7 +21,6 @@ final class QueryRateLimitTest extends TestCase
 
         // Mock the action so the rate limiter is the only thing gating traffic.
         $mock = Mockery::mock(RunNaturalLanguageQuery::class);
-        // @phpstan-ignore method.notFound (Mockery fluent API is not statically resolvable)
         $mock->shouldReceive('execute')->andReturn(new QueryResult(
             plan: new Plan(
                 dataset: TargetDataset::RegisteredVehicles,

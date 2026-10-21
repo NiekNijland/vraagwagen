@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\QueryPlan;
 
-use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\Data\TextUsage;
 
 final readonly class CostEstimator
 {
@@ -17,27 +17,24 @@ final readonly class CostEstimator
     {
     }
 
-    public function estimate(string $model, Usage $usage): ?float
+    public function estimate(string $model, TextUsage $usage): ?float
     {
         $rates = $this->resolveRates($model);
         if ($rates === null) {
             return null;
         }
 
-        $cacheRead = $usage->cacheReadInputTokens;
-        $freshPromptTokens = $usage->promptTokens;
+        $cacheRead = $usage->cacheReadInputTokens ?? 0;
+        $freshPromptTokens = $usage->inputTokens - $cacheRead;
 
         $inputRate = (float) ($rates['input'] ?? 0);
         // Fall back to the input rate when no cache-read rate is declared.
         $cachedRate = isset($rates['cached_input']) ? (float) $rates['cached_input'] : $inputRate;
         $outputRate = (float) ($rates['output'] ?? 0);
 
-        // Reasoning tokens are billed at the output rate (0 for non-reasoning models).
-        $outputTokens = $usage->completionTokens + $usage->reasoningTokens;
-
         $cost = ($freshPromptTokens * $inputRate)
             + ($cacheRead * $cachedRate)
-            + ($outputTokens * $outputRate);
+            + ($usage->outputTokens * $outputRate);
 
         return $cost / self::RATE_DIVISOR;
     }
